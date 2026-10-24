@@ -58,6 +58,7 @@ Trạng thái “Chờ phản hồi” không chứng minh model đang suy nghĩ
 
 - Kiểm thử trên một máy Windows hiện tại. Không xác nhận máy vật lý thứ hai hoặc thiết bị di động.
 - Kiểm thử extension thật trong Edge với các trang ChatGPT giả lập: gửi một lần, nhận kết quả, bàn giao, chờ reset và tự tiếp tục, giữ bản nháp, công tắc nhớ lựa chọn.
+- Đã đối chiếu DOM của ChatGPT thật trong Chrome: adapter nhận cả cấu trúc `data-message-author-role` cũ và `data-chatgpt-search-unit-key` / `data-talvt-turn-state` mới. Đây là kiểm tra đọc giao diện, chưa phải nghiệm thu gửi thật bằng extension trên tài khoản người dùng.
 - Kiểm thử thời gian dùng đồng hồ giả lập; chưa chờ hết hạn mức tài khoản thật trong 2-3 giờ. Không tuyên bố mọi biến thể giao diện hoặc thông báo ChatGPT đều đã được xác nhận.
 - Source đã kiểm tra API local, CSRF, mã ghép, khôi phục, deadline và migration. Bản Administrator cần cập nhật qua lifecycle có xác nhận Windows; không chép đè mã vào thư mục được bảo vệ.
 

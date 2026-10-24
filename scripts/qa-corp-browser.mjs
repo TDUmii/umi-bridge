@@ -23,7 +23,12 @@ try {
   const b=(await api('workspaces',{name:'MINH HỌA - Lập trình',root:'D:\\SyntheticCorp',chatUrl:'https://chatgpt.com/c/fixture-builder'})).workspace;
   const extension=resolve('extensions/umibridge-corp');
   context=await chromium.launchPersistentContext(join(root,'browser'),{headless:true,channel:process.env.PLAYWRIGHT_CHANNEL || 'msedge',ignoreDefaultArgs:['--disable-extensions'],args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`],viewport:{width:1600,height:1000}});
-  await context.route('https://chatgpt.com/**',route=>route.fulfill({contentType:'text/html',body:fixture(route.request().url().includes('fixture-builder')&&limited)}));
+  await context.route('https://chatgpt.com/**',route=>{
+    const builder=route.request().url().includes('fixture-builder');
+    let html=fixture(builder&&limited);
+    if(builder) html=html.replace("user.dataset.messageAuthorRole='user'", "user.setAttribute('data-chatgpt-search-unit-key','turn:user')").replace("answer.dataset.messageAuthorRole='assistant'", "answer.setAttribute('data-chatgpt-search-unit-key','turn:assistant');turn.setAttribute('data-talvt-turn-state','complete')");
+    return route.fulfill({contentType:'text/html',body:html});
+  });
   context.on('page',page=>{page.on('pageerror',e=>errors.push(e.message));page.on('request',request=>{if(!request.url().startsWith(origin)&&!request.url().startsWith('https://chatgpt.com/')&&!request.url().startsWith('chrome-extension:'))remote.push(request.url());});});
   const boss=await context.newPage();await boss.goto('https://chatgpt.com/c/fixture-boss');
   const builder=await context.newPage();await builder.goto('https://chatgpt.com/c/fixture-builder');
@@ -43,9 +48,9 @@ try {
   await page.locator('#corpRuns time').waitFor();
   await page.evaluate(()=>{const main=document.getElementById('main');main.style.scrollBehavior='auto';main.scrollTop=0;});
   await page.waitForFunction(()=>document.getElementById('main').scrollTop===0);
-  await page.screenshot({path:join(screenshots,'desktop.png'),fullPage:true});
-  await page.setViewportSize({width:1366,height:768});await page.evaluate(()=>document.getElementById('main').scrollTop=0);await page.screenshot({path:join(screenshots,'laptop.png'),fullPage:true});
-  await page.locator('#corpRuns').scrollIntoViewIfNeeded();await page.screenshot({path:join(screenshots,'queue.png'),fullPage:true});
+  if(!process.env.CORP_SKIP_CAPTURES) await page.screenshot({path:join(screenshots,'desktop.png'),fullPage:true});
+  await page.setViewportSize({width:1366,height:768});await page.evaluate(()=>document.getElementById('main').scrollTop=0);if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'laptop.png'),fullPage:true});
+  await page.locator('#corpRuns').scrollIntoViewIfNeeded();if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'queue.png'),fullPage:true});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   const office=page.frameLocator('#corpScene');await office.locator('#roster button').first().click();assert.equal(await office.locator('#detail').isVisible(),true);
   await office.locator('#motion').click();assert.equal(await office.locator('#motion').getAttribute('aria-pressed'),'true');
@@ -53,6 +58,11 @@ try {
   await page.reload();assert.equal(await page.locator('#corpScene').isHidden(),true);await page.locator('#corpOffice').click();
   // Deadline advancement affects only this disposable gateway clock. No real waiting or provider calls.
   limited=false;offset=snapshot.runs[0].steps[1].resetAt-Date.now()+1000;
+  await until(async()=>await builder.evaluate(()=>window.sentCount===1),'resumed send');
+  await builder.locator('[data-talvt-turn-state]').evaluate(el=>el.setAttribute('data-talvt-turn-state','streaming'));
+  await new Promise(resolve=>setTimeout(resolve,8000));
+  assert.notEqual((await api('corp')).runs[0].status,'done','streaming answer must not hand off even with copy button');
+  await builder.locator('[data-talvt-turn-state]').evaluate(el=>el.setAttribute('data-talvt-turn-state','complete'));
   await until(async()=>(await api('corp')).runs[0]?.status==='done','automatic resume after reset');
   assert.equal(await builder.evaluate(()=>window.sentCount),1);
   snapshot=await api('corp');assert.equal(snapshot.runs[0].steps[1].result,'SYNTHETIC_RESULT_1');
