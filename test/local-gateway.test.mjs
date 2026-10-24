@@ -62,6 +62,9 @@ try {
   const registration = { client_name: 'Kiểm tra <script>', redirect_uris: ['https://chatgpt.com/connector_platform/oauth/callback'], token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'] };
 
   assert.deepEqual(await (await request('/health')).json(), { ok: true });
+  const home = await request('/');
+  assert.equal(home.status, 302);
+  assert.equal(home.headers.get('location'), '/admin');
   const metadata = await (await request('/.well-known/oauth-authorization-server')).json();
   const protectedMetadata = await (await request('/.well-known/oauth-protected-resource/mcp')).json();
   assert.equal(metadata.issuer, `${origin}/`);

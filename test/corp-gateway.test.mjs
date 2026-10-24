@@ -12,6 +12,9 @@ test('Corp local API protects writes and browser credentials; dispatch is contro
   t.after(async()=>{await gateway.close();await rm(root,{recursive:true,force:true});});
   const base=`http://127.0.0.1:${gateway.port}`;
   const request=(path,body,headers={})=>fetch(base+path,{method:body===undefined?'GET':'POST',headers:{'x-local-admin':'1',...(body===undefined?{}:{'content-type':'application/json','x-dc-admin-action':'1'}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
+  assert.equal((await fetch(base+'/',{redirect:'manual'})).status,404,'Public root must not expose the dashboard redirect');
+  const home=await fetch(base+'/',{headers:{'x-local-admin':'1'},redirect:'manual'});
+  assert.equal(home.status,302);assert.equal(home.headers.get('location'),'/admin');
   assert.equal((await fetch(base+'/admin/api/corp')).status,404);
   assert.equal((await fetch(base+'/admin/api/usage')).status,404);
   const usage=await (await request('/admin/api/usage?period=all')).json();assert.equal(usage.totals.requests,0);assert.equal(usage.providerReported,null);

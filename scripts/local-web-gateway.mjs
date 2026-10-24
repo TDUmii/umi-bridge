@@ -327,6 +327,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       if (req.headers['x-local-admin'] !== '1' && !directLoopback) return res.sendStatus(404);
       next();
     };
+    app.get('/', localAdmin, (_req, res) => res.redirect('/admin'));
     app.get('/admin', localAdmin, (_req, res) => {
       res.set('Content-Security-Policy', "default-src 'none'; img-src data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'");
       res.type('html').send(renderAdminPage());
@@ -603,7 +604,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.use('/mcp', requireBearerAuth({ verifier: provider, requiredScopes: ['desktop'], expectedResource: resource, resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resource) }));
     const handleMcp = async (req, res) => {
       const initialization = req.body?.method === 'initialize' ? (await readToolContext()).context : undefined;
-      const server = new Server({ name: 'umibridge-sakura-console', version: '0.1.0-beta.24' }, { capabilities: { tools: {}, ...(capabilities.resources ? { resources: {} } : {}) }, instructions: [baseInstructions, initialization?.prompt].filter(Boolean).join('\n\n') });
+      const server = new Server({ name: 'umibridge-sakura-console', version: '0.1.0-beta.25' }, { capabilities: { tools: {}, ...(capabilities.resources ? { resources: {} } : {}) }, instructions: [baseInstructions, initialization?.prompt].filter(Boolean).join('\n\n') });
       const options = { timeout: 120_000 };
       server.setRequestHandler(ListToolsRequestSchema, async () => {
         const { catalog, context } = await readToolContext();

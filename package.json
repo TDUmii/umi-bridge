@@ -1,6 +1,6 @@
 {
   "name": "umibridge-sakura-console",
-  "version": "0.1.0-beta.24",
+  "version": "0.1.0-beta.25",
   "description": "UmiBridge Sakura Console: Windows desktop, file and PowerShell tools for ChatGPT with a private local dashboard.",
   "license": "MIT",
   "type": "module",

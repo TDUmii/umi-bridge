@@ -11,7 +11,7 @@ Cho phép ChatGPT đọc, sửa file, chạy lệnh và điều khiển giao di�
 1. Giải nén bản phát hành vào một thư mục riêng.
 2. Mở **UmiBridge.cmd**. Lần đầu launcher tự chuẩn bị Node.js, Python và bộ Windows tools, cài dependency đã khóa, kiểm tra source và tạo tunnel HTTPS cố định.
 3. Nếu Microsoft Dev Tunnels yêu cầu đăng nhập, chọn GitHub một lần. Những lần sau launcher dùng lại URL, OAuth và mã kết nối đã lưu.
-4. Mở dashboard tại `http://127.0.0.1:43127/admin` để xem trạng thái, endpoint, lịch sử lệnh, token tham chiếu, thiết bị và cài đặt.
+4. Mở `http://127.0.0.1:43127/` để vào dashboard xem trạng thái, endpoint, lịch sử lệnh, token tham chiếu, thiết bị và cài đặt. Đường dẫn `/admin` vẫn truy cập trực tiếp được.
 
 Chỉ cần mở **UmiBridge.cmd** mỗi khi bật máy. Cửa sổ này theo dõi request; gateway và PowerShell worker chạy nền, không mở thêm terminal cho từng lệnh.
 

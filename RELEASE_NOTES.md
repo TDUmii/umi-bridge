@@ -1,4 +1,12 @@
-# UmiBridge Sakura Console - beta.24
+# UmiBridge Sakura Console - beta.25
+
+## Open the dashboard from the local base address
+
+Opening `http://127.0.0.1:43127/` now redirects to `/admin` instead of returning `Cannot GET /`. The local frontend recognizes the root path as a dashboard entry; the existing local-admin guard still protects both routes, including when a saved HTTPS tunnel is configured. Public tunnel requests do not receive the dashboard redirect.
+
+Validation covers direct loopback redirects and the local-admin guard with an HTTPS issuer. The existing `/admin` address remains available.
+
+## Previous beta.24
 
 ## Compact console and usage management
 

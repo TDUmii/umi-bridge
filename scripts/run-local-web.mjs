@@ -75,7 +75,8 @@ try {
     const incomingHost = String(req.headers.host ?? '');
     const localHost = incomingHost === `127.0.0.1:${port}` || incomingHost === `localhost:${port}`;
     if (localOnly && !localHost) { res.writeHead(404); res.end(); return; }
-    const adminPath = String(req.url ?? '').split('?', 1)[0].startsWith('/admin');
+    const pathname = String(req.url ?? '').split('?', 1)[0];
+    const adminPath = pathname === '/' || pathname.startsWith('/admin');
     const headers = { ...req.headers, host };
     for (const name of ['forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-local-admin']) delete headers[name];
     if (localHost && adminPath) headers['x-local-admin'] = '1';
