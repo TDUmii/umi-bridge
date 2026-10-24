@@ -262,7 +262,16 @@ export function parseChatLink(raw) {
   }
   const match = url.pathname.match(/^\/(?:g\/[a-zA-Z0-9_-]+\/)?(?:c|share)\/([a-zA-Z0-9_-]{6,100})\/?$/);
   if (!match) throw new Error('The URL must point to a ChatGPT conversation (/c/...) or shared chat (/share/...).');
-  return { chatId: match[1], chatUrl: url.origin + url.pathname.replace(/\/$/, ''), kind: url.pathname.includes('/share/') ? 'shared' : 'conversation', provider: 'chatgpt' };
+  const projectId = url.pathname.match(/^\/g\/(g-p-[a-f0-9]{32})(?:-[a-zA-Z0-9_-]+)?\//)?.[1];
+  return { chatId: match[1], chatUrl: url.origin + url.pathname.replace(/\/$/, ''), kind: url.pathname.includes('/share/') ? 'shared' : 'conversation', provider: 'chatgpt', ...(projectId ? { projectId } : {}) };
+}
+
+export function parseProjectLink(raw) {
+  let url;
+  try { url = new URL(String(raw).trim()); } catch { throw Error('Use a full ChatGPT Project HTTPS URL.'); }
+  const match = url.pathname.match(/^\/g\/(g-p-[a-f0-9]{32})(?:-[a-zA-Z0-9_-]+)?\/project\/?$/);
+  if (String(raw).length > 500 || url.protocol !== 'https:' || url.hostname !== 'chatgpt.com' || url.username || url.password || url.port || url.search || url.hash || !match) throw Error('Use a ChatGPT Project URL: https://chatgpt.com/g/g-p-.../project');
+  return { kind: 'project', provider: 'chatgpt', projectId: match[1], chatUrl: `https://chatgpt.com/g/${match[1]}/project` };
 }
 
 export async function createChatLinksStore(filePath) {
@@ -276,11 +285,28 @@ export async function createChatLinksStore(filePath) {
     const normalized = win32.normalize(path);
     return /^[a-z]:\\$/i.test(normalized) ? normalized : normalized.replace(/\\+$/, '');
   };
-  const validateWorkspace = item => ({ id: typeof item.id === 'string' && /^[a-zA-Z0-9-]{6,80}$/.test(item.id) ? item.id : randomUUID(),
-    name: String(item.name ?? '').trim().slice(0, 80) || 'Project', root: normalizePath(item.root), ...parseChatLink(item.chatUrl) });
+  const projectChat = (item, projectId) => {
+    const chat = parseChatLink(item.chatUrl);
+    if (chat.kind !== 'conversation' || chat.projectId !== projectId) throw Error('chat_outside_project');
+    return { ...chat, name: String(item.name ?? '').trim().slice(0, 180) || chat.chatId };
+  };
+  const validateWorkspace = item => {
+    let parsed;
+    try { parsed = parseProjectLink(item.chatUrl); } catch { parsed = parseChatLink(item.chatUrl); }
+    const workspace = { id: typeof item.id === 'string' && /^[a-zA-Z0-9-]{6,80}$/.test(item.id) ? item.id : randomUUID(),
+      name: String(item.name ?? '').trim().slice(0, 80) || 'Project', root: normalizePath(item.root), ...parsed };
+    if (parsed.kind === 'project') {
+      workspace.chats = [];
+      for (const chat of (Array.isArray(item.chats) ? item.chats : []).slice(0, 1000)) {
+        try { const valid = projectChat(chat, parsed.projectId); if (!workspace.chats.some(row => row.chatId === valid.chatId)) workspace.chats.push(valid); } catch { /* Never restore a chat from another Project. */ }
+      }
+      workspace.sync = { status: 'pending', requested: randomUUID() };
+    }
+    return workspace;
+  };
   try {
     const stored = JSON.parse(await readFile(filePath, 'utf8'));
-    if (Array.isArray(stored) || stored?.version === 2) {
+    if (Array.isArray(stored) || [2, 3].includes(stored?.version)) {
       for (const item of (Array.isArray(stored?.workspaces) ? stored.workspaces : []).slice(0, 50)) {
         try { workspaces.push(validateWorkspace(item)); } catch { /* Invalid saved scope is never applied. */ }
       }
@@ -296,14 +322,14 @@ export async function createChatLinksStore(filePath) {
   }
   let pendingWrite = Promise.resolve();
   const persist = () => {
-    const snapshot = JSON.stringify({ version: 2, links: [...links.values()], workspaces });
+    const snapshot = JSON.stringify({ version: 3, links: [...links.values()], workspaces });
     const write = () => writeFile(filePath, snapshot, { encoding: 'utf8', mode: 0o600 });
     pendingWrite = pendingWrite.then(write, write);
     return pendingWrite;
   };
   return {
     list() { return [...links.values()]; },
-    workspaces() { return workspaces.map(item => ({ ...item })); },
+    workspaces() { return structuredClone(workspaces); },
     resolve(entries) {
       return entries.flatMap(entry => {
         if (links.has(entry.id)) return [links.get(entry.id)];
@@ -323,9 +349,34 @@ export async function createChatLinksStore(filePath) {
     async addWorkspace(item) {
       if (workspaces.length >= 50) throw new Error('Maximum 50 project groups.');
       const workspace = validateWorkspace({ ...item, id: randomUUID() });
+      if (workspace.kind === 'project' && workspaces.some(row => row.projectId === workspace.projectId && row.kind === 'project')) throw Error('Project already added. Select it in Corp.');
       workspaces.push(workspace);
       await persist();
       return workspace;
+    },
+    async requestProjectSync(id) {
+      const workspace = workspaces.find(item => item.id === id && item.kind === 'project');
+      if (!workspace) throw Error('project_not_found');
+      workspace.sync = { status: 'pending', requested: randomUUID() }; await persist(); return structuredClone(workspace);
+    },
+    async syncProject(input) {
+      const workspace = workspaces.find(item => item.id === input.workspaceId && item.kind === 'project');
+      if (!workspace) throw Error('project_not_found');
+      if (parseProjectLink(input.projectUrl).projectId !== workspace.projectId) throw Error('chat_outside_project');
+      if (input.requested !== workspace.sync.requested) throw Error('stale_project_sync');
+      if (!Array.isArray(input.chats) || input.chats.length > 1000 || !['partial', 'complete', 'unavailable'].includes(input.status)) throw Error('invalid_project_sync');
+      const chats = input.chats.map(item => projectChat(item, workspace.projectId));
+      // Partial/virtualized pages merge observations. Only a completed scan can remove membership.
+      const members = new Map((input.status === 'complete' ? [] : workspace.chats).map(item => [item.chatId, item]));
+      const added = chats.some(chat => !members.has(chat.chatId));
+      for (const chat of chats) members.set(chat.chatId, chat);
+      if (members.size > 1000) throw Error('project_chat_capacity');
+      const next = [...members.values()];
+      const status = input.status === 'partial' && workspace.sync.status === 'complete' && !added ? 'complete' : input.status;
+      if (JSON.stringify(next) !== JSON.stringify(workspace.chats) || workspace.sync.status !== status) {
+        workspace.chats = next; workspace.sync = { ...workspace.sync, status, at: new Date().toISOString() }; await persist();
+      }
+      return structuredClone(workspace);
     },
     async removeWorkspace(id) { workspaces = workspaces.filter(item => item.id !== id); await persist(); },
     async set(requestId, rawUrl) {

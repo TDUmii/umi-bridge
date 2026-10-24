@@ -63,6 +63,8 @@ Lệnh nâng cao vẫn dùng một launcher: `UmiBridge.cmd -Action admin` hoặ
 
 ## Corp - điều phối chat và văn phòng hoạt ảnh
 
+Từ beta.26, **Projects & chats** nhận cả link Project ChatGPT (`https://chatgpt.com/g/g-p-.../project`). Thêm Project một lần, mở trang Project trong Chrome, chọn Project trong Corp rồi **Đồng bộ chat**. Chat con trở thành nhân viên; văn phòng và hàng đợi chỉ hiển thị nhóm đang chọn. Các bước trong một nhiệm vụ Project phải thuộc cùng nhóm. Sau khi cập nhật, Reload extension UmiBridge Corp để nhận adapter 0.2.1.
+
 Từ beta.24, **Phân tích** có bộ lọc thời gian/nguồn/ứng dụng/công cụ, biểu đồ input-output, bảng chi tiết phân trang, xuất CSV và ngân sách tham khảo. Token MCP đọc toàn bộ nhật ký; token Corp tính các lượt đã xác nhận từ bản này. Số đếm là ước tính payload, không phải hóa đơn hoặc hạn mức tài khoản. Model, cache, reasoning và số dư nhà cung cấp chưa có dữ liệu.
 
 Corp dùng bố cục văn phòng và hàng đợi cùng màn hình; **Giao việc** và **Kết nối** mở khi cần. Chỉ phát triển desktop/laptop.

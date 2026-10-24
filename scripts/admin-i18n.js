@@ -188,6 +188,7 @@
   "Dự án": "Project",
   "Thư mục": "Folder",
   "Thêm dự án": "Add project",
+  "Link Project / Chat": "Project / Chat URL",
   "Chưa có dự án": "No projects yet",
   "Thêm thư mục và chat một lần để tự gom request phù hợp.": "Add a folder and chat once. Matching requests will appear here.",
   "Một link cho mỗi dự án": "One link per project",

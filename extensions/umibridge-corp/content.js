@@ -2,12 +2,59 @@
   const memory = new Map();
   let dispatching = false;
   const chatId = () => location.pathname.match(/(?:^|\/)c\/([a-zA-Z0-9-]+)\/?$/)?.[1];
+  const projectId = () => location.pathname.match(/^\/g\/(g-p-[a-f0-9]{32})(?:-[a-zA-Z0-9_-]+)?\//)?.[1];
+  const matches = command => chatId() === command.chatId && (!command.projectId || projectId() === command.projectId);
   const visible = element => Boolean(element?.getClientRects().length && getComputedStyle(element).visibility !== 'hidden');
   const composer = () => [...document.querySelectorAll('#prompt-textarea, textarea[data-id="root"], [contenteditable="true"][data-lexical-editor], [contenteditable="true"][role="textbox"]')].find(element => visible(element) && !/start writing|document|canvas/i.test(element.getAttribute('aria-label') || ''));
   const sending = () => [...document.querySelectorAll('button')].some(button => visible(button) && (button.dataset.testid === 'stop-button' || /^(stop|stop generating|stop streaming|dừng tạo)$/i.test(button.getAttribute('aria-label') || '')));
   const value = element => element?.value ?? element?.innerText ?? '';
+  // Lexical renders adjacent paragraphs with an extra innerText newline. Keep all non-newline draft edits significant.
+  const sameDraft = (element, prompt) => element instanceof HTMLTextAreaElement ? value(element).trim() === prompt.trim() : value(element).replace(/\n+/g, '\n').trim() === prompt.replace(/\n+/g, '\n').trim();
   const messageSelector = '[data-message-author-role], [data-chatgpt-search-unit-key$=":user"], [data-chatgpt-search-unit-key$=":assistant"]';
   const author = element => element.dataset.messageAuthorRole || element.getAttribute('data-chatgpt-search-unit-key')?.split(':').at(-1);
+  async function discover(command) {
+    if (projectId() !== command.projectId || !/\/project\/?$/.test(location.pathname)) return null;
+    const home = [...document.querySelectorAll('[data-chatgpt-project-conversation-drop-target]')].find(element => visible(element) && element.querySelector('h1')) || [...document.querySelectorAll('main')].find(element => visible(element) && element.querySelector('h1'));
+    const panel = home?.querySelector('[role="tabpanel"][id$="-chats"]') || home?.querySelector('[role="tabpanel"]') || home;
+    if (!panel || !visible(panel) || home.querySelector('[role="tab"][aria-selected="true"]')?.textContent.match(/^(Nguồn|Sources)$/i)) return null;
+    const members = new Map();
+    const read = () => {
+      // Exact Project-prefixed links are safe even in the sidebar. Bare /c links are accepted only inside the Project chat panel.
+      for (const anchor of document.querySelectorAll('a[href]')) {
+        if (!visible(anchor)) continue;
+        let url; try { url = new URL(anchor.href); } catch { continue; }
+        if (url.origin !== location.origin || url.search || url.hash) continue;
+        const match = url.pathname.match(/^(?:\/g\/(g-p-[a-f0-9]{32})(?:-[a-zA-Z0-9_-]+)?)?\/c\/([a-zA-Z0-9-]{6,100})\/?$/);
+        if (!match || (match[1] ? match[1] !== command.projectId : !panel.contains(anchor))) continue;
+        members.set(match[2], {name:(anchor.innerText || anchor.getAttribute('aria-label') || match[2]).trim().slice(0,180), chatUrl:`https://chatgpt.com/g/${command.projectId}/c/${match[2]}`});
+      }
+    };
+    let scroller = panel;
+    while (scroller && scroller !== document.body && !(scroller.scrollHeight > scroller.clientHeight + 4 && /auto|scroll/.test(getComputedStyle(scroller).overflowY))) scroller = scroller.parentElement;
+    const scrollable = scroller && scroller !== document.body;
+    const original = scrollable ? scroller.scrollTop : 0;
+    let status = 'partial', stable = 0;
+    try {
+      if (command.scan && scrollable) scroller.scrollTop = 0;
+      for (let i=0; i < (command.scan ? 60 : 1); i++) {
+        if (projectId() !== command.projectId || !panel.isConnected) return null;
+        read();
+        const loading = [...panel.querySelectorAll('[role="progressbar"], [aria-busy="true"]')].some(visible);
+        const more = [...panel.querySelectorAll('button')].find(button => visible(button) && /^(show more|load more|xem thêm|tải thêm)$/i.test(button.textContent.trim()));
+        const bottom = !scrollable || scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 3;
+        if (!loading && !more && bottom) stable++; else stable=0;
+        if (!command.scan) break;
+        if (stable >= 3) { status = 'complete'; break; }
+        if (more && !more.disabled) more.click();
+        else if (scrollable) scroller.scrollTop += Math.max(200, scroller.clientHeight * 0.7);
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      read();
+      // Unknown/changed DOM never certifies an empty Project.
+      if (!members.size && !/chưa có cuộc trò chuyện|không có cuộc trò chuyện|no conversations|no chats/i.test(panel.innerText)) status = 'unavailable';
+      return {projectUrl:`https://chatgpt.com/g/${command.projectId}/project`, chats:[...members.values()].slice(0,1000), status:members.size > 1000 ? 'partial' : status};
+    } finally { if (command.scan && scrollable && scroller.isConnected) scroller.scrollTop = original; }
+  }
   function limitNotice() {
     const nodes = document.querySelectorAll('[role="alert"], [role="dialog"], [data-testid*="rate-limit"], [data-testid*="usage-limit"], [data-testid*="error"], form');
     for (const node of nodes) {
@@ -21,7 +68,7 @@
   }
   function inspect(command) {
     const base = { runId: command.runId, stepId: command.stepId, attempt: command.attempt };
-    if (chatId() !== command.chatId) return { ...base, kind: 'blocked', reason: 'chat_changed' };
+    if (!matches(command)) return { ...base, kind: 'blocked', reason: 'chat_changed' };
     const marker = `[UmiBridge task ${command.attempt}]`;
     const messages = [...document.querySelectorAll(messageSelector)].filter(node => !node.parentElement?.closest(messageSelector));
     const user = messages.findIndex(node => author(node) === 'user' && node.textContent.includes(marker));
@@ -56,7 +103,7 @@
       const allowed = await chrome.runtime.sendMessage({ ...command, type: 'authorize', prompt: undefined });
       if (!allowed?.allowed) return null;
       // Revalidate after the network round trip; never overwrite a draft typed during it.
-      if (chatId() !== command.chatId) return { ...base, kind: 'blocked', reason: 'chat_changed' };
+      if (!matches(command)) return { ...base, kind: 'blocked', reason: 'chat_changed' };
       if (sending() || value(input).trim()) return { ...base, kind: 'blocked', reason: 'composer_busy' };
       input.focus();
       if (input instanceof HTMLTextAreaElement) {
@@ -68,9 +115,10 @@
       }
       await new Promise(resolve => setTimeout(resolve, 500));
       const send = [...document.querySelectorAll('button')].find(button => visible(button) && (button.dataset.testid === 'send-button' || button.id === 'composer-submit-button' || /^(send|send message|send prompt|gửi|gửi tin nhắn|gửi lời nhắc)$/i.test(button.getAttribute('aria-label') || '')));
-      if (!send || send.disabled || chatId() !== command.chatId) return { ...base, kind: 'blocked', reason: 'send_unconfirmed' };
+      if (!send || send.disabled || !matches(command)) return { ...base, kind: 'blocked', reason: 'send_unconfirmed' };
       const stillAllowed = await chrome.runtime.sendMessage({ ...command, type: 'authorize', prompt: undefined });
-      if (!stillAllowed?.allowed || value(input).trim() !== command.prompt.trim()) return { ...base, kind: 'blocked', reason: 'composer_busy' };
+      if (!matches(command) || !input.isConnected || composer() !== input || !send.isConnected) return { ...base, kind: 'blocked', reason: 'chat_changed' };
+      if (!stillAllowed?.allowed || sending() || send.disabled || !sameDraft(input, command.prompt)) return { ...base, kind: 'blocked', reason: 'composer_busy' };
       send.click();
       for (let i = 0; i < 20; i++) {
         await new Promise(resolve => setTimeout(resolve, 400));
@@ -83,7 +131,8 @@
   }
   chrome.runtime.onMessage.addListener((command, sender, respond) => {
     if (sender.id !== chrome.runtime.id) return;
-    if (command.type === 'ready') { respond({ ready: chatId() === command.chatId && Boolean(composer()) }); return; }
+    if (command.type === 'project-chats') { discover(command).then(respond, () => respond(null)); return true; }
+    if (command.type === 'ready') { respond({ ready: matches(command) && Boolean(composer()) }); return; }
     if (command.type === 'observe') { respond({ report: inspect(command) }); return; }
     if (command.type === 'dispatch') { dispatch(command).then(report => respond({ report }), () => respond({ report: { runId: command.runId, stepId: command.stepId, attempt: command.attempt, kind: 'blocked', reason: 'send_unconfirmed' } })); return true; }
   });

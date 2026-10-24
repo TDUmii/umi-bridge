@@ -10,11 +10,13 @@ Chỉ hỗ trợ máy tính để bàn và laptop. Giao diện nghiệm thu ở 
 2. Trong Chrome hoặc Edge, mở trang quản lý extensions, bật Developer mode và chọn Load unpacked. Chọn thư mục `extensions/umibridge-corp` trong bản giải nén UmiBridge.
 3. Trong Corp, mở **Kết nối**, bấm **Tạo mã ghép extension** rồi **Chép mã**. Mã này khác mã kết nối MCP.
 4. Bấm biểu tượng extension để mở cài đặt. Nhập địa chỉ UmiBridge local và mã ghép, chọn **Lưu và kết nối**.
-5. Trong **Projects & chats**, khai báo thư mục cùng link của từng cuộc trò chuyện ChatGPT. Mở các chat đó trong trình duyệt có extension và đăng nhập bằng thao tác bình thường.
+5. Trong **Projects & chats**, khai báo tên, thư mục cùng link Project ChatGPT (`https://chatgpt.com/g/g-p-.../project`). Mở trang Project trong trình duyệt có extension, chọn Project trong Corp rồi **Đồng bộ chat**. Cũng có thể thêm từng link chat cũ và chọn nhóm **Chat riêng lẻ**.
 
 Extension có quyền truy cập loopback và ChatGPT, không đọc cookie, mật khẩu hoặc gọi API nội bộ của nhà cung cấp. Mã ghép nằm trong bộ nhớ riêng của extension; trang ChatGPT không nhận mã. **Thu hồi kết nối** vô hiệu hóa mã và tắt điều phối.
 
 ## Giao việc và bàn giao
+
+Chọn **Project** trước khi giao việc. Danh sách nhân viên, hàng đợi và hoạt ảnh chỉ thuộc nhóm đang chọn. Với nhiệm vụ Project, mỗi bước chọn chat con trong cùng Project; backend và extension kiểm tra lại mã Project ngay trước lần gửi. Mở chat bằng nút trong Corp để giữ URL có mã Project. Tab chat riêng `/c/...` không được nhận nhiệm vụ Project chỉ vì trùng ID.
 
 1. Bật **Điều phối** trong Corp.
 2. Bấm **Giao việc**, nhập tên nhiệm vụ, chọn chat, vai trò và yêu cầu cho bước đầu. **Thêm bước bàn giao** để chọn chat tiếp theo, tối đa 12 bước.
@@ -42,6 +44,16 @@ Nếu yêu cầu trước đã gửi, lời nhắc tiếp tục yêu cầu kiể
 
 Không đọc được thời gian reset, giao diện nhà cung cấp đổi, mất đăng nhập, không xác nhận phản hồi sau 45 phút hoặc kết quả dài hơn 48.000 ký tự: giữ công việc và yêu cầu kiểm tra. Không đoán thời điểm để thử liên tục.
 
+## Đồng bộ Project từ beta.26
+
+Project là nhóm cha; từng chat là nhân viên. Extension 0.2.1 đọc tên và URL chat từ vùng danh sách của Project đang mở, không đọc nội dung toàn bộ chat. Link chat ở thanh bên tài khoản chỉ được nhận khi URL chứa đúng mã Project; link trần và link Project khác bị loại. Không dùng cookie hoặc API nội bộ ChatGPT.
+
+**Đồng bộ chat** yêu cầu quét danh sách: cuộn trong vùng Project, bấm **Load more / Show more / Xem thêm / Tải thêm** nếu có, rồi trả lại vị trí cuộn. Giới hạn một lượt: 60 vòng, tối đa 1.000 chat. Danh sách còn tải hoặc quét chưa hết được đánh dấu **Đã nhận một phần**; có thể đồng bộ lại. Giao diện lạ không được xác nhận là Project trống. ChatGPT có thể cập nhật danh sách chậm sau khi tạo chat; tải lại trang Project trước khi đồng bộ nếu cần.
+
+Quan sát một phần được gộp với danh sách đã có. Chỉ lượt quét hoàn tất mới loại chat đã rời Project; nhiệm vụ trỏ tới chat đó bị chặn, kể cả lệnh đang chờ xác nhận gửi. Đồng bộ lại sau khi chuyển/xóa chat trong ChatGPT. Mở tab **Trò chuyện** của trang Project trong Chrome để extension đọc danh sách. Corp không tự tạo chat hay tự chuyển chat giữa các Project.
+
+Sau khi cập nhật từ extension 0.1.0, mở trang quản lý extensions của Chrome, bấm **Reload** ở UmiBridge Corp rồi tải lại các tab ChatGPT. Giữ mã ghép cũ nếu còn kết nối; không cần nạp lại từ đầu hoặc tạo connector MCP mới.
+
 ## Đóng trình duyệt, ngủ máy và khởi động lại
 
 Hàng đợi, prompt, kết quả, lựa chọn điều phối và mốc reset được ghi nguyên tử vào `.local-data/corp-state.json`. File nằm trong dữ liệu riêng, được giữ và kiểm tra digest khi chuyển Normal/Admin. Không nằm trong Git hoặc ZIP phát hành.
@@ -54,11 +66,12 @@ Corp không đánh thức Windows. Trong lúc trình duyệt, gateway bị đón
 
 Trạng thái “Chờ phản hồi” không chứng minh model đang suy nghĩ. Hình Pixel Agents dùng theo MIT; xem `scripts/corp-office/assets/provenance.json` và `THIRD_PARTY_NOTICES.md`.
 
-## Giới hạn nghiệm thu beta.23
+## Nghiệm thu và giới hạn beta.26
 
 - Kiểm thử trên một máy Windows hiện tại. Không xác nhận máy vật lý thứ hai hoặc thiết bị di động.
 - Kiểm thử extension thật trong Edge với các trang ChatGPT giả lập: gửi một lần, nhận kết quả, bàn giao, chờ reset và tự tiếp tục, giữ bản nháp, công tắc nhớ lựa chọn.
-- Đã đối chiếu DOM của ChatGPT thật trong Chrome: adapter nhận cả cấu trúc `data-message-author-role` cũ và `data-chatgpt-search-unit-key` / `data-talvt-turn-state` mới. Đây là kiểm tra đọc giao diện, chưa phải nghiệm thu gửi thật bằng extension trên tài khoản người dùng.
+- Chrome thật, extension 0.2.1: đồng bộ hai chat con trong Project đã chọn, tự gửi bước đầu và nhận `UMI_CORP_PROJECT_STEP1_OK`, tự bàn giao sang chat thứ hai và nhận `UMI_CORP_PROJECT_HANDOFF_OK`. Sổ nhiệm vụ ghi đúng một handoff, cả hai bước hoàn tất. Lượt thử chỉ yêu cầu văn bản, không gọi công cụ hay sửa tệp.
+- Adapter nhận cả cấu trúc `data-message-author-role` cũ và `data-chatgpt-search-unit-key` / `data-talvt-turn-state` mới, cùng ô nhập textarea và Lexical nhiều đoạn. Lượt thử đầu phát hiện khác biệt xuống dòng của Lexical và được chặn trước gửi; đã sửa, giữ kiểm tra bản nháp, rồi nghiệm thu lại thành công.
 - Kiểm thử thời gian dùng đồng hồ giả lập; chưa chờ hết hạn mức tài khoản thật trong 2-3 giờ. Không tuyên bố mọi biến thể giao diện hoặc thông báo ChatGPT đều đã được xác nhận.
 - Source đã kiểm tra API local, CSRF, mã ghép, khôi phục, deadline và migration. Bản Administrator cần cập nhật qua lifecycle có xác nhận Windows; không chép đè mã vào thư mục được bảo vệ.
 

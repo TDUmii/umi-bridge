@@ -22,6 +22,16 @@ test('Corp local API protects writes and browser credentials; dispatch is contro
   assert.equal((await request('/admin/corp/bridge/poll',{})).status,401);
   const snapshot=await (await request('/admin/api/corp')).json();assert.equal(snapshot.enabled,false);assert.equal(snapshot.office,true);
   const {token}=await (await request('/admin/api/corp/pair',{})).json();
+  assert.equal((await request('/admin/corp/bridge/sync',{})).status,401);
+  const projectId='g-p-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', projectUrl=`https://chatgpt.com/g/${projectId}/project`;
+  const project=(await (await request('/admin/api/workspaces',{name:'Project fixture',root:'D:\\ProjectFixture',chatUrl:projectUrl})).json()).workspace;
+  assert.equal((await request('/admin/api/workspaces/sync',{id:project.id},{'x-dc-admin-action':'0'})).status,403);
+  const projectHeaders={authorization:'Bearer '+token};
+  const scope=(await (await request('/admin/corp/bridge/poll',{},projectHeaders)).json()).projects[0];
+  assert.equal(scope.projectId,projectId);
+  const sync={workspaceId:project.id,projectUrl,requested:scope.requested,status:'complete',chats:[{name:'Member',chatUrl:`https://chatgpt.com/g/${projectId}/c/member-chat`}]};
+  assert.equal((await request('/admin/corp/bridge/sync',sync,projectHeaders)).status,200);
+  assert.equal((await request('/admin/corp/bridge/sync',{...sync,chats:[{chatUrl:'https://chatgpt.com/c/outside-chat'}]},projectHeaders)).status,400);
   assert.equal((await (await request('/admin/api/corp')).text()).includes(token),false);
   const headers={authorization:'Bearer '+token};
   const workspace=await (await request('/admin/api/workspaces',{name:'Fixture worker',root:'D:\\Synthetic',chatUrl:'https://chatgpt.com/c/corp-fixture'})).json();

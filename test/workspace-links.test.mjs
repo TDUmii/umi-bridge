@@ -27,7 +27,7 @@ test('project links migrate safely, match folder boundaries and provider, and re
     await store.removeWorkspace(duplicate.id);
     assert.equal(store.resolve(records).length, 1);
     const stored = JSON.parse(await readFile(path));
-    assert.equal(stored.version, 2);
+    assert.equal(stored.version, 3);
     await store.clear();
     assert.equal(store.workspaces().length, 0);
   } finally { await rm(directory, { recursive: true, force: true }); }

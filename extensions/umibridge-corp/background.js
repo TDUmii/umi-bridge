@@ -30,6 +30,9 @@ async function flush() {
   }
 }
 function conversation(url) { try { return new URL(url).pathname.match(/(?:^|\/)c\/([a-zA-Z0-9-]+)\/?$/)?.[1]; } catch { return null; } }
+function project(url) { try { return new URL(url).pathname.match(/^\/g\/(g-p-[a-f0-9]{32})(?:-[a-zA-Z0-9_-]+)?\//)?.[1]; } catch { return null; } }
+const projectScans = new Map();
+const matches = (tab, command) => conversation(tab.url) === command.chatId && (!command.projectId || project(tab.url) === command.projectId);
 async function tabMessage(tab, command) {
   // Sending never creates or navigates a tab. Only an existing, matching conversation is eligible.
   const response = await chrome.tabs.sendMessage(tab.id, command);
@@ -46,13 +49,26 @@ async function tick() {
     // Duplicate tabs of a conversation use one stable tab ID only.
     tabs.sort((a, b) => a.id - b.id);
     const chats = [...new Set(tabs.map(tab => conversation(tab.url)).filter(Boolean))];
-    const response = await api('poll', { chats });
+    const response = await api('poll', { chats, projectChats: tabs.filter(tab => conversation(tab.url) && project(tab.url)).map(tab => ({chatId:conversation(tab.url), projectId:project(tab.url)})) });
+    for (const scope of response.projects || []) {
+      const home = tabs.find(tab => project(tab.url) === scope.projectId && /\/project\/?$/.test(new URL(tab.url).pathname));
+      if (!home) continue;
+      const previous = projectScans.get(scope.id);
+      if (previous?.requested === scope.requested && Date.now() - previous.at < 15_000) continue;
+      try {
+        const discovery = await chrome.tabs.sendMessage(home.id, {type:'project-chats', projectId:scope.projectId, scan:previous?.requested !== scope.requested || previous?.status === 'unavailable'});
+        if (discovery) {
+          await api('sync', {...discovery, workspaceId:scope.id, requested:scope.requested});
+          projectScans.set(scope.id, {requested:scope.requested, at:Date.now(), status:discovery.status});
+        }
+      } catch { /* A loading/navigated Project is retried; it never widens the task scope. */ }
+    }
     for (const monitor of response.monitors) {
-      const tab = tabs.find(item => conversation(item.url) === monitor.chatId);
+      const tab = tabs.find(item => matches(item, monitor));
       if (tab) await tabMessage(tab, { type: 'observe', ...monitor }).catch(() => {});
     }
     if (response.command) {
-      const command = response.command, tab = tabs.find(item => conversation(item.url) === command.chatId);
+      const command = response.command, tab = tabs.find(item => matches(item, command));
       if (tab) {
         try {
           if (command.refresh) {
@@ -61,7 +77,7 @@ async function tick() {
             let ready = false;
             for (let i = 0; i < 30; i++) {
               await new Promise(resolve => setTimeout(resolve, 1000));
-              try { if ((await chrome.tabs.sendMessage(tab.id, { type: 'ready', chatId: command.chatId }))?.ready) { ready = true; break; } } catch {}
+              try { if ((await chrome.tabs.sendMessage(tab.id, { type: 'ready', chatId: command.chatId, projectId:command.projectId }))?.ready) { ready = true; break; } } catch {}
             }
             if (!ready) throw Error('chat_unavailable');
           }
@@ -77,7 +93,7 @@ async function tick() {
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id) return;
   if (message.type === 'authorize' && sender.tab) {
-    if (conversation(sender.tab.url) !== message.chatId) { respond({ allowed: false }); return; }
+    if (!matches(sender.tab, message)) { respond({ allowed: false }); return; }
     api('authorize', message).then(respond, () => respond({ allowed: false })); return true;
   }
   if (message.type === 'connect' && !sender.tab) { tick().then(() => respond({ ok: true })); return true; }

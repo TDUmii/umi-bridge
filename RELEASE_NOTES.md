@@ -1,4 +1,14 @@
-# UmiBridge Sakura Console - beta.25
+# UmiBridge Sakura Console - beta.26
+
+## ChatGPT Project groups in Corp
+
+Projects & chats now accepts ChatGPT Project URLs as parent groups. A paired Corp extension discovers child chat names/URLs from the open Project's chat list, scans supported pagination, and excludes unrelated account-sidebar chats. Corp selects one Project for its office, employee choices and queue. Every step of a Project run must stay in that group; both gateway and extension recheck scope before sending. Completed sync removes departed members and blocks outstanding steps targeting them. Existing standalone chat groups and runs remain compatible.
+
+Discovery uses rendered UI only, with no cookie access or private provider API. Partial scans merge observations; unknown DOM cannot certify an empty Project. Scans are bounded to 60 rounds and 1,000 chats. Reload the unpacked UmiBridge Corp extension to load adapter 0.2.1, then reload ChatGPT tabs. Open the Project chat list and choose Sync chats in Corp. The adapter recognizes Lexical paragraph line breaks while retaining its draft-edit checks and revalidates the conversation immediately before clicking Send.
+
+Validation: 95 Windows regression checks passed, with subsequent focused checks for late-result rejection after membership removal. Real Edge-extension QA uses disposable state and synthetic provider pages to test discovery/pagination/sidebar exclusion, textarea/Lexical dispatch, handoff, reset/resume, drafts, analytics and desktop/laptop fit. Live Chrome adapter 0.2.1 discovered two child chats in the selected Project and completed an automatic two-step run: UMI_CORP_PROJECT_STEP1_OK followed by UMI_CORP_PROJECT_HANDOFF_OK, with exactly one handoff event. The beta.26 Administrator runtime was checked against current source hashes. Physical scope remains one Windows PC; a real provider reset wait remains unverified.
+
+## Previous beta.25
 
 ## Open the dashboard from the local base address
 

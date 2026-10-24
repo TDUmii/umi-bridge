@@ -70,6 +70,11 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
   };
   const find = id => { const run = state.runs.find(item => item.id === id); if (!run) throw Error('run_not_found'); return run; };
   const current = run => run.steps.find(active);
+  const inScope = (run, step) => {
+    if (!run.workspaceId) return true; // Existing standalone-chat runs retain their saved scope.
+    const workspace = workspaces().find(item => item.id === run.workspaceId && item.kind === 'project');
+    return Boolean(workspace && step.workspaceId === workspace.id && workspace.chats.some(chat => chat.chatId === step.chatId));
+  };
   const summary = () => ({ enabled: state.enabled, office: state.office, autoResume: state.autoResume,
     paired: Boolean(state.tokenHash), connected: lastSeen > 0 && clock() - lastSeen < 45_000,
     lastSeen: lastSeen ? new Date(lastSeen).toISOString() : null, connectedChats: [...connectedChats],
@@ -85,7 +90,7 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
     authorize: (token, input) => serial(() => {
       authenticate(token);
       const run = find(input.runId), step = current(run);
-      return { allowed: Boolean(state.enabled && run.status === 'running' && step?.id === input.stepId && step.attempt === input.attempt && step.status === 'dispatching' && clock() - step.issuedAt < 90_000) };
+      return { allowed: Boolean(state.enabled && run.status === 'running' && step?.id === input.stepId && step.attempt === input.attempt && inScope(run, step) && (!run.workspaceId || input.chatId === step.chatId && input.projectId === step.projectId) && step.status === 'dispatching' && clock() - step.issuedAt < 90_000) };
     }),
     settings: input => transaction(() => {
       for (const key of ['enabled', 'office', 'autoResume']) if (typeof input[key] === 'boolean') state[key] = input[key];
@@ -98,14 +103,22 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
       if (!Array.isArray(input.steps) || input.steps.length < 1 || input.steps.length > 12) throw Error('invalid_steps');
       const known = workspaces();
       const run = { id: randomUUID(), title: text(input.title, 180) || 'Nhiệm vụ Corp', status: 'paused', createdAt: new Date(clock()).toISOString(), steps: [] };
+      if (input.workspaceId) {
+        const project = known.find(item => item.id === input.workspaceId && item.kind === 'project');
+        if (!project) throw Error('project_not_found');
+        run.workspaceId = project.id; run.projectId = project.projectId;
+      }
       run.steps = input.steps.map(item => {
         const workspace = known.find(row => row.id === item.workspaceId);
         if (!workspace) throw Error('workspace_not_found');
-        const chat = chatId(workspace.chatUrl);
+        if (workspace.kind === 'project' && run.workspaceId !== workspace.id || run.workspaceId && workspace.id !== run.workspaceId) throw Error('chat_outside_project');
+        const member = workspace.kind === 'project' ? workspace.chats.find(row => row.chatId === item.chatId) : workspace;
+        if (!member) throw Error('chat_not_in_project');
+        const chat = chatId(member.chatUrl);
         const prompt = text(item.prompt, 12_000);
         if (!prompt) throw Error('prompt_required');
-        return { id: randomUUID(), workspaceId: workspace.id, chatId: chat.id, chatUrl: chat.url,
-          role: text(item.role, 80) || workspace.name, prompt, status: 'queued', attempt: randomUUID(), sent: false,
+        return { id: randomUUID(), workspaceId: workspace.id, ...(run.projectId ? { projectId: run.projectId } : {}), chatId: chat.id, chatUrl: chat.url,
+          role: text(item.role, 80) || member.name, prompt, status: 'queued', attempt: randomUUID(), sent: false,
           issuedAt: null, resetAt: null, limitText: null, result: null, reason: null };
       });
       state.runs.push(run); event('created', run); return copy(run);
@@ -145,11 +158,16 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
           if (['done', 'cancelled'].includes(run.status)) continue;
           const step = current(run);
           if (!step) continue;
+          if (!inScope(run, step)) {
+            if (step.status !== 'blocked' || step.reason !== 'chat_outside_project') { step.status = 'blocked'; step.reason = 'chat_outside_project'; event('blocked', run, step); }
+            continue;
+          }
           const sentPhase = ['dispatching', 'running'].includes(step.status);
-          if (sentPhase) monitors.push({ runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId });
+          if (sentPhase) monitors.push({ runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId, projectId: step.projectId });
           if (step.status === 'dispatching' && clock() - step.issuedAt > 90_000) { step.status = 'blocked'; step.reason = 'send_unconfirmed'; event('blocked', run, step); }
           if (step.status === 'running' && clock() - step.issuedAt > 45 * 60_000) { step.status = 'blocked'; step.reason = 'response_timeout'; recordUsage(run, step, 'error'); event('blocked', run, step); }
           if (!state.enabled || run.status !== 'running' || command || !connectedChats.includes(step.chatId)) continue;
+          if (step.projectId && !input.projectChats?.some(item => item.chatId === step.chatId && item.projectId === step.projectId)) continue;
           if (step.status === 'limit_wait') {
             if (!state.autoResume || !step.resetAt || clock() < step.resetAt) continue;
             step.continuation = Boolean(step.continuation || step.sent); newAttempt(step); step.refresh = true;
@@ -161,7 +179,7 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
           const prompt = `[UmiBridge task ${step.attempt}]\n${instruction}${step.prompt}${context}`;
           step.status = 'dispatching'; step.issuedAt = clock(); step.reason = null;
           step.pendingUsage = { inputTokens: countTextTokens(prompt), inputBytes: Buffer.byteLength(prompt) };
-          command = { runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId, prompt, refresh: Boolean(step.refresh) };
+          command = { runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId, projectId: step.projectId, prompt, refresh: Boolean(step.refresh) };
           step.refresh = false; occupied.add(step.chatId); event('dispatch', run, step);
         }
         if (JSON.stringify(state) !== JSON.stringify(before)) await save();
@@ -173,6 +191,7 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
       const run = find(input.runId), step = run.steps.find(item => item.id === input.stepId);
       if (!step || step.attempt !== input.attempt) throw Error('stale_attempt');
       if (['done', 'cancelled'].includes(run.status) || !['dispatching', 'running', 'limit_wait'].includes(step.status)) return { ignored: true };
+      if (!inScope(run, step)) { step.status = 'blocked'; step.reason = 'chat_outside_project'; event('blocked', run, step); return { ignored: true }; }
       if (input.kind === 'sent') {
         if (step.status === 'limit_wait') return { ignored: true };
         if (!step.sent) { step.sent = true; step.status = 'running'; recordUsage(run, step); event('sent', run, step); }

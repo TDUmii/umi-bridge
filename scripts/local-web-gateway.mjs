@@ -384,11 +384,17 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.post('/admin/api/corp/runs', localAdmin, adminWrite, corpJson, corpHandler(req => corp.create(req.body ?? {})));
     app.post('/admin/api/corp/runs/:id/:action', localAdmin, adminWrite, corpHandler(req => corp.action(req.params.id, req.params.action)));
     for (const action of ['poll', 'report', 'authorize']) {
-      app.post(`/admin/corp/bridge/${action}`, localAdmin, corpJson, corpHandler(req => {
+      app.post(`/admin/corp/bridge/${action}`, localAdmin, corpJson, corpHandler(async req => {
         const token = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
-        return corp[action](token, req.body ?? {});
+        const result = await corp[action](token, req.body ?? {});
+        return action === 'poll' ? { ...result, projects: chatLinks.workspaces().filter(item => item.kind === 'project').map(({id, projectId, chatUrl, sync}) => ({id, projectId, chatUrl, requested: sync.requested})) } : result;
       }));
     }
+    app.post('/admin/corp/bridge/sync', localAdmin, express.json({ limit: '1mb' }), corpHandler(req => {
+      corp.authenticate(String(req.headers.authorization ?? '').replace(/^Bearer /, ''));
+      return chatLinks.syncProject(req.body ?? {});
+    }));
+    app.post('/admin/api/workspaces/sync', localAdmin, adminWrite, corpJson, corpHandler(req => chatLinks.requestProjectSync(req.body?.id)));
     app.use('/admin/corp/office', localAdmin, (_req, res, next) => {
       res.set('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'");
       next();
@@ -604,7 +610,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.use('/mcp', requireBearerAuth({ verifier: provider, requiredScopes: ['desktop'], expectedResource: resource, resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resource) }));
     const handleMcp = async (req, res) => {
       const initialization = req.body?.method === 'initialize' ? (await readToolContext()).context : undefined;
-      const server = new Server({ name: 'umibridge-sakura-console', version: '0.1.0-beta.25' }, { capabilities: { tools: {}, ...(capabilities.resources ? { resources: {} } : {}) }, instructions: [baseInstructions, initialization?.prompt].filter(Boolean).join('\n\n') });
+      const server = new Server({ name: 'umibridge-sakura-console', version: '0.1.0-beta.26' }, { capabilities: { tools: {}, ...(capabilities.resources ? { resources: {} } : {}) }, instructions: [baseInstructions, initialization?.prompt].filter(Boolean).join('\n\n') });
       const options = { timeout: 120_000 };
       server.setRequestHandler(ListToolsRequestSchema, async () => {
         const { catalog, context } = await readToolContext();
