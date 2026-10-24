@@ -1,3 +1,12 @@
+# Pixel Agents
+
+The optional UmiBridge Corp office reuses character and furniture PNG sprites from [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents), pinned at `b1bafd02896d90d83457266575a1e8e5011ce997`.
+
+- MIT, Pablo De Lucca; upstream sprite artwork credits JIK-A-4 Metro City.
+- Full license: `scripts/corp-office/assets/LICENSE.pixel-agents.txt`.
+- Source URLs and original SHA-256 values: `scripts/corp-office/assets/provenance.json`.
+- UmiBridge uses its own Canvas renderer and chat coordinator. It does not bundle the upstream AI runtime or service.
+
 # Windows-MCP
 
 UmiBridge uses CursorTouch/Windows-MCP as an isolated local stdio worker.

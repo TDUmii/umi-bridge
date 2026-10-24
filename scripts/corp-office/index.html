@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'">
+  <title>Văn phòng - UmiBridge Corp</title>
+  <link rel="stylesheet" href="office.css">
+  <script defer src="office-model.js"></script>
+  <script defer src="office.js"></script>
+</head>
+<body>
+  <header>
+    <div><h1>Văn phòng</h1><p id="project">Đội ngũ UmiBridge Corp</p></div>
+    <button id="motion" type="button" aria-pressed="false">Giảm chuyển động</button>
+  </header>
+  <div id="connection" role="status"><span class="dot"></span><span id="health">Đang kết nối với Corp…</span></div>
+  <main>
+    <section class="office" aria-label="Văn phòng pixel">
+      <div class="scene" id="scene"><canvas id="room" aria-label="Nhân viên và bàn làm việc. Chọn nhân viên bằng danh sách bên cạnh."></canvas>
+        <div id="empty" hidden><h2>Văn phòng đang chờ đội ngũ</h2><p>Thêm chat trong Projects &amp; chats rồi giao nhiệm vụ tại Corp. Mỗi chat trở thành một nhân viên.</p></div>
+      </div>
+      <div class="legend"><span><i class="sending"></i>Đang gửi</span><span><i class="waiting"></i>Chờ phản hồi</span><span><i class="review"></i>Chờ duyệt</span><span><i class="blocked"></i>Bị chặn</span><span><i class="idle"></i>Sẵn sàng</span></div>
+      <div class="handoff"><h2>Bàn giao gần đây</h2><p id="handoff-empty">Chưa có bàn giao trong Project này.</p><ol id="handoffs"></ol></div>
+    </section>
+    <aside aria-label="Đội ngũ và nhiệm vụ">
+      <div class="roster-title"><h2>Đội ngũ</h2><span id="count">0</span></div>
+      <div id="roster" aria-label="Chọn nhân viên"></div>
+      <section id="detail" hidden aria-label="Nhiệm vụ của nhân viên">
+        <p id="detail-status" class="status"></p><h2 id="detail-role"></h2>
+        <p id="detail-task"></p><p id="detail-count"></p>
+        <button id="open-chat" type="button">Mở chat</button>
+        <p id="detail-hint">Dùng Giao nhiệm vụ bên dưới văn phòng để chọn chat và nội dung bàn giao.</p>
+      </section>
+    </aside>
+  </main>
+  <footer>Trạng thái từ điều phối UmiBridge. “Chờ phản hồi” không xác nhận AI đang suy nghĩ. <span>Hình ảnh: Pixel Agents · MIT</span></footer>
+</body>
+</html>

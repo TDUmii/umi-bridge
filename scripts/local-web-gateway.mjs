@@ -17,6 +17,7 @@ import { createSkillLibrary, RECOMMENDED_SKILLS } from './skill-library.mjs';
 import { createOAuthState } from './oauth-state.mjs';
 import { createDeviceRegistry } from './device-registry.mjs';
 import { createWorkflowLedger } from './workflow-ledger.mjs';
+import { createCorpRuntime } from './corp-runtime.mjs';
 import { baseInstructions, CATALOG_META, createToolPolicy, WINDOWS_TOOL_NAMES, withContext, withoutContext } from './tool-policy.mjs';
 import { createPrivilegeControl } from './privilege-control.mjs';
 
@@ -54,7 +55,7 @@ const deviceToolSpecs = deviceToolDefinitions.map(spec => {
 const deviceToolsByName = new Map(deviceToolDefinitions.map(tool => [tool.name, tool]));
 
 /** One local process shared by authorized MCP clients through an authenticated endpoint. */
-export async function startGateway({ port = 8767, publicUrl, connectionSecret, configDir, privilegeControl, workflowEnabled } = {}) {
+export async function startGateway({ port = 8767, publicUrl, connectionSecret, configDir, privilegeControl, workflowEnabled, corpClock } = {}) {
   if (typeof connectionSecret !== 'string' || connectionSecret.length < 24) {
     throw new Error('connectionSecret must contain at least 24 characters.');
   }
@@ -69,6 +70,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
   const secretHash = digest(connectionSecret);
   const requestHistory = await createRequestHistory(resolve(configDir, '..', 'request-history.jsonl'), { secretValues: [connectionSecret] });
   const chatLinks = await createChatLinksStore(resolve(configDir, '..', 'chat-links.json'));
+  const corp = await createCorpRuntime(resolve(configDir, '..', 'corp-state.json'), { workspaces: () => chatLinks.workspaces(), ...(corpClock ? { clock: corpClock } : {}) });
   const deviceRegistry = await createDeviceRegistry({ stateDir: resolve(configDir, '..') });
   const workflowsEnabled = workflowEnabled === undefined ? process.env.UMIBRIDGE_WORKFLOWS === '1' || existsSync(resolve(configDir, 'workflows-enabled')) : workflowEnabled === true || workflowEnabled === '1';
   const workflowLedger = await createWorkflowLedger(resolve(configDir, '..', 'workflows.jsonl'), { enabled: workflowsEnabled });
@@ -198,6 +200,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     if (httpServer) await new Promise(resolve => { httpServer.close(resolve); httpServer.closeAllConnections(); });
     await deviceRegistry.close().catch(() => {});
     if (typeof workflowLedger.close === 'function') await workflowLedger.close().catch(() => {});
+    await corp.close();
     await backend.close().catch(() => {});
     resolveClosed();
   })();
@@ -325,7 +328,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       next();
     };
     app.get('/admin', localAdmin, (_req, res) => {
-      res.set('Content-Security-Policy', "default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'");
+      res.set('Content-Security-Policy', "default-src 'none'; img-src data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'");
       res.type('html').send(renderAdminPage());
     });
     app.get('/admin/i18n.js', localAdmin, (_req, res) => {
@@ -358,6 +361,30 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     });
     // This header is a browser CSRF barrier: a third-party page cannot set it without CORS preflight.
     const adminWrite = (req, res, next) => req.headers['x-dc-admin-action'] === '1' ? next() : res.sendStatus(403);
+    const corpJson = express.json({ limit: '256kb' });
+    const corpHandler = action => async (req, res) => {
+      try { res.json(await action(req)); }
+      catch (error) { res.status(error.message === 'invalid_corp_key' ? 401 : error.message.endsWith('_not_found') ? 404 : 400).json({ error: error.message }); }
+    };
+    app.get('/admin/api/corp', localAdmin, (_req, res) => res.json({ ...corp.snapshot(), workspaces: chatLinks.workspaces() }));
+    app.post('/admin/api/corp/settings', localAdmin, adminWrite, corpJson, corpHandler(req => corp.settings(req.body ?? {})));
+    app.post('/admin/api/corp/pair', localAdmin, adminWrite, corpHandler(() => corp.pair()));
+    app.post('/admin/api/corp/revoke', localAdmin, adminWrite, corpHandler(() => corp.revoke()));
+    app.post('/admin/api/corp/runs', localAdmin, adminWrite, corpJson, corpHandler(req => corp.create(req.body ?? {})));
+    app.post('/admin/api/corp/runs/:id/:action', localAdmin, adminWrite, corpHandler(req => corp.action(req.params.id, req.params.action)));
+    for (const action of ['poll', 'report', 'authorize']) {
+      app.post(`/admin/corp/bridge/${action}`, localAdmin, corpJson, corpHandler(req => {
+        const token = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
+        return corp[action](token, req.body ?? {});
+      }));
+    }
+    app.use('/admin/corp/office', localAdmin, (_req, res, next) => {
+      res.set('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'");
+      next();
+    }, express.static(resolve(ROOT, 'scripts/corp-office'), { dotfiles: 'deny', index: 'index.html' }));
+    for (const asset of ['corp-dashboard.js', 'corp-dashboard.css']) {
+      app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
+    }
     const workflowAvailable = (_req, res, next) => {
       if (!workflowsEnabled) return res.status(404).json({ error: 'workflows_disabled', enabled: false });
       next();
@@ -566,7 +593,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.use('/mcp', requireBearerAuth({ verifier: provider, requiredScopes: ['desktop'], expectedResource: resource, resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resource) }));
     const handleMcp = async (req, res) => {
       const initialization = req.body?.method === 'initialize' ? (await readToolContext()).context : undefined;
-      const server = new Server({ name: 'umibridge-sakura-console', version: '0.1.0-beta.22' }, { capabilities: { tools: {}, ...(capabilities.resources ? { resources: {} } : {}) }, instructions: [baseInstructions, initialization?.prompt].filter(Boolean).join('\n\n') });
+      const server = new Server({ name: 'umibridge-sakura-console', version: '0.1.0-beta.23' }, { capabilities: { tools: {}, ...(capabilities.resources ? { resources: {} } : {}) }, instructions: [baseInstructions, initialization?.prompt].filter(Boolean).join('\n\n') });
       const options = { timeout: 120_000 };
       server.setRequestHandler(ListToolsRequestSchema, async () => {
         const { catalog, context } = await readToolContext();

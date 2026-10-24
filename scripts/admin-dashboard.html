@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#201735">
 <meta name="description" content="UmiBridge Sakura Console: a private local dashboard for ChatGPT MCP activity.">
 <title>UmiBridge ✦ Sakura Console</title>
+<link rel="stylesheet" href="/admin/corp-dashboard.css">
+<script defer src="/admin/corp-dashboard.js"></script>
 <style>
 :root{
   color-scheme:light;--ink:#222743;--muted:#68728f;--soft:#8c95ab;--surface:#fff;--canvas:#f4f6fc;
@@ -507,6 +509,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       <a href="#tools" data-view="tools" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg> Tools</a>
       <a href="#skill-center" data-view="skills" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-tool"/></svg> Skill Center</a>
       <a href="#workflows" id="workflowNav" data-view="workflows" class="nav-link" hidden><svg class="icon" aria-hidden="true"><use href="#i-bolt"/></svg> Workflows</a>
+      <a href="#corp" data-view="corp" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg> Corp</a>
       <a href="#requests" data-view="requests" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg> Request history</a>
       <a href="#settings" data-view="settings" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg> Settings</a>
     </nav>
@@ -670,6 +673,19 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
           <div id="workflowTimeline" class="workflow-timeline" hidden><h3>Timeline</h3><ol id="workflowEvents"></ol></div>
         </div>
       </section>
+      <section id="corp" class="view-section" data-view="corp" aria-labelledby="corpTitle">
+        <div class="corp-head"><div><h2 id="corpTitle">Corp - Đội ngũ chat</h2><p>Giao việc theo thứ tự. Bàn giao kết quả, chờ hạn mức và tiếp tục tại cùng chat.</p></div><div class="actions"><button id="corpOffice" class="btn" type="button" aria-pressed="true">Văn phòng: Bật</button><button id="corpEnabled" class="btn" type="button" aria-pressed="false">Điều phối: Tắt</button></div></div>
+        <p id="corpConnection" role="status">Đang tải Corp...</p><p id="corpError" role="alert" hidden></p>
+        <iframe id="corpScene" title="Văn phòng hoạt ảnh UmiBridge" src="/admin/corp/office/" loading="lazy"></iframe>
+        <div class="corp-columns">
+          <section class="panel corp-compose" aria-labelledby="corpCreateTitle"><h3 id="corpCreateTitle">Giao nhiệm vụ</h3><p>Chọn chat đã khai báo trong Projects &amp; chats. Mỗi bước nhận kết quả từ bước trước.</p>
+            <form id="corpForm"><label>Tên nhiệm vụ<input id="corpRunTitle" required maxlength="180" placeholder="Thiết kế, xây dựng và kiểm tra"></label><div id="corpSteps"></div><div class="actions"><button id="corpAddStep" class="btn" type="button">Thêm bước bàn giao</button><button class="btn primary" type="submit">Lưu nhiệm vụ</button></div></form>
+            <p>Nhiệm vụ mới được lưu ở trạng thái tạm dừng. Bấm Bắt đầu trên nhiệm vụ để cho phép gửi.</p>
+          </section>
+          <section class="panel corp-queue" aria-labelledby="corpQueueTitle"><div class="corp-queue-head"><h3 id="corpQueueTitle">Hàng đợi và hạn mức</h3><label class="corp-check"><input id="corpAutoResume" type="checkbox" checked>Tự tiếp tục sau reset</label></div><div id="corpRuns"></div></section>
+        </div>
+        <details class="panel corp-setup"><summary>Kết nối extension điều phối</summary><p>Nạp thư mục <code>extensions/umibridge-corp</code> bằng Load unpacked trong Chrome hoặc Edge. Mở phần cài đặt extension, nhập địa chỉ UmiBridge local và mã ghép dưới đây. Giữ các chat đã chọn mở trong trình duyệt.</p><div class="actions"><button id="corpPair" type="button" class="btn">Tạo mã ghép extension</button><button id="corpRevoke" type="button" class="btn">Thu hồi kết nối</button></div><label id="corpPairBox" hidden>Mã chỉ hiện lần này<input id="corpPairToken" type="password" readonly autocomplete="off"><button id="corpCopyToken" type="button" class="btn">Chép mã</button></label><p>Corp chỉ đọc chat được giao nhiệm vụ. Prompt và kết quả bàn giao lưu trong dữ liệu riêng trên máy. Hạn mức lấy từ thông báo giao diện ChatGPT, không phải token analytics.</p></details>
+      </section>
       <section id="settings-view" class="panel settings-panel view-section" data-view="settings" aria-labelledby="settingsTitle">
         <div class="panel-title skills-head">
           <div><h2 id="settingsTitle"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg> Settings</h2></div>
@@ -765,11 +781,12 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
   const model = {requests:[],stats:null,runtime:null,links:new Map(),workspaces:[],devices:[],jobs:[],workflows:[],workflowEnabled:false,visible:15,expanded:new Set(),loading:false,interval:null,startedAt:null,refreshSeconds:20,currentView:'overview'};
   const viewSections=[...document.querySelectorAll('main>.view-section')];
   const navLinks=[...document.querySelectorAll('.nav-link[data-view]')];
-  const viewHashes={overview:'overview',analytics:'analytics',conversations:'conversations',devices:'devices',tools:'tools',skills:'skill-center',workflows:'workflows',requests:'requests',settings:'settings'};
+  const viewHashes={overview:'overview',analytics:'analytics',conversations:'conversations',devices:'devices',tools:'tools',skills:'skill-center',workflows:'workflows',corp:'corp',requests:'requests',settings:'settings'};
   function activateView(name,updateHash=true){
     if(!viewSections.some(section=>section.dataset.view===name))name='overview';
     const changed=model.currentView!==name;
     model.currentView=name;
+    window.dispatchEvent(new CustomEvent('umibridge-view', {detail:name}));
     $('mobileView').value=name;
     viewSections.forEach(section=>section.classList.toggle('view-active',section.dataset.view===name));
     navLinks.forEach(link=>{

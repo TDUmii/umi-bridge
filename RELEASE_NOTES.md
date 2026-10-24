@@ -1,4 +1,18 @@
-# UmiBridge Sakura Console - beta.22
+# UmiBridge Sakura Console - beta.23
+
+## Corp chat coordination and Pixel Office
+
+Corp now lives inside UmiBridge. Users register existing ChatGPT conversations, define an ordered sequence of tasks, explicitly start it and hand each completed response to the next selected chat. A locally paired Chrome/Edge extension performs browser sends and observations. The optional Pixel Agents office reflects queue states and real handoff events, with remembered visibility and reduced motion.
+
+Provider UI quota notices such as `in 2h 11m`, `in 2h 29min` and `2h 37m` become durable absolute deadlines with a 15-second buffer. With auto-resume enabled, the same task resumes in the same chat after rechecking the provider UI. Closing the browser or sleeping the PC retains pending work; it does not wake the machine. Unknown reset times and ambiguous sends stop for manual reconciliation. No account/model switching or limit bypass is used.
+
+Local-admin/CSRF guards protect setup and task writes. The extension receives a separate revocable credential, never the MCP connection secret. Original drafts are preserved, duplicate submissions are reconciled by task markers, and uncertain sends are not automatically replayed. Corp private state participates in the existing Normal/Admin migration and digest checks. The MIT sprite license and pinned asset provenance ship with the source.
+
+Validation: 91 local regression tests passed; subsequent focused runtime/migration checks passed. A real Edge extension connected to a disposable gateway and synthetic ChatGPT DOM pages verified dispatch once, result handoff, quota waiting, automatic reset resume, draft preservation, toggles and desktop/laptop layouts. Only the current Windows machine was tested. Provider quota reset was simulated; this does not certify a real 2-3 hour provider wait or every ChatGPT DOM variation. No mobile delivery is included.
+
+Read `docs/CORP.vi.md` for extension pairing, task controls, recovery and limits. Existing Administrator installations must authorize the protected update through the normal Windows lifecycle.
+
+## Previous beta.22
 
 ## Post-release acceptance, 2026-10-24
 

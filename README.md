@@ -35,6 +35,7 @@ Tunnel cố định giữ nguyên URL và quyền OAuth sau khi khởi động l
 - **Tools**: bật/tắt công cụ, lệnh và xem hướng dẫn MCP tự động.
 - **Skills**: chọn skill và xem nội dung trước khi dùng.
 - **Workflows**: theo dõi task, handoff, trạng thái và liên kết request/job bằng thao tác thủ công.
+- **Corp**: điều phối các chat đã chọn, chuyển kết quả giữa các bước, chờ reset hạn mức và hiển thị văn phòng Pixel Agents có nút bật/tắt.
 - **Requests**: tham số, stdout, stderr, exit code và thời gian chạy.
 - **Settings**: endpoint, mã kết nối ban đầu, giao diện và chu kỳ làm mới.
 
@@ -59,6 +60,14 @@ Chế độ được ghi nhớ yêu cầu cùng một tài khoản Windows thu�
 Lệnh nâng cao vẫn dùng một launcher: `UmiBridge.cmd -Action admin` hoặc `UmiBridge.cmd -Action normal`. `-Action stop` dừng phiên hiện tại mà không xóa chế độ đã lưu. Nếu source đã cập nhật, chuyển về quyền thường rồi bật lại Administrator để cấp quyền cho bản sao mã mới; bản admin không tự chạy mã vừa sửa ở thư mục source.
 
 Đối với công việc thường ngày, bật đọc/sửa/tìm file, `run_command`, quan sát cửa sổ và những thao tác chuột/phím cần dùng. Các lệnh sửa Registry, kết thúc tiến trình và clipboard chỉ nên bật khi nhiệm vụ cần đến chúng. Các công tắc công cụ vẫn áp dụng trong cả hai chế độ; lệnh được phép chạy admin có quyền tương ứng của Windows.
+
+## Corp - điều phối chat và văn phòng hoạt ảnh
+
+Từ beta.23, mở **Corp** ngay trong dashboard UmiBridge. Thêm các chat tại **Projects & chats**, nạp extension trong `extensions/umibridge-corp` vào Chrome/Edge, ghép bằng mã Corp rồi chọn chuỗi giao việc. Bật điều phối và bấm **Bắt đầu** trên nhiệm vụ để gửi thật vào các tab chat đang mở.
+
+Corp đọc thông báo như `in 2h 11m`, `in 2h 29min`, `2h 37m`, lưu mốc reset và tiếp tục cùng nhiệm vụ khi đến giờ nếu bật tự tiếp tục. Không đọc được giờ hoặc không xác nhận đã gửi thì dừng để kiểm tra, không tự gửi trùng. **Văn phòng: Bật/Tắt** chỉ đổi hiển thị; nhân viên và hoạt ảnh bàn giao phản ánh hàng đợi thật.
+
+Chỉ hỗ trợ desktop/laptop. Xem [hướng dẫn Corp và giới hạn nghiệm thu](docs/CORP.vi.md). Prompt và kết quả bàn giao lưu riêng trong `.local-data/corp-state.json`, không đưa vào Git hoặc ZIP. Bản Administrator cần cập nhật qua cơ chế Windows đã có để nhận runtime mới.
 
 ## Workflows
 

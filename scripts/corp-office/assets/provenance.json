@@ -1,0 +1,98 @@
+{
+  "repository": "https://github.com/pixel-agents-hq/pixel-agents",
+  "license": "MIT",
+  "files": [
+    {
+      "file": "char_0.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/characters/char_0.png",
+      "sha256": "9ece93c20765abb876e3dacfe01e0cd1801323eff41c1779be0c47369886c09a"
+    },
+    {
+      "file": "char_1.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/characters/char_1.png",
+      "sha256": "f935f033726b06f73dbbe590db5a23cfb20d2d02c1329fd5d67d57a262e9b05e"
+    },
+    {
+      "file": "char_2.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/characters/char_2.png",
+      "sha256": "9f63ee7be4577e1d60de3b64d198d387d1c09794bed3a608958e77c7b955575d"
+    },
+    {
+      "file": "char_3.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/characters/char_3.png",
+      "sha256": "ee5ebe0847471e4834e367f8a4108e6caf2f402ed506bbfebd90c64a43a79348"
+    },
+    {
+      "file": "char_4.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/characters/char_4.png",
+      "sha256": "fcf72626bbee3045d0f3e10bb87a41dab19a331d1affdfc53b483567f9c083aa"
+    },
+    {
+      "file": "char_5.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/characters/char_5.png",
+      "sha256": "4b2c639a50e089a4e3b87be440ffb52b5c5c8cfd6473a386f325b25f99db7381"
+    },
+    {
+      "file": "DESK_FRONT.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/DESK/DESK_FRONT.png",
+      "sha256": "4df9ed2b04efb98dbd901d400d65fa5a1729e4508787ad70eb93e747017220ca"
+    },
+    {
+      "file": "PC_FRONT_ON_1.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/PC/PC_FRONT_ON_1.png",
+      "sha256": "d00d95a9c4718f770dee1a93240be8b7dc6d2e8abab4071179dd79c2d73a9337"
+    },
+    {
+      "file": "PC_FRONT_ON_2.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/PC/PC_FRONT_ON_2.png",
+      "sha256": "dc083d31848be3661b4ea571ee8d8d7e5dcd34cdbcef48d4dd6c444166eb7a69"
+    },
+    {
+      "file": "PC_FRONT_ON_3.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/PC/PC_FRONT_ON_3.png",
+      "sha256": "773c5e0cfee45ad12669c082ff26c0041f12a6369e4622db3eab35685aeabc0f"
+    },
+    {
+      "file": "PC_FRONT_OFF.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/PC/PC_FRONT_OFF.png",
+      "sha256": "a5d6f40f500f14f440cf981950630f5433521faa7578ae0f83684b9ededdc2bf"
+    },
+    {
+      "file": "WOODEN_CHAIR_FRONT.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/WOODEN_CHAIR/WOODEN_CHAIR_FRONT.png",
+      "sha256": "fb4c4bf7def68c98e4eedffe1d9ee0cbeaa054fc5bc4aa6785f37cc83b1cd44d"
+    },
+    {
+      "file": "SOFA_FRONT.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/SOFA/SOFA_FRONT.png",
+      "sha256": "7e4c7e98e46d32daa2776651f6f413f68a84252b357b01d722fce6bb2a0ca52f"
+    },
+    {
+      "file": "BOOKSHELF.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/BOOKSHELF/BOOKSHELF.png",
+      "sha256": "bd05119962080fd4cff6697fec0c3730c5a9c3def01b31ca0fa929971144322e"
+    },
+    {
+      "file": "LARGE_PLANT.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/LARGE_PLANT/LARGE_PLANT.png",
+      "sha256": "196a4f1748160cdbf69400e370b1d7d1254b49902b8c091bcabd7676934f3149"
+    },
+    {
+      "file": "COFFEE.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/COFFEE/COFFEE.png",
+      "sha256": "6bed27c8de5a4ce98b3646d233803b3192cc5980c8f4caf779eb1344a87f8e0d"
+    },
+    {
+      "file": "WHITEBOARD.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/WHITEBOARD/WHITEBOARD.png",
+      "sha256": "42fb63a8d8041f602c6cd0e7491be3ea95c3f4699b6a5ba6e47851ba8a473059"
+    },
+    {
+      "file": "CLOCK.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/CLOCK/CLOCK.png",
+      "sha256": "f1ff567d71508dfdba37f2ff94ffde734940b56b3999e29b213ab6774e67b20f"
+    }
+  ],
+  "commit": "b1bafd02896d90d83457266575a1e8e5011ce997",
+  "characters_credit": "Pablo De Lucca; based on JIK-A-4 Metro City"
+}

@@ -222,7 +222,7 @@ $first`);
   for (const hash of Object.values(value)) assert.match(hash, /^[A-F0-9]{64}$/);
 });
 
-test('Normal and Admin state migration preserves workflow journal bytes and includes them in the state digest', { skip: !windows }, () => {
+test('Normal and Admin state migration preserves workflow and Corp bytes and includes both in the state digest', { skip: !windows }, () => {
   const result = run(`$ErrorActionPreference='Stop'
 . ${psQuote(helper)} -LibraryOnly
 $temporaryRoot=[IO.Path]::GetTempPath().TrimEnd('\\')
@@ -236,6 +236,8 @@ try {
   $utf8=New-Object Text.UTF8Encoding($false)
   [IO.File]::WriteAllText($journal, ('{"kind":"workflow_snapshot","workflow":{"workflow_id":"wf-migration","status":"waiting","job_id":"job-kept","version":3}}'+[Environment]::NewLine), $utf8)
   [IO.File]::WriteAllText((Join-Path $normal 'workflows.jsonl.lock'),'transient lock')
+  $corp=Join-Path $normal 'corp-state.json'
+  [IO.File]::WriteAllText($corp,'{"schema":1,"enabled":true,"runs":[{"status":"limit_wait","resetAt":1800000000000}]}',$utf8)
   $qa=Join-Path $normal 'qa'
   [void][IO.Directory]::CreateDirectory($qa)
   [IO.File]::WriteAllText((Join-Path $qa 'diagnostic.ps1'),'QA must not be migrated')
@@ -244,6 +246,8 @@ try {
   $adminJournal=Join-Path $admin 'workflows.jsonl'
   if(-not [IO.File]::Exists($adminJournal)){throw 'Workflow journal was omitted from Normal-to-Admin migration'}
   if([Convert]::ToBase64String([IO.File]::ReadAllBytes($adminJournal)) -ne $originalBytes){throw 'Migration changed journal bytes'}
+  $adminCorp=Join-Path $admin 'corp-state.json'
+  if([IO.File]::ReadAllText($adminCorp) -ne [IO.File]::ReadAllText($corp)){throw 'Migration changed Corp state'}
   if((Test-Path -LiteralPath (Join-Path $admin 'workflows.jsonl.lock')) -or (Test-Path -LiteralPath (Join-Path $admin 'qa'))){throw 'Migration copied transient lock or QA files'}
   $normalDigest=Get-UmiStateDigest $normal
   $adminDigest=Get-UmiStateDigest $admin
@@ -251,9 +255,13 @@ try {
   [IO.File]::AppendAllText($adminJournal, ('{"kind":"workflow_event","workflow_id":"wf-migration","type":"updated","payload":{"status":"done"}}'+[Environment]::NewLine), $utf8)
   $updatedDigest=Get-UmiStateDigest $admin
   if($updatedDigest -eq $adminDigest){throw 'State digest ignored a workflow journal change'}
+  [IO.File]::WriteAllText($adminCorp,'{"schema":1,"enabled":false,"runs":[]}',$utf8)
+  if((Get-UmiStateDigest $admin) -eq $updatedDigest){throw 'State digest ignored a Corp change'}
+  $updatedDigest=Get-UmiStateDigest $admin
   $updatedBytes=[Convert]::ToBase64String([IO.File]::ReadAllBytes($adminJournal))
   Copy-UmiPrivateState -SourceState $admin -DestinationState $normal
   if([Convert]::ToBase64String([IO.File]::ReadAllBytes($journal)) -ne $updatedBytes){throw 'Admin-to-Normal migration lost the updated journal'}
+  if([IO.File]::ReadAllText($corp) -ne [IO.File]::ReadAllText($adminCorp)){throw 'Admin-to-Normal migration lost Corp state'}
   if((Get-UmiStateDigest $normal) -ne $updatedDigest){throw 'Round-trip state digest omitted workflow data'}
   'workflow-state-migration-validated'
 } finally {

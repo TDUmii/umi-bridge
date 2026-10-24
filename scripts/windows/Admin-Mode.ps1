@@ -329,7 +329,7 @@ function Copy-UmiProtectedApplication {
     # uv also creates an unversioned junction beside the real CPython base.
     # Copy only the exact real home referenced by this venv; no alias is needed.
     $required = @('package.json', 'package-lock.json', 'scripts', 'assets', 'node_modules', '.runtime\windows-tools', '.runtime\windows-mcp-source', $pythonRelative)
-    $optional = @('.runtime\devtunnel', 'local-bin')
+    $optional = @('.runtime\devtunnel', 'local-bin', 'extensions')
     foreach ($relative in $required) {
         $itemPath = Assert-UmiContainedPath $sourcePath (Join-Path $sourcePath $relative)
         if (-not (Test-Path -LiteralPath $itemPath)) { throw "Missing required runtime component: $relative" }
@@ -514,7 +514,7 @@ function Resolve-UmiPrincipalSid {
 function Get-UmiProductionStateNames {
     # Keep operational identity/settings; do not elevate QA scripts, screenshots,
     # diagnostic bundles, releases, or arbitrary executable files in .local-data.
-    return @('connection-secret.txt', 'oauth-state.json', 'oauth-profiles', 'tunnel-config.json', 'profile', 'tool-policy.json', 'windows-tools-disabled', 'windows-tools.toml', 'devices.json', 'skill-registry.json', 'chat-links.json', 'request-history.jsonl', 'agent-config.json', 'workflows.jsonl')
+    return @('connection-secret.txt', 'oauth-state.json', 'oauth-profiles', 'tunnel-config.json', 'profile', 'tool-policy.json', 'windows-tools-disabled', 'windows-tools.toml', 'devices.json', 'skill-registry.json', 'chat-links.json', 'request-history.jsonl', 'agent-config.json', 'workflows.jsonl', 'corp-state.json')
 }
 
 function Copy-UmiPrivateState {
