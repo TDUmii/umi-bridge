@@ -8,6 +8,7 @@
 <title>UmiBridge ✦ Sakura Console</title>
 <link rel="stylesheet" href="/admin/corp-dashboard.css">
 <script defer src="/admin/corp-dashboard.js"></script>
+<script defer src="/admin/usage-dashboard.js"></script>
 <style>
 :root{
   color-scheme:light;--ink:#222743;--muted:#68728f;--soft:#8c95ab;--surface:#fff;--canvas:#f4f6fc;
@@ -471,8 +472,12 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
 @media(max-width:650px){#tool-permissions .permissions-intro{display:none}.permissions-intro+.mcp-guidance{margin-bottom:16px;padding-bottom:12px}.guidance-heading h3{font-size:14px}.guidance-heading p{font-size:12px;margin-top:3px}.guidance-detail{margin-top:2px}.guidance-detail summary{min-height:34px;line-height:34px}.permission-groups{margin-bottom:12px}.permission-groups .btn{min-height:38px;padding-block:6px}.permission-toolbar{gap:6px;margin-bottom:12px}.permission-group-head{gap:8px;padding-bottom:10px}.permission-group-head p{font-size:11px;line-height:1.5}.permission-row{padding-block:12px}}
 @media(prefers-reduced-motion:reduce){.permission-switch:before,.permission-switch:after{transition:none}}
 </style>
+<link rel="stylesheet" href="/admin/console.css">
 </head>
 <body>
+<!-- Operate: compact desktop console, graphite and jade, existing light/dark preference.
+     Corp keeps office and queue together; optional editing stays in an inline drawer.
+     Usage shows observed payload estimates, never invented provider billing or quota. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true">
 <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></symbol>
 <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></symbol>
@@ -548,30 +553,26 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
         </div>
         <nav class="overview-shortcuts" aria-label="Quick actions"><a class="btn" href="#requests"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>Open request history</a><a class="btn" href="#analytics"><svg class="icon" aria-hidden="true"><use href="#i-activity"/></svg>View token estimates</a><a class="btn" href="#settings"><svg class="icon" aria-hidden="true"><use href="#i-link"/></svg>Connection settings</a></nav>
       </section>
-      <section id="analytics" class="charts view-section" data-view="analytics" aria-label="Activity analytics">
-        <article class="panel"><div class="panel-title"><h2>Performance</h2><span class="panel-chip">LATEST 500</span></div><dl class="analytics-summary"><div><dt>Median</dt><dd id="latencyMedian">—</dd></div><div><dt>P95</dt><dd id="latencyP95">—</dd></div><div><dt>Success rate</dt><dd id="analyticsSuccess">—</dd></div></dl></article>
-        <article class="panel"><div class="panel-title"><h2>Activity trend</h2><div class="daily-controls" role="group" aria-label="Trend period"><button type="button" class="btn small" data-days="7" aria-pressed="true">7 days</button><button type="button" class="btn small" data-days="30" aria-pressed="false">30 days</button></div></div><div id="dailyChart" class="daily-chart"></div></article>
-        <article class="panel token-panel" aria-labelledby="tokenTitle">
-          <div class="panel-title"><div><h2 id="tokenTitle">Tool tokens</h2></div><span class="panel-chip">o200k_base</span></div>
-          <div class="token-body">
-            <dl class="token-values"><div><dt>Input tokens</dt><dd id="tokenInput">—</dd></div><div><dt>Output tokens</dt><dd id="tokenOutput">—</dd></div><div><dt>Total tokens</dt><dd id="tokenTotal">—</dd></div></dl>
-            <details class="token-note"><summary>How tokens are counted</summary><p>Offline o200k_base tokenizer applied to complete tool text before log redaction. This is a reference count, not model billing. Chat context, reasoning and images are unavailable through MCP. Large payloads are skipped; old byte-based estimates are excluded.</p></details>
-            <p class="token-coverage"><strong id="tokenMeasured">0</strong> <span>measured requests</span> · <strong id="tokenUnmeasured">0</strong> <span>unmeasured requests</span></p><p id="tokenBytes" class="token-note"></p>
-            <div class="token-columns">
-              <div><h3>By application</h3><table class="token-table" aria-label="Estimated tokens by application"><thead><tr><th scope="col">Application</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">Total</th></tr></thead><tbody id="tokenProviders"><tr><td colspan="4">No measured requests yet.</td></tr></tbody></table></div>
-              <div><h3>Largest tool payloads</h3><p class="token-note">Ranked within the latest 500 records.</p><div id="tokenTools" class="tool-ranks"><p class="tool-empty">No measured requests yet.</p></div></div>
-            </div>
-          </div>
-        </article>
-        <article class="panel">
-          <div class="panel-title"><div><h2>Hourly activity</h2><p>Last 12 hours within recent history</p></div><span class="panel-chip">12 HOURS</span></div>
-          <div id="hourChart" class="chart-canvas" role="img" aria-label="No chart data yet"></div>
-          <div class="chart-footer"><span>Last 12 hours: <strong id="chartTotal">—</strong></span><span>Updated: <strong id="lastUpdate">—</strong></span></div>
-        </article>
-        <article class="panel">
-          <div class="panel-title"><div><h2>Most-used tools</h2><p>Ranked by calls in recent history</p></div><span class="panel-chip" id="toolsCount">— tools</span></div>
-          <div class="tool-ranks" id="toolRanks"><div class="tool-empty">Loading statistics...</div></div>
-        </article>
+      <section id="analytics" class="view-section usage-view" data-view="analytics" aria-labelledby="usageTitle">
+        <div class="usage-heading"><h2 id="usageTitle">Token &amp; hạn mức</h2><div class="actions"><button id="usageReload" class="btn" type="button">Làm mới</button><button id="usageExport" class="btn" type="button" disabled>Xuất trang CSV</button></div></div>
+        <div class="usage-toolbar">
+          <div id="usagePeriods" class="segmented" role="group" aria-label="Khoảng thời gian"><button type="button" data-period="today">Hôm nay</button><button type="button" data-period="24h">24h</button><button type="button" data-period="7d" aria-pressed="true">7 ngày</button><button type="button" data-period="30d">30 ngày</button><button type="button" data-period="60d">60 ngày</button><button type="button" data-period="all">Tất cả</button></div>
+          <label>Nguồn<select id="usageSource"><option value="mcp">Công cụ MCP</option><option value="corp">Chat Corp</option><option value="all">MCP + Corp</option></select></label>
+          <label>Ứng dụng<select id="usageApplication"><option value="all">Tất cả</option></select></label>
+          <label>Công cụ<select id="usageTool"><option value="all">Tất cả</option></select></label>
+          <label>Trạng thái<select id="usageStatus"><option value="all">Tất cả</option><option value="ok">Hoàn thành</option><option value="error">Lỗi / đã dừng</option><option value="pending">Chưa đủ kết quả</option></select></label>
+        </div>
+        <p id="usageError" role="alert" hidden></p>
+        <dl class="usage-metrics" aria-live="polite"><div><dt>Token ước tính</dt><dd id="usageTotal">-</dd></div><div><dt>Input</dt><dd id="usageInput">-</dd></div><div><dt>Output</dt><dd id="usageOutput">-</dd></div><div><dt>Lượt ghi nhận</dt><dd id="usageRequests">-</dd></div><div><dt>Thành công</dt><dd id="usageSuccess">-</dd></div><div><dt>Thời gian TB</dt><dd id="usageLatency">-</dd></div></dl>
+        <div id="usageTabs" class="usage-tabs" role="group" aria-label="Nội dung phân tích"><button class="btn" type="button" data-pane="overview" aria-pressed="true">Tổng quan</button><button class="btn" type="button" data-pane="history" aria-pressed="false">Chi tiết</button><button class="btn" type="button" data-pane="limits" aria-pressed="false">Hạn mức &amp; ngân sách</button><span id="usageCoverage"></span></div>
+        <div id="usageOverview" class="usage-pane">
+          <div class="usage-chart-head"><h3>Token theo thời gian</h3><span id="usageChartScope"></span><span class="usage-legend"><i></i>Input <i></i>Output</span></div><div id="usageChart" class="usage-chart" role="img" aria-label="Đang tải biểu đồ"></div>
+          <div class="usage-group-head"><h3>Phân bổ</h3><label class="sr-only" for="usageGroup">Nhóm thống kê</label><select id="usageGroup"><option value="applications">Ứng dụng</option><option value="tools">Công cụ</option><option value="chats">Chat</option><option value="sources">Nguồn</option></select></div>
+          <div class="usage-table-wrap"><table class="usage-table"><thead><tr><th scope="col">Nhóm</th><th scope="col">Lượt</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">Tổng</th><th scope="col">Lỗi</th><th scope="col">Thời gian TB</th></tr></thead><tbody id="usageGroups"></tbody></table></div>
+        </div>
+        <div id="usageHistory" class="usage-pane" hidden><div class="usage-group-head"><label class="usage-search">Tìm lượt<input id="usageSearch" type="search" placeholder="ID, công cụ, chat, nhiệm vụ..."></label><span id="usagePageLabel"></span><div class="actions"><button id="usagePrevious" class="btn small" type="button">Trước</button><button id="usageNext" class="btn small" type="button">Sau</button></div></div><div class="usage-table-wrap"><table class="usage-table"><thead><tr><th scope="col">Thời gian / ID</th><th scope="col">Ứng dụng / công cụ</th><th scope="col">Trạng thái</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">Tổng</th><th scope="col">Thời gian</th></tr></thead><tbody id="usageRows"></tbody></table></div></div>
+        <div id="usageLimits" class="usage-pane" hidden><div class="usage-limit-grid"><section><h3>Hạn mức nhà cung cấp</h3><div id="usageLimitRows"></div><p class="usage-note">Chỉ có mốc reset khi Corp gặp thông báo hạn mức. Chưa có dữ liệu số dư, model, cache, reasoning hoặc hóa đơn.</p></section><section><h3>Ngân sách tham khảo</h3><form id="usageBudgetForm" class="usage-budget"><label>USD / 1M input<input id="usageInputRate" type="number" min="0" max="100000" step="0.001" placeholder="Chưa đặt"></label><label>USD / 1M output<input id="usageOutputRate" type="number" min="0" max="100000" step="0.001" placeholder="Chưa đặt"></label><label>Ngân sách cho kỳ đang lọc (USD)<input id="usageBudget" type="number" min="0" max="1000000000" step="0.01" placeholder="Không giới hạn"></label><button class="btn" type="submit">Lưu trên trình duyệt này</button></form><p id="usageCost" class="usage-cost"></p><progress id="usageBudgetProgress" max="100" value="0" hidden></progress><p id="usageBudgetMessage" role="status"></p><p class="usage-note">Giá do bạn nhập, áp dụng cho dữ liệu đang lọc. Chỉ tham khảo; không phải tiền nhà cung cấp thu. Cảnh báo không tự dừng công việc.</p></section></div></div>
+        <details class="usage-method"><summary id="usageMethodLabel">Cách tính · o200k_base · ước tính</summary><p>Token MCP chỉ tính văn bản gọi/trả công cụ. Token Corp tính prompt gửi đã xác nhận và phản hồi nhận được, không gồm toàn bộ lịch sử chat. Hai nguồn có thể trùng nội dung; tổng chung không phải hóa đơn. Dấu * là lượt chỉ ghi nhận được một phần. Payload quá lớn không đếm. MCP đọc toàn bộ nhật ký còn lưu; Corp giữ 5.000 lượt gần nhất từ bản này. Không phục dựng lượt cũ thiếu dữ liệu. Model và hạn mức còn lại chưa được nhà cung cấp cung cấp.</p><p id="usageBytes"></p></details>
       </section>
       <section id="conversations-view" class="section-grid view-section" data-view="conversations">
         <article id="conversations" class="panel conversation-panel">
@@ -674,17 +675,17 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
         </div>
       </section>
       <section id="corp" class="view-section" data-view="corp" aria-labelledby="corpTitle">
-        <div class="corp-head"><div><h2 id="corpTitle">Corp - Đội ngũ chat</h2><p>Giao việc theo thứ tự. Bàn giao kết quả, chờ hạn mức và tiếp tục tại cùng chat.</p></div><div class="actions"><button id="corpOffice" class="btn" type="button" aria-pressed="true">Văn phòng: Bật</button><button id="corpEnabled" class="btn" type="button" aria-pressed="false">Điều phối: Tắt</button></div></div>
+        <div class="corp-head"><h2 id="corpTitle">Corp</h2><div class="actions"><button id="corpSetupToggle" class="btn" type="button" aria-expanded="false" aria-controls="corpSetup">Kết nối</button><button id="corpOffice" class="btn" type="button" aria-pressed="true">Văn phòng: Bật</button><button id="corpEnabled" class="btn" type="button" aria-pressed="false">Điều phối: Tắt</button><button id="corpComposeToggle" class="btn primary" type="button" aria-expanded="false" aria-controls="corpCompose">Giao việc</button></div></div>
         <p id="corpConnection" role="status">Đang tải Corp...</p><p id="corpError" role="alert" hidden></p>
+        <div class="corp-workspace">
         <iframe id="corpScene" title="Văn phòng hoạt ảnh UmiBridge" src="/admin/corp/office/" loading="lazy"></iframe>
-        <div class="corp-columns">
-          <section class="panel corp-compose" aria-labelledby="corpCreateTitle"><h3 id="corpCreateTitle">Giao nhiệm vụ</h3><p>Chọn chat đã khai báo trong Projects &amp; chats. Mỗi bước nhận kết quả từ bước trước.</p>
+          <section id="corpCompose" class="panel corp-compose" aria-labelledby="corpCreateTitle" hidden><div class="corp-queue-head"><h3 id="corpCreateTitle">Giao nhiệm vụ</h3><button id="corpComposeClose" class="btn small" type="button">Đóng</button></div>
             <form id="corpForm"><label>Tên nhiệm vụ<input id="corpRunTitle" required maxlength="180" placeholder="Thiết kế, xây dựng và kiểm tra"></label><div id="corpSteps"></div><div class="actions"><button id="corpAddStep" class="btn" type="button">Thêm bước bàn giao</button><button class="btn primary" type="submit">Lưu nhiệm vụ</button></div></form>
-            <p>Nhiệm vụ mới được lưu ở trạng thái tạm dừng. Bấm Bắt đầu trên nhiệm vụ để cho phép gửi.</p>
+            <p>Lưu ở trạng thái tạm dừng. Bấm Bắt đầu để gửi.</p>
           </section>
-          <section class="panel corp-queue" aria-labelledby="corpQueueTitle"><div class="corp-queue-head"><h3 id="corpQueueTitle">Hàng đợi và hạn mức</h3><label class="corp-check"><input id="corpAutoResume" type="checkbox" checked>Tự tiếp tục sau reset</label></div><div id="corpRuns"></div></section>
+          <section class="panel corp-queue" aria-labelledby="corpQueueTitle"><div class="corp-queue-head"><h3 id="corpQueueTitle">Hàng đợi <span id="corpRunCount">0</span></h3><select id="corpRunFilter" aria-label="Lọc nhiệm vụ"><option value="active">Đang mở</option><option value="all">Tất cả</option><option value="done">Đã xong</option></select></div><label class="corp-check"><input id="corpAutoResume" type="checkbox" checked>Tự tiếp tục sau reset</label><div id="corpRuns"></div></section>
         </div>
-        <details class="panel corp-setup"><summary>Kết nối extension điều phối</summary><p>Nạp thư mục <code>extensions/umibridge-corp</code> bằng Load unpacked trong Chrome hoặc Edge. Mở phần cài đặt extension, nhập địa chỉ UmiBridge local và mã ghép dưới đây. Giữ các chat đã chọn mở trong trình duyệt.</p><div class="actions"><button id="corpPair" type="button" class="btn">Tạo mã ghép extension</button><button id="corpRevoke" type="button" class="btn">Thu hồi kết nối</button></div><label id="corpPairBox" hidden>Mã chỉ hiện lần này<input id="corpPairToken" type="password" readonly autocomplete="off"><button id="corpCopyToken" type="button" class="btn">Chép mã</button></label><p>Corp chỉ đọc chat được giao nhiệm vụ. Prompt và kết quả bàn giao lưu trong dữ liệu riêng trên máy. Hạn mức lấy từ thông báo giao diện ChatGPT, không phải token analytics.</p></details>
+        <section id="corpSetup" class="panel corp-setup" hidden><h3>Kết nối extension</h3><p>Mở cài đặt UmiBridge Corp trong Chrome. Nhập địa chỉ <code>http://127.0.0.1:43127</code> và mã ghép. Giữ chat được giao việc mở trong trình duyệt.</p><div class="actions"><button id="corpPair" type="button" class="btn">Tạo mã ghép extension</button><button id="corpRevoke" type="button" class="btn">Thu hồi kết nối</button></div><label id="corpPairBox" hidden>Mã chỉ hiện lần này<input id="corpPairToken" type="password" readonly autocomplete="off"><button id="corpCopyToken" type="button" class="btn">Chép mã</button></label><details><summary>Phạm vi truy cập</summary><p>Corp chỉ đọc chat được giao nhiệm vụ. Prompt và kết quả lưu riêng trên máy. Hạn mức lấy từ thông báo giao diện ChatGPT.</p></details></section>
       </section>
       <section id="settings-view" class="panel settings-panel view-section" data-view="settings" aria-labelledby="settingsTitle">
         <div class="panel-title skills-head">
@@ -786,9 +787,9 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
     if(!viewSections.some(section=>section.dataset.view===name))name='overview';
     const changed=model.currentView!==name;
     model.currentView=name;
-    window.dispatchEvent(new CustomEvent('umibridge-view', {detail:name}));
     $('mobileView').value=name;
     viewSections.forEach(section=>section.classList.toggle('view-active',section.dataset.view===name));
+    window.dispatchEvent(new CustomEvent('umibridge-view', {detail:name}));
     navLinks.forEach(link=>{
       const active=link.dataset.view===name;
       link.classList.toggle('active',active);
@@ -859,54 +860,13 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
     const rate=received.total ? Math.round(1000*received.success/received.total)/10 : 0;
     $('successRate').textContent='Tỉ lệ thành công: '+rate.toLocaleString('vi-VN')+'%';
     $('errorRate').textContent='Tỉ lệ lỗi: '+(received.total?Math.round(1000*received.errors/received.total)/10:0).toLocaleString('vi-VN')+'%';
-    $('tools').textContent=number(s.tools);$('toolsCount').textContent=number(s.tools)+' công cụ';
+    $('tools').textContent=number(s.tools);
     $('latest').textContent=s.latest?date(s.latest):'—';
     $('loadedCount').textContent=number(model.requests.length)+' / '+number(s.total);
     $('clear').disabled=received.total===0;
   }
-  function renderChart(){
-    const hourly=Array.isArray(model.stats?.hourly)?model.stats.hourly:[];
-    const max=Math.max(1,...hourly.map(row=>Number(row.count)||0));
-    $('chartTotal').textContent=number(hourly.reduce((total,item)=>total+(Number(item.count)||0),0));
-    $('hourChart').innerHTML=hourly.map(row=>{
-      const count=Number(row.count)||0;
-      const label=time(row.hour);
-      const h=count===0?3:Math.max(8,Math.round(count/max*100));
-      return '<div class="hour-item" title="'+escapeHtml(label+' · '+count+' request')+'"><div class="hour-bar-wrap"><span class="hour-bar'+(count===0?' zero':'')+'" style="height:'+h+'%"></span></div><small>'+escapeHtml(label)+'</small></div>';
-    }).join('') || '<div class="tool-empty">Chưa có dữ liệu theo giờ.</div>';
-    $('hourChart').setAttribute('aria-label','Biểu đồ số request 12 giờ: '+hourly.map(r=>time(r.hour)+' '+r.count).join(', '));
-  }
-  function renderTokens(){
-    $('latencyMedian').textContent=ms(model.stats?.p50Ms??0);
-    $('latencyP95').textContent=ms(model.stats?.p95Ms??0);
-    $('analyticsSuccess').textContent=model.stats?.total?Math.round(model.stats.success/model.stats.total*100)+'%':'—';
-    renderDaily();
-    const usage=model.stats?.tokens;
-    $('tokenInput').textContent=number(usage?.inputTokens??0);
-    $('tokenOutput').textContent=number(usage?.outputTokens??0);
-    $('tokenTotal').textContent=number(usage?.totalTokens??0);
-    $('tokenMeasured').textContent=number(usage?.measuredRequests??0);
-    $('tokenUnmeasured').textContent=number(usage?.unmeasuredRequests??model.stats?.received?.total??0);
-    const coverage=usage?.measuredRequests?Math.round(1000*usage.measuredRequests/Math.max(1,model.stats.received.total))/10:0;
-    $('tokenBytes').textContent=number(coverage)+'% coverage · '+number(Math.round(((usage?.inputBytes??0)+(usage?.outputBytes??0))/102.4)/10)+' KiB tool text · '+number(usage?.legacyMeasurements??0)+' legacy · '+number(usage?.skippedMeasurements??0)+' skipped';
-    const providers=Array.isArray(usage?.byProvider)?usage.byProvider:[];
-    $('tokenProviders').innerHTML=providers.length?providers.map(row=>'<tr><th scope="row">'+(row.provider==='chatgpt'?'ChatGPT':'MCP')+'</th><td>'+number(row.inputTokens)+'</td><td>'+number(row.outputTokens)+'</td><td>'+number(row.totalTokens)+'</td></tr>').join(''):'<tr><td colspan="4">No measured requests yet.</td></tr>';
-    const tools=Array.isArray(usage?.recentTools)?usage.recentTools:[];
-    const largest=Math.max(1,...tools.map(tool=>tool.totalTokens));
-    $('tokenTools').innerHTML=tools.length?tools.map(tool=>'<div class="tool-row"><span class="name" title="'+escapeHtml(tool.name)+'">'+escapeHtml(tool.name)+'</span><span class="count">'+number(tool.totalTokens)+' tokens</span><div class="tool-track"><div class="tool-fill" style="width:'+Math.max(3,Math.round(tool.totalTokens/largest*100))+'%"></div></div></div>').join(''):'<p class="tool-empty">No measured requests yet.</p>';
-  }
-  function renderDaily(){
-    const days=Number(document.querySelector('[data-days][aria-pressed="true"]')?.dataset.days)||7;
-    const rows=(model.stats?.daily??[]).filter(row=>Date.parse(row.day)>=Date.now()-days*86400_000);
-    const max=Math.max(1,...rows.map(row=>row.count));
-    $('dailyChart').innerHTML=rows.length?rows.map(row=>'<div class="daily-line"><span>'+escapeHtml(new Date(row.day).toLocaleDateString(undefined,{month:'short',day:'numeric',timeZone:'UTC'}))+'</span><span class="daily-track" title="'+number(row.errors)+' errors · '+number(row.totalTokens)+' tool tokens"><i style="width:'+Math.max(2,Math.round(100*row.count/max))+'%"></i></span><span>'+number(row.count)+' calls</span></div>').join(''):'<p class="tool-empty">No activity in this period.</p>';
-  }
   function renderTools(){
     const tools=Array.isArray(model.stats?.toolBreakdown)?model.stats.toolBreakdown:[];
-    const top=tools.slice(0,6),max=Math.max(1,...top.map(t=>t.count));
-    $('toolRanks').innerHTML=top.length?top.map(tool=>
-      '<div class="tool-row"><span class="name" title="'+escapeHtml(tool.name)+'">'+escapeHtml(tool.name)+'</span><span class="count">'+number(tool.count)+' lượt · '+number(tool.errors)+' lỗi</span><div class="tool-track"><div class="tool-fill" style="width:'+Math.max(3,Math.round(tool.count/max*100))+'%"></div></div></div>'
-    ).join(''):'<div class="tool-empty">Chưa có hoạt động để thống kê.</div>';
     const select=$('toolFilter'),previous=select.value;
     select.innerHTML='<option value="all">Mọi công cụ</option>'+tools.map(tool=>'<option value="'+escapeHtml(tool.name)+'">'+escapeHtml(tool.name)+'</option>').join('');
     select.value=Array.from(select.options).some(x=>x.value===previous)?previous:'all';
@@ -1092,7 +1052,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       model.workspaces=Array.isArray(chats.workspaces)?chats.workspaces:[];
       model.devices=devices.devices;model.jobs=devices.jobs;
       model.startedAt=model.runtime?.startedAt?Date.parse(model.runtime.startedAt):null;
-      renderStats();renderChart();renderTokens();renderTools();renderChats();renderDevices();renderRows({preserveDetails:true});updateUptime();
+      renderStats();renderTools();renderChats();renderDevices();renderRows({preserveDetails:true});updateUptime();
       $('endpoint').textContent=model.runtime?.endpoint||'Không có dữ liệu endpoint';
       if($('settingsEndpoint'))$('settingsEndpoint').textContent=model.runtime?.endpoint||'Không có dữ liệu endpoint';
       if($('settingsMode'))$('settingsMode').textContent=String(model.runtime?.endpoint||'').startsWith('https://')?'Shared tunnel':'Local only';
@@ -1106,7 +1066,6 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       $('settingsWindowsToggle').dataset.enabled=String(desktop?.enabled!==false);
       $('settingsWindowsToggle').textContent=desktop?.enabled===false?'Resume':'Pause';
       $('settingsWindowsStatus').textContent=desktop?.enabled===false?'Paused':desktop?.available?'Ready · '+desktop.toolCount+' tools':desktop?.message||'Open UmiBridge.cmd to install Windows tools.';
-      $('lastUpdate').textContent=time(new Date());
       $('updated').textContent='Cập nhật lúc '+new Date().toLocaleTimeString('vi-VN');
       hideError();setConnection(true);
     }catch(error){
@@ -1190,7 +1149,6 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       model.pairing=body;$('pairingCode').textContent=body.code;$('pairingExpiry').textContent='Hết hạn '+date(body.expiresAt);$('pairingBox').classList.add('show');
     }catch(error){showError(error.message);}finally{button.disabled=false;}
   });
-  document.querySelectorAll('[data-days]').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('[data-days]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));renderDaily();}));
   $('workspaceForm').addEventListener('submit',async event=>{
     event.preventDefault();const button=event.submitter;button.disabled=true;
     try{

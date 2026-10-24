@@ -1,7 +1,7 @@
 // Isolated, synthetic browser test. No provider traffic, login or production state.
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -16,6 +16,8 @@ const errors=[], remote=[];
 const fixture = (quota, draft='') => `<!doctype html><html><body><h1>UmiBridge synthetic ChatGPT fixture</h1><main id="conversation">${quota?'<div role="alert">You have reached your usage limit. Try again in 2h 29min.</div>':''}</main><form onsubmit="return false"><textarea id="prompt-textarea">${draft}</textarea><button type="button" data-testid="send-button">Send</button></form><script>window.sentCount=0;document.querySelector('button').onclick=()=>{window.sentCount++;const user=document.createElement('div');user.dataset.messageAuthorRole='user';user.textContent=document.querySelector('textarea').value;document.querySelector('textarea').value='';document.querySelector('main').append(user);const turn=document.createElement('article');const answer=document.createElement('div');answer.dataset.messageAuthorRole='assistant';answer.textContent='SYNTHETIC_RESULT_'+window.sentCount;const copy=document.createElement('button');copy.dataset.testid='copy-turn-action-button';copy.textContent='Copy';turn.append(answer,copy);document.querySelector('main').append(turn);};</script></body></html>`;
 async function until(fn, label, timeout=50000) { const start=Date.now();while(Date.now()-start<timeout){const value=await fn();if(value)return value;await new Promise(r=>setTimeout(r,500));}throw Error('Timed out: '+label); }
 try {
+  const seed=Array.from({length:120},(_,i)=>({id:'synthetic-'+String(i).padStart(3,'0'),timestamp:new Date(Date.now()-i*1800000).toISOString(),toolName:i%3?'read_file':'run_command',clientName:'MINH HỌA - ChatGPT',provider:'chatgpt',status:i%17?'ok':'error',durationMs:100+i*4,usage:{estimated:true,method:'o200k_base',inputTokens:100+i,outputTokens:400+i*3,totalTokens:500+i*4,inputBytes:800,outputBytes:1600}}));
+  await writeFile(join(root,'request-history.jsonl'),seed.map(JSON.stringify).join('\n')+'\n');
   gateway=await startGateway({port:0,publicUrl:'http://127.0.0.1',connectionSecret:randomBytes(32).toString('base64url'),configDir:join(root,'profile'),corpClock:()=>Date.now()+offset});
   const origin=`http://127.0.0.1:${gateway.port}`;
   const api=async(path,body)=>{const response=await fetch(origin+'/admin/api/'+path,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json','x-dc-admin-action':'1'},...(body===undefined?{}:{body:JSON.stringify(body)})});const value=await response.json();assert.equal(response.ok,true,JSON.stringify(value));return value;};
@@ -23,6 +25,7 @@ try {
   const b=(await api('workspaces',{name:'MINH HỌA - Lập trình',root:'D:\\SyntheticCorp',chatUrl:'https://chatgpt.com/c/fixture-builder'})).workspace;
   const extension=resolve('extensions/umibridge-corp');
   context=await chromium.launchPersistentContext(join(root,'browser'),{headless:true,channel:process.env.PLAYWRIGHT_CHANNEL || 'msedge',ignoreDefaultArgs:['--disable-extensions'],args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`],viewport:{width:1600,height:1000}});
+  await context.addInitScript(() => { try { localStorage.setItem('umibridge.admin.language','vi'); } catch {} });
   await context.route('https://chatgpt.com/**',route=>{
     const builder=route.request().url().includes('fixture-builder');
     let html=fixture(builder&&limited);
@@ -38,6 +41,7 @@ try {
   await worker.evaluate(async value=>{await chrome.storage.local.set(value);}, {endpoint:origin,token});
   const page=await context.newPage();await page.goto(origin+'/admin#corp');
   await page.locator('#corpEnabled').click();
+  await page.locator('#corpComposeToggle').click();
   await page.locator('#corpRunTitle').fill('MINH HỌA - Sếp giao việc, nhân viên nhận hồ sơ');
   await page.locator('#corpSteps select').selectOption(a.id);await page.locator('#corpSteps input').fill('CEO / Orchestrator');await page.locator('#corpSteps textarea').fill('Lập yêu cầu thử nghiệm. Chỉ trả lời bằng văn bản minh họa.');
   await page.locator('#corpAddStep').click();await page.locator('#corpSteps select').nth(1).selectOption(b.id);await page.locator('#corpSteps input').nth(1).fill('Lập trình');await page.locator('#corpSteps textarea').nth(1).fill('Nhận bàn giao và báo hoàn thành minh họa.');
@@ -48,9 +52,10 @@ try {
   await page.locator('#corpRuns time').waitFor();
   await page.evaluate(()=>{const main=document.getElementById('main');main.style.scrollBehavior='auto';main.scrollTop=0;});
   await page.waitForFunction(()=>document.getElementById('main').scrollTop===0);
-  if(!process.env.CORP_SKIP_CAPTURES) await page.screenshot({path:join(screenshots,'desktop.png'),fullPage:true});
-  await page.setViewportSize({width:1366,height:768});await page.evaluate(()=>document.getElementById('main').scrollTop=0);if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'laptop.png'),fullPage:true});
-  await page.locator('#corpRuns').scrollIntoViewIfNeeded();if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'queue.png'),fullPage:true});
+  if(!process.env.CORP_SKIP_CAPTURES) await page.screenshot({path:join(screenshots,'desktop.png'),fullPage:true,animations:'disabled'});
+  await page.setViewportSize({width:1366,height:768});await page.evaluate(()=>document.getElementById('main').scrollTop=0);if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'laptop.png'),fullPage:true,animations:'disabled'});
+  assert.equal(await page.evaluate(()=>{const m=document.getElementById('main');return m.scrollHeight<=m.clientHeight+2;}),true,'Corp fits laptop viewport without page scrolling');
+  await page.locator('#corpRuns').scrollIntoViewIfNeeded();if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'queue.png'),fullPage:true,animations:'disabled'});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   const office=page.frameLocator('#corpScene');await office.locator('#roster button').first().click();assert.equal(await office.locator('#detail').isVisible(),true);
   await office.locator('#motion').click();assert.equal(await office.locator('#motion').getAttribute('aria-pressed'),'true');
@@ -58,7 +63,7 @@ try {
   await page.reload();assert.equal(await page.locator('#corpScene').isHidden(),true);await page.locator('#corpOffice').click();
   // Deadline advancement affects only this disposable gateway clock. No real waiting or provider calls.
   limited=false;offset=snapshot.runs[0].steps[1].resetAt-Date.now()+1000;
-  await until(async()=>await builder.evaluate(()=>window.sentCount===1),'resumed send');
+  await until(async()=>{ try { return (await builder.locator('body').innerText()).includes('[UmiBridge task'); } catch { return false; } },'resumed send');
   await builder.locator('[data-talvt-turn-state]').evaluate(el=>el.setAttribute('data-talvt-turn-state','streaming'));
   await new Promise(resolve=>setTimeout(resolve,8000));
   assert.notEqual((await api('corp')).runs[0].status,'done','streaming answer must not hand off even with copy button');
@@ -73,6 +78,35 @@ try {
   const blocked=await api('corp/runs',{title:'Draft guard',steps:[{workspaceId:d.id,prompt:'Do not overwrite draft'}]});await api('corp/runs/'+blocked.id+'/start',{});
   await until(async()=>(await api('corp')).runs.find(r=>r.id===blocked.id).steps[0].status==='blocked','draft guard');
   assert.equal(await draftPage.locator('textarea').inputValue(),'USER_DRAFT_PRESERVED');assert.equal(await draftPage.evaluate(()=>window.sentCount),0);
+  // Analytics uses the complete journal, pagination and a separate observed Corp source.
+  await page.locator('.nav-link[data-view="analytics"]').click();
+  await page.waitForFunction(()=>document.getElementById('usageRequests').textContent==='120');
+  assert.equal(await page.locator('#usageGroups tr').count(),1);
+  assert.equal(await page.locator('#usageOverview th').count(),7);
+  assert.equal(await page.locator('#usageOverview .usage-table-wrap').evaluate(el=>el.scrollWidth<=el.clientWidth+1),true,'all seven usage columns fit laptop width');
+  if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'usage-laptop.png'),fullPage:true,animations:'disabled'});
+  await page.locator('[data-pane="history"]').click();assert.equal(await page.locator('#usageRows tr').count(),50);
+  await page.locator('#usageNext').click();await page.waitForFunction(()=>document.getElementById('usagePageLabel').textContent.startsWith('Trang 2/3'));
+  const downloadPromise=page.waitForEvent('download');await page.locator('#usageExport').click();const download=await downloadPromise;
+  const csv=await readFile(await download.path(),'utf8');assert.equal(csv.split('\r\n').length,51);assert.ok(csv.includes('synthetic-050'));assert.equal(csv.includes('PRIVATE_PAYLOAD'),false);
+  await page.locator('#usageSource').selectOption('corp');await page.waitForFunction(()=>document.getElementById('usageRequests').textContent==='2');
+  await page.locator('[data-pane="limits"]').click();
+  await page.locator('#usageInputRate').fill('1');await page.locator('#usageOutputRate').fill('2');await page.locator('#usageBudget').fill('10');await page.locator('#usageBudgetForm button').click();
+  assert.equal(await page.locator('#usageBudgetProgress').isVisible(),true);
+  await page.locator('#usageSource').selectOption('mcp');await page.waitForFunction(()=>document.getElementById('usageRequests').textContent==='120');
+  await page.locator('[data-pane="overview"]').click();await page.setViewportSize({width:1600,height:1000});
+  if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'usage-desktop.png'),fullPage:true,animations:'disabled'});
+  await page.locator('#theme').click();
+  if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'usage-dark.png'),fullPage:true,animations:'disabled'});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  for (const view of ['overview','tools','skills','settings']) {
+    await page.locator('.nav-link[data-view="'+view+'"]').click();
+    assert.equal(await page.locator('main>.view-active[data-view="'+view+'"]').isVisible(),true);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,view+'-dark.png'),fullPage:true,animations:'disabled'});
+  }
+  await page.locator('#theme').click();await page.locator('.nav-link[data-view="overview"]').click();
+  if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'overview-light.png'),fullPage:true,animations:'disabled'});
   assert.deepEqual(errors,[]);assert.deepEqual(remote,[]);
   console.log(JSON.stringify({pass:true,realExtension:true,syntheticProvider:true,desktop:[1600,1000],laptop:[1366,768],dispatchOnce:true,handoff:true,quotaResetResume:true,draftPreserved:true,remoteRequests:remote.length,screenshots},null,2));
 } catch(error) { if(diagnostic)console.error(JSON.stringify(await diagnostic(),null,2));throw error; }

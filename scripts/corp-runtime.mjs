@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile, rename, lstat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { countTextTokens } from './local-admin.mjs';
 
 const hash = value => createHash('sha256').update(String(value)).digest();
 const copy = value => structuredClone(value);
@@ -34,6 +35,23 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
     if (saved.schema !== 1 || !Array.isArray(saved.runs) || !Array.isArray(saved.events)) throw Error('corp_store_invalid');
     state = saved;
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  state.usage = Array.isArray(state.usage) ? state.usage : [];
+  const recordUsage = (run, step, status = 'pending') => {
+    if (!step.sent || !step.pendingUsage) return;
+    let row = state.usage.find(item => item.id === step.attempt);
+    if (!row) {
+      row = { id: step.attempt, timestamp: new Date(step.issuedAt).toISOString(), provider: 'chatgpt', clientName: 'ChatGPT Corp',
+        toolName: 'chat_turn', chatId: step.chatId, title: run.title, usage: { ...step.pendingUsage, outputTokens: null, outputBytes: 0, estimated: true, method: 'o200k_base', partial: true } };
+      state.usage.push(row); state.usage = state.usage.slice(-5000);
+    }
+    row.status = status;
+    if (status === 'ok') {
+      row.usage.outputTokens = countTextTokens(step.result);
+      row.usage.outputBytes = Buffer.byteLength(step.result);
+      row.usage.partial = row.usage.inputTokens === null || row.usage.outputTokens === null;
+      row.durationMs = Math.max(0, clock() - step.issuedAt);
+    }
+  };
   let queue = Promise.resolve(), lastSeen = 0, connectedChats = [];
   const serial = fn => { const result = queue.then(fn); queue = result.catch(() => {}); return result; };
   const save = async () => {
@@ -62,6 +80,7 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
   const newAttempt = step => { step.attempt = randomUUID(); step.sent = false; step.issuedAt = null; step.status = 'queued'; step.reason = null; };
   return {
     snapshot: summary,
+    usage: () => copy(state.usage),
     authenticate,
     authorize: (token, input) => serial(() => {
       authenticate(token);
@@ -103,7 +122,7 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
         if (step?.status === 'blocked') throw Error('check_chat_before_retry');
         run.status = 'running';
       } else if (action === 'pause') run.status = 'paused';
-      else if (action === 'cancel') { run.status = 'cancelled'; for (const item of run.steps.filter(active)) item.status = 'cancelled'; }
+      else if (action === 'cancel') { run.status = 'cancelled'; for (const item of run.steps.filter(active)) { recordUsage(run, item, 'error'); item.status = 'cancelled'; } }
       else if (action === 'retry') {
         if (!step || !['blocked', 'limit_wait'].includes(step.status)) throw Error('retry_not_available');
         if (step.resetAt && clock() < step.resetAt) throw Error('provider_limit_not_reset');
@@ -129,7 +148,7 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
           const sentPhase = ['dispatching', 'running'].includes(step.status);
           if (sentPhase) monitors.push({ runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId });
           if (step.status === 'dispatching' && clock() - step.issuedAt > 90_000) { step.status = 'blocked'; step.reason = 'send_unconfirmed'; event('blocked', run, step); }
-          if (step.status === 'running' && clock() - step.issuedAt > 45 * 60_000) { step.status = 'blocked'; step.reason = 'response_timeout'; event('blocked', run, step); }
+          if (step.status === 'running' && clock() - step.issuedAt > 45 * 60_000) { step.status = 'blocked'; step.reason = 'response_timeout'; recordUsage(run, step, 'error'); event('blocked', run, step); }
           if (!state.enabled || run.status !== 'running' || command || !connectedChats.includes(step.chatId)) continue;
           if (step.status === 'limit_wait') {
             if (!state.autoResume || !step.resetAt || clock() < step.resetAt) continue;
@@ -141,6 +160,7 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
           const instruction = step.continuation ? 'Tiếp tục nhiệm vụ đang dở sau khi hạn mức được đặt lại. Kiểm tra tiến độ đã có trước khi làm tiếp, tránh lặp thao tác đã hoàn thành.\n\n' : '';
           const prompt = `[UmiBridge task ${step.attempt}]\n${instruction}${step.prompt}${context}`;
           step.status = 'dispatching'; step.issuedAt = clock(); step.reason = null;
+          step.pendingUsage = { inputTokens: countTextTokens(prompt), inputBytes: Buffer.byteLength(prompt) };
           command = { runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId, prompt, refresh: Boolean(step.refresh) };
           step.refresh = false; occupied.add(step.chatId); event('dispatch', run, step);
         }
@@ -155,10 +175,11 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
       if (['done', 'cancelled'].includes(run.status) || !['dispatching', 'running', 'limit_wait'].includes(step.status)) return { ignored: true };
       if (input.kind === 'sent') {
         if (step.status === 'limit_wait') return { ignored: true };
-        if (!step.sent) { step.sent = true; step.status = 'running'; event('sent', run, step); }
+        if (!step.sent) { step.sent = true; step.status = 'running'; recordUsage(run, step); event('sent', run, step); }
       } else if (input.kind === 'limit') {
         if (step.status === 'limit_wait') return { ignored: true };
         step.sent ||= input.sent === true;
+        recordUsage(run, step);
         step.limitText = text(input.notice, 1000);
         const delay = parseResetDelay(step.limitText);
         // Relative countdown is anchored once. Polling the same notice must not slide the deadline.
@@ -169,11 +190,13 @@ export async function createCorpRuntime(filePath, { workspaces, clock = Date.now
       } else if (input.kind === 'done') {
         if (!input.sent || !text(input.result, 48_000) || step.status === 'limit_wait') return { ignored: true };
         step.sent = true; step.result = text(input.result, 48_000); step.status = 'done'; step.reason = null;
+        recordUsage(run, step, 'ok');
         event('done', run, step);
         const next = current(run);
         if (next) event('handoff', run, next, { from: step.chatId, to: next.chatId, task: next.prompt.slice(0, 180) });
         else { run.status = 'done'; event('finished', run); }
       } else if (input.kind === 'blocked') {
+        recordUsage(run, step, 'error');
         step.status = 'blocked'; step.reason = ['composer_busy', 'composer_missing', 'send_unconfirmed', 'chat_changed', 'response_too_large'].includes(input.reason) ? input.reason : 'browser_unavailable';
         event('blocked', run, step);
       } else throw Error('invalid_report');

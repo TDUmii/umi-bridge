@@ -27,15 +27,21 @@ test('Corp sends ordered steps once, preserves acknowledgement and hands off rea
   await assert.rejects(f.corp.action(run.id,'start'),/enable_corp_first/);
   await f.corp.settings({enabled:true});await f.corp.action(run.id,'start');
   const command=(await f.poll()).command;assert.equal(command.chatId,'chat-one');
+  assert.equal(f.corp.usage().length,0,'An issued command is not proof of sending.');
   assert.equal((await f.poll()).command,null);
   await f.restart();assert.equal((await f.poll()).command,null);
   await f.corp.report(f.token,{...command,kind:'sent'});
+  assert.equal(f.corp.usage().length,1); assert.ok(f.corp.usage()[0].usage.inputTokens>0); assert.equal(f.corp.usage()[0].usage.outputTokens,null);
   await f.corp.report(f.token,{...command,kind:'done',sent:true,result:'Created the requested file.'});
   await f.corp.report(f.token,{...command,kind:'done',sent:true,result:'Duplicate'});
   const next=(await f.poll()).command;assert.equal(next.chatId,'chat-two');assert.match(next.prompt,/Created the requested file/);
   await f.corp.report(f.token,{...next,kind:'done',sent:true,result:'Review passed.'});
   assert.equal(f.corp.snapshot().runs[0].status,'done');assert.equal(f.corp.snapshot().events.filter(e=>e.type==='handoff').length,1);
   assert.equal((await f.poll()).command,null);
+  assert.equal(f.corp.usage().length,2,'Duplicate reports cannot add another measured turn.');
+  assert.ok(f.corp.usage().every(row=>row.status==='ok'&&row.usage.outputTokens>0&&!row.usage.partial));
+  const usage=f.corp.usage();await f.restart();assert.deepEqual(f.corp.usage(),usage);
+  await f.corp.action(run.id,'delete');assert.deepEqual(f.corp.usage(),usage,'Deleting a finished run keeps numeric history.');
   assert.ok(!(await readFile(f.file,'utf8')).includes(f.token));
 });
 
@@ -47,6 +53,7 @@ test('limit anchors reset once, survives restart, resumes same task after deadli
   f.advance(60000);await f.corp.report(f.token,{...command,kind:'limit',notice:'You reached your limit. Try again in 2h 29min'});
   assert.equal(f.corp.snapshot().runs[0].steps[0].resetAt,reset);
   await f.restart();assert.equal((await f.poll()).command,null);
+  assert.equal(f.corp.usage().length,1,'Repeated quota notices do not count more requests.');
   await assert.rejects(f.corp.action(run.id,'retry'),/not_reset/);
   f.advance(reset-f.now()-1);assert.equal((await f.poll()).command,null);f.advance(1);
   const resumed=(await f.poll()).command;assert.equal(resumed.stepId,command.stepId);assert.notEqual(resumed.attempt,command.attempt);assert.equal(resumed.refresh,true);assert.match(resumed.prompt,/Tiếp tục nhiệm vụ đang dở/);

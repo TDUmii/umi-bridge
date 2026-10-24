@@ -57,21 +57,25 @@
   }
   function syncScene() {
     if (!data || !scene.contentWindow) return;
-    const visible = section.classList.contains('view-active') && data.office && !document.hidden;
+    const visible = section.classList.contains('view-active') && data.office && !section.classList.contains('composing') && !document.hidden;
     scene.contentWindow.postMessage({ type:'corp-office', snapshot:officeSnapshot(), visible }, location.origin); first = !visible;
   }
   function render() {
     $('corpEnabled').textContent = 'Điều phối: ' + (data.enabled ? 'Bật' : 'Tắt'); $('corpEnabled').setAttribute('aria-pressed', String(data.enabled));
     $('corpOffice').textContent = 'Văn phòng: ' + (data.office ? 'Bật' : 'Tắt'); $('corpOffice').setAttribute('aria-pressed', String(data.office)); scene.hidden = !data.office;
     $('corpAutoResume').checked = data.autoResume;
-    $('corpConnection').textContent = data.connected ? 'Extension đã nối - ' + data.connectedChats.length + ' chat đang mở. ' + (data.enabled ? 'Sẵn sàng điều phối.' : 'Điều phối đang tắt.') : data.paired ? 'Extension chưa nối. Hàng đợi được giữ; mở trình duyệt và kiểm tra cài đặt extension.' : 'Chưa ghép extension. Mở Kết nối extension điều phối ở cuối trang.';
+    $('corpConnection').textContent = data.connected ? 'Đã nối · ' + data.connectedChats.length + ' chat đang mở' : data.paired ? 'Extension offline · Mở Chrome để kết nối lại' : 'Chưa ghép extension · Chọn Kết nối';
+    section.classList.toggle('office-hidden', !data.office);
+    const filter = $('corpRunFilter').value;
+    const runs = data.runs.filter(run => filter === 'all' || (filter === 'done') === ['done', 'cancelled'].includes(run.status));
+    $('corpRunCount').textContent = runs.length;
     updateChoices();
-    const next = JSON.stringify([data.runs, data.enabled, data.connected]);
+    const next = JSON.stringify([runs, data.enabled, data.connected, filter]);
     if (signature !== next) {
       signature = next; $('corpRuns').replaceChildren();
-      if (!data.runs.length) $('corpRuns').append(node('p', 'Chưa có nhiệm vụ. Thêm chat, lưu các bước rồi bấm Bắt đầu.', 'corp-empty'));
-      for (const run of [...data.runs].reverse()) {
-        const article = node('article', undefined, 'corp-run'); article.append(node('h4', run.title), node('span', labels[run.status] || run.status));
+      if (!runs.length) $('corpRuns').append(node('p', filter === 'active' ? 'Hàng đợi trống. Chọn Giao việc để bắt đầu.' : 'Chưa có nhiệm vụ trong nhóm này.', 'corp-empty'));
+      for (const run of [...runs].reverse()) {
+        const article = node('article', undefined, 'corp-run'); article.dataset.status = run.status; article.append(node('h4', run.title), node('span', labels[run.status] || run.status, 'corp-status'));
         const steps = document.createElement('ol');
         for (const step of run.steps) {
           const li = node('li'); li.append(node('strong', step.role), node('span', labels[step.status] || step.status));
@@ -103,7 +107,12 @@
     finally { busy = false; }
   }
   $('corpAddStep').onclick = addStep;
-  $('corpForm').onsubmit = async event => { event.preventDefault(); const steps = [...$('corpSteps').children].map(field => Object.fromEntries([...field.querySelectorAll('[name]')].map(input => [input.name, input.value]))); const result = await act('/runs', {title:$('corpRunTitle').value, steps}); if (result) { $('corpForm').reset(); $('corpSteps').replaceChildren(); addStep(); } };
+  function compose(open) { $('corpCompose').hidden = !open; section.classList.toggle('composing', open); $('corpComposeToggle').setAttribute('aria-expanded', String(open)); syncScene(); if (open) $('corpRunTitle').focus(); else $('corpComposeToggle').focus(); }
+  $('corpComposeToggle').onclick = () => compose($('corpCompose').hidden);
+  $('corpComposeClose').onclick = () => compose(false);
+  $('corpSetupToggle').onclick = () => { const open = $('corpSetup').hidden; $('corpSetup').hidden = !open; $('corpSetupToggle').setAttribute('aria-expanded', String(open)); if (open) $('corpSetup').scrollIntoView({block:'nearest'}); };
+  $('corpRunFilter').onchange = render;
+  $('corpForm').onsubmit = async event => { event.preventDefault(); const steps = [...$('corpSteps').children].map(field => Object.fromEntries([...field.querySelectorAll('[name]')].map(input => [input.name, input.value]))); const result = await act('/runs', {title:$('corpRunTitle').value, steps}); if (result) { $('corpForm').reset(); $('corpSteps').replaceChildren(); addStep(); $('corpRunFilter').value = 'active'; compose(false); render(); } };
   $('corpEnabled').onclick = () => data && act('/settings', {enabled:!data.enabled});
   $('corpOffice').onclick = () => data && act('/settings', {office:!data.office});
   $('corpAutoResume').onchange = () => act('/settings', {autoResume:$('corpAutoResume').checked});

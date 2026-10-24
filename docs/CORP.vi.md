@@ -8,7 +8,7 @@ Chỉ hỗ trợ máy tính để bàn và laptop. Giao diện nghiệm thu ở 
 
 1. Cập nhật UmiBridge, mở dashboard tại `http://127.0.0.1:43127/admin#corp`.
 2. Trong Chrome hoặc Edge, mở trang quản lý extensions, bật Developer mode và chọn Load unpacked. Chọn thư mục `extensions/umibridge-corp` trong bản giải nén UmiBridge.
-3. Trong Corp, mở **Kết nối extension điều phối**, bấm **Tạo mã ghép extension** rồi **Chép mã**. Mã này khác mã kết nối MCP.
+3. Trong Corp, mở **Kết nối**, bấm **Tạo mã ghép extension** rồi **Chép mã**. Mã này khác mã kết nối MCP.
 4. Bấm biểu tượng extension để mở cài đặt. Nhập địa chỉ UmiBridge local và mã ghép, chọn **Lưu và kết nối**.
 5. Trong **Projects & chats**, khai báo thư mục cùng link của từng cuộc trò chuyện ChatGPT. Mở các chat đó trong trình duyệt có extension và đăng nhập bằng thao tác bình thường.
 
@@ -17,7 +17,7 @@ Extension có quyền truy cập loopback và ChatGPT, không đọc cookie, m�
 ## Giao việc và bàn giao
 
 1. Bật **Điều phối** trong Corp.
-2. Nhập tên nhiệm vụ, chọn chat, vai trò và yêu cầu cho bước đầu. **Thêm bước bàn giao** để chọn chat tiếp theo, tối đa 12 bước.
+2. Bấm **Giao việc**, nhập tên nhiệm vụ, chọn chat, vai trò và yêu cầu cho bước đầu. **Thêm bước bàn giao** để chọn chat tiếp theo, tối đa 12 bước.
 3. Bấm **Lưu nhiệm vụ**, kiểm tra chuỗi bước rồi bấm **Bắt đầu** trên nhiệm vụ.
 4. Corp gửi yêu cầu bước đầu. Khi adapter xác nhận câu trả lời đã kết thúc, nội dung đó được đính kèm vào yêu cầu bước tiếp theo. Không dùng nội dung câu trả lời để tự quyết định người nhận hoặc tạo thêm bước.
 
@@ -73,3 +73,15 @@ npm run corp:qa
 ```
 
 Browser QA chỉ dùng state tạm và dữ liệu minh họa. Không gửi yêu cầu đến nhà cung cấp thật.
+
+## Token và hạn mức từ beta.24
+
+Mở **Phân tích**. Chọn nguồn **Công cụ MCP**, **Chat Corp** hoặc cả hai; lọc Hôm nay, 24h, 7/30/60 ngày hoặc Tất cả. Hôm nay dùng độ lệch UTC hiện tại của trình duyệt. Mục Chi tiết có tìm kiếm, lọc trạng thái/công cụ/ứng dụng và 50 lượt mỗi trang. **Xuất trang CSV** xuất đúng trang đang xem, không xuất prompt, kết quả hoặc tham số công cụ.
+
+MCP thống kê toàn bộ nhật ký còn lưu, không giới hạn 500 lượt của màn hình lịch sử cũ. Corp chỉ có dữ liệu từ beta.24, tối đa 5.000 attempt gần nhất. Lượt chưa xác nhận gửi không được tính. Một attempt chỉ ghi một lần, qua restart vẫn giữ nguyên. Xóa nhiệm vụ đã xong không xóa số liệu; thông tin số đếm, tên nhiệm vụ và chat ID tiếp tục nằm trong state riêng. Lượt chỉ có input hoặc thiếu kết quả đánh dấu một phần. Hủy theo dõi hoặc timeout hiển thị lỗi/đã dừng, không khẳng định nhà cung cấp đã hủy xử lý.
+
+Bộ đếm offline `o200k_base` áp dụng lên văn bản quan sát được. Không có toàn bộ lịch sử chat, reasoning, cache, hình ảnh hoặc model thực. Tổng MCP + Corp có thể trùng nội dung, không phải số token tính phí. Lượt payload quá lớn được đánh dấu không đếm; không chuyển dữ liệu nhạy cảm ra ngoài để đếm.
+
+Tab **Hạn mức & ngân sách** hiển thị thông báo reset thực mà Corp đã ghi nhận. Không có thông báo không đồng nghĩa còn hạn mức. Giá USD/1M input-output và ngân sách cho kỳ đang lọc do bạn nhập, lưu tại trình duyệt. Cảnh báo ngân sách chỉ tham khảo, không tự dừng nhiệm vụ hoặc thay đổi gói tài khoản.
+
+Bố cục Corp giữ văn phòng và hàng đợi trên cùng màn hình. Bộ lọc Đang mở/Tất cả/Đã xong giảm danh sách. Form Giao việc thay vị trí văn phòng tạm thời, giữ hàng đợi bên cạnh; không phải cửa sổ chặn toàn trang. Nút Văn phòng vẫn nhớ lựa chọn độc lập với Điều phối.

@@ -6,8 +6,15 @@ import { dirname, win32 } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Tiktoken } from 'js-tiktoken/lite';
 import o200k from 'js-tiktoken/ranks/o200k_base';
+import { readUsageReport } from './usage-analytics.mjs';
 
 const tokenizer = new Tiktoken(o200k);
+
+export function countTextTokens(value) {
+  const text = String(value ?? '');
+  if (text.length > 65_536 || /[^\s]{4096}/u.test(text)) return null;
+  try { return tokenizer.encode(text, [], []).length; } catch { return null; }
+}
 
 const MAX_ENTRIES = 500;
 const MAX_TEXT = 500;
@@ -182,6 +189,10 @@ export async function createRequestHistory(filePath, { secretValues = [] } = {})
       return entries.slice(-safeLimit).reverse();
     },
     has(requestId) { return entries.some(entry => entry.id === requestId); },
+    async analytics(filters, corpUsage = [], now) {
+      await writes;
+      return readUsageReport(filePath, filters, corpUsage, now);
+    },
     stats() {
       const tools = new Set(entries.map(entry => entry.toolName));
       const success = entries.filter(entry => entry.status === 'ok').length;

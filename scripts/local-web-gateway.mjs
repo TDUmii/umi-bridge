@@ -349,6 +349,16 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       });
     });
     app.get('/admin/api/chats', localAdmin, (_req, res) => res.json({ links: chatLinks.resolve(requestHistory.list(500)), workspaces: chatLinks.workspaces() }));
+    app.get('/admin/api/usage', localAdmin, async (req, res) => {
+      const filters = Object.fromEntries(Object.entries(req.query).filter(([, value]) => typeof value === 'string'));
+      const report = await requestHistory.analytics(filters, corp.usage(), corpClock?.());
+      const snapshot = corp.snapshot();
+      res.set('Cache-Control', 'no-store').json({ ...report, corpRetention: 5000,
+        limits: snapshot.runs.flatMap(run => run.steps.filter(step => ['limit_wait', 'blocked'].includes(step.status) && step.limitText).map(step => ({
+          runId: run.id, title: run.title, role: step.role, chatId: step.chatId, resetAt: step.resetAt, notice: step.limitText,
+          autoResume: snapshot.autoResume && snapshot.enabled && run.status === 'running', status: step.status,
+        }))) });
+    });
     app.get('/admin/api/skills', localAdmin, async (_req, res) => {
       try { res.json({ skills: await skillLibrary.list(), recommended: RECOMMENDED_SKILLS }); }
       catch { res.status(500).json({ error: 'Unable to load local skills.' }); }
@@ -382,7 +392,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       res.set('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'");
       next();
     }, express.static(resolve(ROOT, 'scripts/corp-office'), { dotfiles: 'deny', index: 'index.html' }));
-    for (const asset of ['corp-dashboard.js', 'corp-dashboard.css']) {
+    for (const asset of ['corp-dashboard.js', 'corp-dashboard.css', 'usage-dashboard.js', 'console.css']) {
       app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
     }
     const workflowAvailable = (_req, res, next) => {
@@ -593,7 +603,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.use('/mcp', requireBearerAuth({ verifier: provider, requiredScopes: ['desktop'], expectedResource: resource, resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resource) }));
     const handleMcp = async (req, res) => {
       const initialization = req.body?.method === 'initialize' ? (await readToolContext()).context : undefined;
-      const server = new Server({ name: 'umibridge-sakura-console', version: '0.1.0-beta.23' }, { capabilities: { tools: {}, ...(capabilities.resources ? { resources: {} } : {}) }, instructions: [baseInstructions, initialization?.prompt].filter(Boolean).join('\n\n') });
+      const server = new Server({ name: 'umibridge-sakura-console', version: '0.1.0-beta.24' }, { capabilities: { tools: {}, ...(capabilities.resources ? { resources: {} } : {}) }, instructions: [baseInstructions, initialization?.prompt].filter(Boolean).join('\n\n') });
       const options = { timeout: 120_000 };
       server.setRequestHandler(ListToolsRequestSchema, async () => {
         const { catalog, context } = await readToolContext();

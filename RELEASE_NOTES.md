@@ -1,4 +1,19 @@
-# UmiBridge Sakura Console - beta.23
+# UmiBridge Sakura Console - beta.24
+
+## Compact console and usage management
+
+The desktop dashboard uses a compact graphite/jade layout. Corp keeps its animated office and queue side by side at desktop and laptop widths, with task creation and extension pairing opened on demand. Queue filters separate active and finished runs. Switching sections now updates office visibility immediately.
+
+Usage adds Today/24h/7d/30d/60d/all-time filters, application/tool/status/search filters, input/output totals, time-series bars, breakdowns, paginated request details and current-page CSV export. MCP totals scan the complete retained journal, including records beyond the latest 500. Day boundaries follow the browser's UTC offset. Provider model, cache, reasoning, remaining account quota and billing data stay explicitly unavailable.
+
+Corp records token estimates only for confirmed sends, by unique attempt, and counts the observed response after completion. Duplicate reports do not add duplicate usage. Numeric usage survives restart and deleting finished runs; the latest 5,000 Corp attempts are retained. Partial results remain marked as partial. No historic chat totals are invented. Both sources use offline o200k_base counts and may overlap in content; combined totals are not a provider bill.
+
+The quota tab displays observed Corp reset notices/deadlines and auto-resume state. Optional user-entered per-million input/output rates and a budget for the selected period are saved only in that browser. Cost and budget warnings are references, do not change provider billing, and do not automatically stop work. CSV exports omit prompt/response/argument bodies and protect spreadsheet formula prefixes.
+
+Validation: 92 Windows regression checks passed. Focused analytics tests cover complete-journal totals, local-midnight boundaries, pagination, missing estimates, privacy and independent MCP/Corp sources. Browser QA uses a real Edge extension with synthetic ChatGPT pages and disposable gateway state; it checks dispatch, handoff, simulated reset/resume, draft preservation, streaming completion, desktop/laptop layouts and usage filters/export/budget. Physical scope is one Windows machine. Real provider reset waits and live Chrome dispatch require separate verification; simulated QA does not certify those paths.
+
+## Previous beta.23
+
 
 ## Corp chat coordination and Pixel Office
 

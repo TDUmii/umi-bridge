@@ -13,6 +13,8 @@ test('Corp local API protects writes and browser credentials; dispatch is contro
   const base=`http://127.0.0.1:${gateway.port}`;
   const request=(path,body,headers={})=>fetch(base+path,{method:body===undefined?'GET':'POST',headers:{'x-local-admin':'1',...(body===undefined?{}:{'content-type':'application/json','x-dc-admin-action':'1'}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
   assert.equal((await fetch(base+'/admin/api/corp')).status,404);
+  assert.equal((await fetch(base+'/admin/api/usage')).status,404);
+  const usage=await (await request('/admin/api/usage?period=all')).json();assert.equal(usage.totals.requests,0);assert.equal(usage.providerReported,null);
   assert.equal((await request('/admin/api/corp/pair',{}, {'x-dc-admin-action':'0'})).status,403);
   assert.equal((await request('/admin/corp/bridge/poll',{})).status,401);
   const snapshot=await (await request('/admin/api/corp')).json();assert.equal(snapshot.enabled,false);assert.equal(snapshot.office,true);
@@ -28,7 +30,7 @@ test('Corp local API protects writes and browser credentials; dispatch is contro
   assert.equal((await (await request('/admin/corp/bridge/authorize',command,headers)).json()).allowed,true);
   await request('/admin/api/corp/runs/'+run.id+'/pause',{});
   assert.equal((await (await request('/admin/corp/bridge/authorize',command,headers)).json()).allowed,false);
-  for(const path of ['/admin/corp-dashboard.js','/admin/corp-dashboard.css','/admin/corp/office/','/admin/corp/office/office.js','/admin/corp/office/assets/char_0.png']){
+  for(const path of ['/admin/corp-dashboard.js','/admin/corp-dashboard.css','/admin/usage-dashboard.js','/admin/console.css','/admin/corp/office/','/admin/corp/office/office.js','/admin/corp/office/assets/char_0.png']){
     const response=await request(path);assert.equal(response.status,200,path);
     assert.equal((await fetch(base+path)).status,404,path+' is private');
   }

@@ -63,6 +63,10 @@ Lệnh nâng cao vẫn dùng một launcher: `UmiBridge.cmd -Action admin` hoặ
 
 ## Corp - điều phối chat và văn phòng hoạt ảnh
 
+Từ beta.24, **Phân tích** có bộ lọc thời gian/nguồn/ứng dụng/công cụ, biểu đồ input-output, bảng chi tiết phân trang, xuất CSV và ngân sách tham khảo. Token MCP đọc toàn bộ nhật ký; token Corp tính các lượt đã xác nhận từ bản này. Số đếm là ước tính payload, không phải hóa đơn hoặc hạn mức tài khoản. Model, cache, reasoning và số dư nhà cung cấp chưa có dữ liệu.
+
+Corp dùng bố cục văn phòng và hàng đợi cùng màn hình; **Giao việc** và **Kết nối** mở khi cần. Chỉ phát triển desktop/laptop.
+
 Từ beta.23, mở **Corp** ngay trong dashboard UmiBridge. Thêm các chat tại **Projects & chats**, nạp extension trong `extensions/umibridge-corp` vào Chrome/Edge, ghép bằng mã Corp rồi chọn chuỗi giao việc. Bật điều phối và bấm **Bắt đầu** trên nhiệm vụ để gửi thật vào các tab chat đang mở.
 
 Corp đọc thông báo như `in 2h 11m`, `in 2h 29min`, `2h 37m`, lưu mốc reset và tiếp tục cùng nhiệm vụ khi đến giờ nếu bật tự tiếp tục. Không đọc được giờ hoặc không xác nhận đã gửi thì dừng để kiểm tra, không tự gửi trùng. **Văn phòng: Bật/Tắt** chỉ đổi hiển thị; nhân viên và hoạt ảnh bàn giao phản ánh hàng đợi thật.
