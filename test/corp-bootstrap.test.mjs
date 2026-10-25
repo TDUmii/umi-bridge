@@ -37,7 +37,7 @@ test('new-project setup needs pairing, respects dispatch off, persists the idea 
 test('confirmed Project plus eight scoped chats produces one assigned idea workflow and remains idempotent after restart',async t=>{
   const f=await fixture(t),{token}=await f.corp.pair();await f.corp.settings({enabled:true});
   const parentRoot=join(f.root,'selected idea parent');await mkdir(parentRoot);
-  const input={requestKey:randomUUID(),idea:'Một trang quản lý bài tập',parentRoot,start:true};const job=await f.corp.bootstrap(input);
+  const input={requestKey:randomUUID(),idea:'Một trang quản lý bài tập',customerName:'Khách trường học',parentRoot,start:true};const job=await f.corp.bootstrap(input);
   assert.equal(job.parentRoot,await realpath(parentRoot));assert.equal(relative(job.parentRoot,job.root).includes('..'),false);
   const command=(await f.poll(token)).bootstrap;
   await assert.rejects(f.corp.bootstrapReport(token,{...command,kind:'project',projectUrl:'https://example.com/project'}),/invalid_project_url/);
@@ -50,7 +50,7 @@ test('confirmed Project plus eight scoped chats produces one assigned idea workf
     await f.corp.bootstrapReport(token,{...phase,kind:'chat',roleId:role.id,chatUrl:`https://chatgpt.com/g/${projectId}/c/new-${role.id}`});
   }
   const state=f.corp.snapshot();assert.equal(state.bootstraps[0].status,'done');assert.equal(state.bootstraps[0].chats.length,8);
-  assert.equal(state.runs.length,1);assert.equal(state.runs[0].status,'running');assert.equal(state.runs[0].steps.length,11);assert.equal(state.teams[0].members.length,8);
+  assert.equal(state.runs.length,1);assert.equal(state.runs[0].customerName,'Khách trường học');assert.equal(state.runs[0].status,'running');assert.equal(state.runs[0].steps.length,11);assert.equal(state.teams[0].members.length,8);
   assert.equal(f.workspaces[0].chats.length,8);await f.restart();assert.equal((await f.corp.bootstrap(input)).runId,state.runs[0].id);
   assert.equal(f.corp.snapshot().runs.length,1);assert.equal((await f.poll(token)).bootstrap,null);
   assert.equal(state.bootstraps[0].id,job.id);

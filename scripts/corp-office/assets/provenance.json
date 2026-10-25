@@ -91,6 +91,56 @@
       "file": "CLOCK.png",
       "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/CLOCK/CLOCK.png",
       "sha256": "f1ff567d71508dfdba37f2ff94ffde734940b56b3999e29b213ab6774e67b20f"
+    },
+    {
+      "file": "COFFEE_TABLE.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/COFFEE_TABLE/COFFEE_TABLE.png",
+      "sha256": "0b0fd17c95b29e3b86da00031452166a1400a534c8adff1dc98bb4e5ce72aad3"
+    },
+    {
+      "file": "CUSHIONED_CHAIR_BACK.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/CUSHIONED_CHAIR/CUSHIONED_CHAIR_BACK.png",
+      "sha256": "7eba17a7c86115caba0246599988e3169dc766af7814e51c7afa566e0fe40846"
+    },
+    {
+      "file": "SOFA_SIDE.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/SOFA/SOFA_SIDE.png",
+      "sha256": "b583fa6261dbbc4c4020c0a887023d3f707a70b7e5524535d541b453b22f9e94"
+    },
+    {
+      "file": "SOFA_BACK.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/SOFA/SOFA_BACK.png",
+      "sha256": "62a40318fce1d3166f1ea3811ca2081b39ad3161974c6bcd2edb0bdaf9b06d08"
+    },
+    {
+      "file": "PLANT.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/PLANT/PLANT.png",
+      "sha256": "b9f845e7930e685161a21ac0f1743c2906cb7cbb0bd6b79ef1e4fb5aafff98c6"
+    },
+    {
+      "file": "PLANT_2.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/PLANT_2/PLANT_2.png",
+      "sha256": "b0d2e82fefd1f7ebada9656260571aa3e810db55975495e72a62d9ce8a878b42"
+    },
+    {
+      "file": "CACTUS.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/CACTUS/CACTUS.png",
+      "sha256": "830dbba8ac4912858e22eed1e89d4290202113363a934389e54fffb794ad893b"
+    },
+    {
+      "file": "SMALL_PAINTING_2.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/SMALL_PAINTING_2/SMALL_PAINTING_2.png",
+      "sha256": "148d161726fb08dc7887e75e91f0332bf69d1aadfc649dce6fbc4b2678f5d0f0"
+    },
+    {
+      "file": "HANGING_PLANT.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/HANGING_PLANT/HANGING_PLANT.png",
+      "sha256": "a6e9c025d0a84e960d3c84d55f18d01585eb8e079cd84f9970de08d636877de2"
+    },
+    {
+      "file": "DOUBLE_BOOKSHELF.png",
+      "origin": "https://raw.githubusercontent.com/pixel-agents-hq/pixel-agents/b1bafd02896d90d83457266575a1e8e5011ce997/webview-ui/public/assets/furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png",
+      "sha256": "b27bd0cc4c73dab38eebbf6b8ed68257acb8264d23a8e87c2cf5026138842cda"
     }
   ],
   "commit": "b1bafd02896d90d83457266575a1e8e5011ce997",

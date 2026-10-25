@@ -242,10 +242,10 @@ try {
   });
   await page.locator('.nav-link[data-view="corp"]').click();await page.locator('#corpTabIdea').click();await page.locator('#corpDirectToggle').click();
   await until(async()=>await page.locator('#corpDirectBriefSubmit').innerText()==='Lưu brief','paused direct button');
-  await page.locator('#corpDirectChat').selectOption('fixture-boss');await page.locator('#corpDirectBrief').fill('MINH HỌA - brief Project tạm dừng');
+  await page.locator('#corpDirectCustomer').fill('Khách mẫu An');await page.locator('#corpDirectChat').selectOption('fixture-boss');await page.locator('#corpDirectBrief').fill('MINH HỌA - brief Project tạm dừng');
   directDelay=250;await page.locator('#corpDirectBriefSubmit').click();await page.locator('#corpDirectBriefForm').evaluate(form=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
   await until(async()=>await page.locator('#corpDirectBrief').inputValue()==='','paused direct saved');
-  assert.equal(directBodies.length,1,'double submit creates one request');assert.equal(directStarts.length,0);
+  assert.equal(directBodies[0].customerName,'Khách mẫu An');assert.equal(await page.locator('#corpDirectCustomer').inputValue(),'');assert.equal(directBodies.length,1,'double submit creates one request');assert.equal(directStarts.length,0);
   assert.equal(directBodies[0].workspaceId,project.id);assert.equal(directBodies[0].steps[0].chatId,'fixture-boss');assert.match(directBodies[0].requestKey,/^[a-f0-9-]{36}$/i);
   assert.match(await page.locator('#corpDirectBriefStatus').innerText(),/tạm dừng/);
   directState.enabled=true;await page.locator('#corpProject').selectOption('standalone');

@@ -23,9 +23,9 @@ async function fixture(t) {
 }
 
 test('Manual run requestKey recovers lost create acknowledgements and rejects conflicting retry after restart',async t=>{
-  const f=await fixture(t),input={requestKey:randomUUID(),title:'Direct brief',steps:[{workspaceId:'one',role:'Builder',prompt:'Build requested counter.'}]};
+  const f=await fixture(t),input={requestKey:randomUUID(),title:'Direct brief',customerName:'Khách hàng An',steps:[{workspaceId:'one',role:'Builder',prompt:'Build requested counter.'}]};
   const run=await f.corp.create(input);
-  assert.equal((await f.corp.create(input)).id,run.id);assert.equal(f.corp.snapshot().runs.length,1);
+  assert.equal(run.customerName,'Khách hàng An');await assert.rejects(f.corp.create({...input,customerName:'Khách hàng Bình'}),/run_request_conflict/);assert.equal((await f.corp.create(input)).id,run.id);assert.equal(f.corp.snapshot().runs.length,1);
   await f.restart();assert.equal((await f.corp.create(input)).id,run.id);
   await assert.rejects(f.corp.create({...input,steps:[{...input.steps[0],prompt:'Different task.'}]}),/run_request_conflict/);
   await assert.rejects(f.corp.create({...input,title:'Different title'}),/run_request_conflict/);

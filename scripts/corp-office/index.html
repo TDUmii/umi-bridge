@@ -7,6 +7,7 @@
   <title>Văn phòng - UmiBridge Corp</title>
   <link rel="stylesheet" href="office.css">
   <script defer src="office-model.js"></script>
+  <script defer src="office-life.js"></script>
   <script defer src="office.js"></script>
 </head>
 <body>
@@ -19,15 +20,18 @@
       <button id="zoom-fit" type="button">Vừa khung</button>
       <button id="expand" type="button" aria-pressed="false">Mở rộng</button>
       <button id="motion" type="button" aria-pressed="false">Giảm chuyển động</button>
+      <button id="ambient" type="button" aria-pressed="true">Sinh hoạt: Bật</button>
+      <button id="preview" type="button" aria-pressed="false">Xem mẫu</button>
       <button id="toggle-roster" type="button" aria-expanded="false" aria-controls="office-roster">Đội ngũ</button>
     </div>
   </header>
   <main>
     <section class="office" aria-label="Văn phòng pixel">
-      <div class="scene" id="scene" tabindex="0" aria-label="Văn phòng. Trỏ hoặc dùng Tab vào nhân viên để xem tên và trạng thái."><div id="stage"><canvas id="room" aria-label="Nhân viên và bàn làm việc."></canvas><div class="room-sign" id="room-sign">UMIBRIDGE / CORP</div><div class="lounge-sign" id="lounge-sign">Khu chờ</div><div id="seat-labels" aria-label="Nhân viên tại bàn làm việc"></div></div>
+      <div class="scene" id="scene" tabindex="0" aria-label="Văn phòng. Trỏ hoặc dùng Tab vào nhân viên để xem tên và trạng thái."><div id="stage"><canvas id="room" aria-label="Nhân viên và bàn làm việc."></canvas><div class="room-sign" id="room-sign">UMIBRIDGE / CORP</div><div class="lounge-sign" id="lounge-sign">Góc thư giãn</div><div id="seat-labels" aria-label="Nhân viên tại bàn làm việc"></div></div>
         <div id="empty" hidden><h2>Văn phòng đang chờ đội ngũ</h2><p>Thêm chat trong Projects &amp; chats rồi giao nhiệm vụ tại Corp. Mỗi chat trở thành một nhân viên.</p></div>
       </div>
       <div class="legend" aria-label="Chú thích trạng thái"><span><i class="sending"></i>Đang gửi</span><span><i class="waiting"></i>Chờ phản hồi</span><span><i class="review"></i>Chờ duyệt</span><span><i class="limit"></i>Chờ hạn mức</span><span><i class="blocked"></i>Bị chặn</span><span><i class="idle"></i>Sẵn sàng</span></div>
+      <div id="customer-line" class="customer-line" role="list" aria-label="Tên khách hàng đang chờ" hidden></div>
     </section>
     <aside id="office-roster" aria-label="Đội ngũ và nhiệm vụ">
       <div class="roster-title"><h2>Đội ngũ</h2><span id="count">0</span></div>
@@ -38,10 +42,12 @@
         <button id="open-chat" type="button">Mở chat</button>
         <p id="detail-hint">Dùng Giao nhiệm vụ bên dưới văn phòng để chọn chat và nội dung bàn giao.</p>
       </section>
+      <section class="customers"><div class="roster-title"><h2>Khách đang chờ</h2><span id="customer-count">0</span></div><ol id="customers"></ol></section>
       <div class="handoff"><h2>Bàn giao gần đây</h2><p id="handoff-empty">Chưa có bàn giao trong Project này.</p><ol id="handoffs"></ol></div>
+      <details class="life-events"><summary>Sinh hoạt minh họa</summary><ol id="life-events"></ol></details>
     </aside>
   </main>
   <div id="employee-tooltip" role="tooltip" hidden><div class="tooltip-name"><i class="status-dot" id="tooltip-dot" aria-hidden="true"></i><strong id="tooltip-name"></strong></div><span id="tooltip-status"></span><small id="tooltip-department"></small></div>
-  <footer>Trạng thái từ điều phối UmiBridge. “Chờ phản hồi” không xác nhận AI đang suy nghĩ. <span>Hình ảnh: Pixel Agents · MIT</span></footer>
+  <footer>Công việc từ Corp · Ăn, ngủ, shipper là hoạt cảnh. <span>Pixel Agents · MIT</span></footer>
 </body>
 </html>

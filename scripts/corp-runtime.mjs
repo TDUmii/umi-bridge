@@ -112,17 +112,18 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
   const arenaRunCount = arena => arena.count + (arena.format === 'group_knockout' ? arena.count * 2 + arena.count / 5 * 2 - 1 : arena.count - 1);
   const reservedArenaRuns = (excludeKey) => state.arenas.filter(arena => !['done','cancelled'].includes(arena.status)).reduce((sum,arena) => sum + Math.max(0,arenaRunCount(arena)-state.runs.filter(run=>run.arenaId===arena.id).length),0) + state.bootstraps.filter(job=>job.kind==='arena'&&!['done','cancelled'].includes(job.status)&&job.id!==excludeKey&&!state.arenas.some(arena=>arena.requestKey===job.id)).reduce((sum,job)=>sum+arenaRunCount(job),0);
   const createRun = (input, options = {}) => {
+    const customerName=text(input.customerName,80);
     let requestDigest;
     if(input.requestKey!==undefined){
       if(typeof input.requestKey!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestKey))throw Error('invalid_run_request');
-      requestDigest=hash(JSON.stringify({title:text(input.title,180)||'Nhiệm vụ Corp',workspaceId:input.workspaceId||null,steps:Array.isArray(input.steps)?input.steps.map(step=>({workspaceId:step.workspaceId,chatId:step.chatId||null,role:text(step.role,80),prompt:text(step.prompt,options.arena?20000:12000)})):input.steps})).toString('hex');
+      requestDigest=hash(JSON.stringify({title:text(input.title,180)||'Nhiệm vụ Corp',...(customerName?{customerName}:{}),workspaceId:input.workspaceId||null,steps:Array.isArray(input.steps)?input.steps.map(step=>({workspaceId:step.workspaceId,chatId:step.chatId||null,role:text(step.role,80),prompt:text(step.prompt,options.arena?20000:12000)})):input.steps})).toString('hex');
       const existing=state.runs.find(run=>run.requestKey===input.requestKey);
       if(existing){if(existing.requestDigest!==requestDigest)throw Error('run_request_conflict');return existing;}
     }
     if (state.runs.length >= 2100 || !options.arena && (state.runs.filter(run => !run.arenaId).length >= 100 || state.runs.length + reservedArenaRuns() >= 2100)) throw Error('corp_run_capacity');
     if (!Array.isArray(input.steps) || input.steps.length < 1 || input.steps.length > 12) throw Error('invalid_steps');
     const known = workspaces();
-    const run = { id:randomUUID(),title:text(input.title,180)||'Nhiệm vụ Corp',status:'paused',createdAt:new Date(clock()).toISOString(),steps:[], ...(options.arena ? {arenaId: options.arena.id, arenaKind: options.kind, arenaRound: options.round, arenaMatchId: options.matchId, arenaCandidateId: options.candidateId} : {}) };
+    const run = { id:randomUUID(),title:text(input.title,180)||'Nhiệm vụ Corp',...(customerName?{customerName}:{}),status:'paused',createdAt:new Date(clock()).toISOString(),steps:[], ...(options.arena ? {arenaId: options.arena.id, arenaKind: options.kind, arenaRound: options.round, arenaMatchId: options.matchId, arenaCandidateId: options.candidateId} : {}) };
     if (input.workspaceId) {
       const project=known.find(item=>item.id===input.workspaceId&&item.kind==='project');
       if(!project)throw Error('project_not_found');run.workspaceId=project.id;run.projectId=project.projectId;
@@ -143,13 +144,13 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     if(typeof input.requestKey!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestKey))throw Error('invalid_idea_request');
     const existing=state.runs.find(run=>run.idea?.requestKey===input.requestKey);
     if(existing){
-      if(existing.workspaceId!==input.workspaceId||existing.idea.text!==String(input.idea||'').trim()||existing.idea.mode!==(input.mode||'build'))throw Error('idea_request_conflict');
+      if(existing.workspaceId!==input.workspaceId||existing.idea.text!==String(input.idea||'').trim()||existing.idea.mode!==(input.mode||'build')||(existing.customerName||'')!==text(input.customerName,80))throw Error('idea_request_conflict');
       return existing;
     }
     if(input.start===true&&!state.enabled)throw Error('enable_corp_first');
     const project=workspaces().find(item=>item.id===input.workspaceId&&item.kind==='project');
     const plan=buildIdeaWorkflow({project,members:state.teams.find(team=>team.workspaceId===project?.id)?.members,idea:input.idea,mode:input.mode,requestKey:input.requestKey});
-    const run=createRun(plan);run.idea={...plan.idea,repairRounds:1};
+    const run=createRun({...plan,customerName:input.customerName});run.idea={...plan.idea,repairRounds:1};
     run.steps.forEach((step,index)=>Object.assign(step,{stage:plan.steps[index].stage,title:plan.steps[index].title,roleId:plan.steps[index].roleId,requiresPass:plan.steps[index].requiresPass}));
     state.teams=state.teams.filter(team=>team.workspaceId!==project.id);state.teams.push({workspaceId:project.id,members:plan.team});
     if(input.start===true){run.status='running';event('start',run,run.steps[0]);}return run;
@@ -344,7 +345,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(existing){
         let parent;try{parent=await realpath(requestedParent);}catch{throw Error('parent_folder_unavailable');}
         const savedParent=existing.parentRoot??await realpath(dirname(existing.root));
-        if(existing.idea!==input.idea.trim()||existing.mode!==(input.mode||'build')||(existing.kind||'idea')!==kind||(existing.count??null)!==count||kind==='arena'&&(existing.format??'knockout')!==(input.format??'knockout')||relative(savedParent,parent)!=='')throw Error('idea_request_conflict');return copy(existing);
+        if(existing.idea!==input.idea.trim()||existing.mode!==(input.mode||'build')||(existing.kind||'idea')!==kind||(existing.count??null)!==count||kind==='arena'&&(existing.format??'knockout')!==(input.format??'knockout')||relative(savedParent,parent)!==''||(existing.customerName||'')!==text(input.customerName,80))throw Error('idea_request_conflict');return copy(existing);
       }
       if(state.bootstraps.length>=100)throw Error('corp_run_capacity');
       if(kind==='arena'&&(state.runs.length+reservedArenaRuns()+arenaRunCount(input)>2100||state.arenas.filter(arena=>!['done','cancelled'].includes(arena.status)).length+state.bootstraps.filter(job=>job.kind==='arena'&&!['done','cancelled'].includes(job.status)).length>=10))throw Error('corp_arena_capacity');
@@ -369,7 +370,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(!delta||delta==='..'||delta.startsWith('..\\')||delta.startsWith('../')||isAbsolute(delta)||(await lstat(root)).isSymbolicLink())throw Error('invalid_parent_root');
       const contents=`# ${name}\n\n${input.idea.trim()}\n`,ideaHandle=await open(ideaFile,'wx');ideaCreated=true;
       try{await ideaHandle.writeFile(contents,'utf8');}finally{await ideaHandle.close();}
-      const job={id:input.requestKey,idea:input.idea.trim(),name,parentRoot,root,kind,count,...(kind==='arena'?{format:input.format??'knockout'}:{}),mode:input.mode||'build',runAfterSetup:kind==='arena'?false:input.runAfterSetup!==false,
+      const job={id:input.requestKey,customerName:text(input.customerName,80),idea:input.idea.trim(),name,parentRoot,root,kind,count,...(kind==='arena'?{format:input.format??'knockout'}:{}),mode:input.mode||'build',runAfterSetup:kind==='arena'?false:input.runAfterSetup!==false,
         status:input.start===true&&state.enabled?'running':'paused',createdAt:new Date(clock()).toISOString(),projectUrl:null,projectId:null,workspaceId:null,chats:[],attempt:null,issuedAt:null,reason:null,runId:null};
       state.bootstraps.push(job);return copy(job);
   };
@@ -468,7 +469,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
           state.teams=state.teams.filter(team=>team.workspaceId!==job.workspaceId);state.teams.push({workspaceId:job.workspaceId,members:chats.map(({chatId,roleId})=>({chatId,roleId}))});
           const created=job.kind==='arena'
             ? await createArena({workspaceId:job.workspaceId,idea:job.idea,count:job.count,mode:job.mode,format:job.format,requestKey:job.id})
-            : createIdeaRun({workspaceId:job.workspaceId,idea:job.idea,mode:job.mode,requestKey:job.id,start:job.runAfterSetup&&state.enabled&&job.status==='running'});
+            : createIdeaRun({workspaceId:job.workspaceId,customerName:job.customerName,idea:job.idea,mode:job.mode,requestKey:job.id,start:job.runAfterSetup&&state.enabled&&job.status==='running'});
           if(job.kind==='arena')job.arenaId=created.id;
           job.runId=created.id;job.status='done';
         }

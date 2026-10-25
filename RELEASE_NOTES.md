@@ -1,4 +1,14 @@
-# UmiBridge Sakura Console - 1.2.1
+# UmiBridge Sakura Console - 1.3.0
+
+## Living Corp office
+
+Redesigned pixel interior adds customer reception, pantry, varied desk islands, sofa lounge, plants and two rest mats. Working staff face monitors. Idle staff walk along reserved aisles, spread bedding, lie down, sleep, wake, fold bedding and return, or visit the snack counter. A periodic courier delivers a parcel. New work interrupts rest with cleanup and a return walk. These events are decorative and never send chat, place orders or advance tasks.
+
+Optional customer names persist with manual tasks, direct briefs and Idea/bootstrap, appear in the scoped queue and reception, and participate in idempotency checks. Xem mẫu shows an explicitly synthetic office without starting work and restores real state on exit. Ambient toggle, reduced motion and hidden-view handling remain available. Fit now supports 50-200% manual zoom for laptop and split viewing.
+
+Validation: 5,400 rendered simulation frames, six sprite palettes with 126 source cells, working direction, no teleports/desk collisions in the fixture, polling continuity, all rest transitions, interrupted rest cleanup, customer display and preview exit. Browser fixtures use temporary state; no real account work is started. See docs/ACCEPTANCE-1.3.vi.md for final checks and limits.
+
+## Previous 1.2.1
 
 ## Pixel gladiators
 

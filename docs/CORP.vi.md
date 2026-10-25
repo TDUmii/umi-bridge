@@ -137,3 +137,13 @@ Bộ đếm offline `o200k_base` áp dụng lên văn bản quan sát được. 
 Tab **Hạn mức & ngân sách** hiển thị thông báo reset thực mà Corp đã ghi nhận. Không có thông báo không đồng nghĩa còn hạn mức. Giá USD/1M input-output và ngân sách cho kỳ đang lọc do bạn nhập, lưu tại trình duyệt. Cảnh báo ngân sách chỉ tham khảo, không tự dừng nhiệm vụ hoặc thay đổi gói tài khoản.
 
 Bố cục Corp tách Văn phòng, Từ ý tưởng và Hàng đợi thành các tab cùng vùng làm việc. Bộ lọc Đang mở/Tất cả/Đã xong giảm danh sách hàng đợi. Form Giao việc nằm trong tab Hàng đợi, không phải cửa sổ chặn toàn trang. Nút Văn phòng vẫn nhớ lựa chọn độc lập với Điều phối.
+
+## Văn phòng sinh hoạt - 1.3.0
+
+Văn phòng chia quầy tiếp khách, pantry, bàn làm việc, góc sofa và hai nệm nghỉ. Nhân viên đang làm quay vào màn hình; người rảnh có thể đi ăn vặt hoặc trải nệm, nằm nghỉ, dậy gấp nệm rồi quay về. Shipper thỉnh thoảng giao kiện đồ tại pantry. Đây là hoạt cảnh minh họa, không tạo đơn hàng, gửi chat hay làm thay đổi tiến độ thật. Nhận nhiệm vụ mới sẽ thu dọn chỗ nghỉ và đi về bàn.
+
+Tên khách hàng là trường tùy chọn trong tạo công việc, brief trực tiếp và Từ ý tưởng. Hàng đợi và quầy tiếp khách hiện tên khách theo Project đang chọn; công việc cũ chưa có tên sẽ ghi rõ chưa đặt tên.
+
+Dùng **Xem mẫu** để xem tám nhân viên và ba khách minh họa khi chưa có đội ngũ. Nhãn MINH HỌA và liên kết chat bị tắt giúp phân biệt dữ liệu mẫu; **Thoát mẫu** trở về dữ liệu thật. **Sinh hoạt: Bật/Tắt** điều khiển các chuyến nghỉ mới; chuyến đang diễn ra thu dọn và trở về. **Giảm chuyển động** giữ cảnh tĩnh. **Vừa khung**, zoom 50-200% và **Mở rộng** hỗ trợ desktop/laptop, cả Xem đôi.
+
+Kiểm hoạt cảnh có thể chạy bằng `npm run office:qa` khi PLAYWRIGHT_MODULE trỏ tới Playwright đã cài và máy có Microsoft Edge. Fixture dùng gateway tạm, không tài khoản thật. `OFFICE_CAPTURE_ANIMATION=1` xuất thêm 450 ảnh minh họa tại .impeccable/review/office-life/animation-frames.

@@ -83,7 +83,7 @@
     select.disabled=directSending||!chats.length;
     $('corpProject').disabled=directSending||ideaSending;
     $('corpIdeaWorkflowToggle').disabled=$('corpDirectToggle').disabled=directSending||ideaSending;
-    $('corpDirectBrief').readOnly=directSending;
+    $('corpDirectBrief').readOnly=directSending;$('corpDirectCustomer').readOnly=directSending;
     $('corpDirectBriefSubmit').disabled=directSending||!chats.length;
     $('corpDirectBriefSubmit').textContent=directSending?'Đang lưu...':data.enabled?'Gửi brief vào chat':'Lưu brief';
     if(!directSending&&!$('corpDirectBriefStatus').dataset.sticky)$('corpDirectBriefStatus').textContent=chats.length?'':'Thêm hoặc đồng bộ chat Corp trước khi gửi.';
@@ -174,7 +174,7 @@
       a.role = step.role; a.roles = [step.role]; a.task = step.prompt; a.task_id = step.id.slice(0, 8);
       a.status = { queued:'QUEUED', dispatching:'DISPATCHED', running:'WAITING', limit_wait:'LIMIT', blocked:'BLOCKED' }[step.status] || 'IDLE';
       if (run.status === 'paused') a.status = 'PAUSED';
-      a.pose = step.status === 'dispatching' && data.enabled && run.status === 'running' ? 'type' : 'idle';
+      a.pose = ['dispatching','running'].includes(step.status) && data.enabled && run.status === 'running' ? 'type' : 'idle';
       a.resetAt = step.resetAt;
     }
     for(const agent of agents.values()){
@@ -184,7 +184,7 @@
     }
     const order=data.companyRoles?.map(role=>role.id)||[];
     const handoffs = data.events.filter(event => event.type === 'handoff' && runs.some(run => run.id === event.runId)).map(event => ({ id:event.id, from:event.from, to:event.to, task:event.task, at:event.at }));
-    return { project:selectedProject()?.id || 'umibridge-corp', name:selectedProject()?.name || 'UmiBridge Corp', coordinator:data.enabled, office:data.office, agents:[...agents.values()].sort((a,b)=>(order.indexOf(a.roleId)<0?99:order.indexOf(a.roleId))-(order.indexOf(b.roleId)<0?99:order.indexOf(b.roleId))), handoffs, baseline:first };
+    return { project:selectedProject()?.id || 'umibridge-corp', name:selectedProject()?.name || 'UmiBridge Corp', coordinator:data.enabled, office:data.office, agents:[...agents.values()].sort((a,b)=>(order.indexOf(a.roleId)<0?99:order.indexOf(a.roleId))-(order.indexOf(b.roleId)<0?99:order.indexOf(b.roleId))), handoffs, customers:runs.filter(run=>!['done','cancelled'].includes(run.status)).map(run=>({id:run.id,name:run.customerName||'Chưa đặt tên',title:run.title,status:run.status})), baseline:first };
   }
   function syncScene() {
     if (!data || !scene.contentWindow) return;
@@ -225,7 +225,7 @@
       signature = next; $('corpRuns').replaceChildren();
       if (!runs.length) $('corpRuns').append(node('p', filter === 'active' ? 'Hàng đợi trống. Chọn Giao việc để bắt đầu.' : 'Chưa có nhiệm vụ trong nhóm này.', 'corp-empty'));
       for (const run of [...runs].reverse()) {
-        const article = node('article', undefined, 'corp-run'); article.dataset.status = run.status; article.append(node('h4', run.title), node('span', labels[run.status] || run.status, 'corp-status'));
+        const article = node('article', undefined, 'corp-run'); article.dataset.status = run.status; article.append(node('h4', run.customerName||'Khách chưa đặt tên'),node('p',run.title,'corp-customer-task'), node('span', labels[run.status] || run.status, 'corp-status'));
         if(run.idea){
           const index=run.steps.findIndex(step=>!['done','cancelled'].includes(step.status));
           article.append(node('p',index<0?'Đã kết thúc quy trình':`Chặng ${index+1}/${run.steps.length} · ${run.steps[index].title}`,'corp-idea-progress'));
@@ -285,20 +285,20 @@
   window.addEventListener('umibridge-folder-dialog',event=>{if(event.detail.inputId==='corpIdeaParentRoot'){folderPicking=event.detail.open?'corpIdeaParentRoot':null;renderIdea();}});
   $('corpIdeaForm').onsubmit=async event=>{
     event.preventDefault();if(ideaSending||directSending||folderPicking)return;const project=selectedProject(),isNew=$('corpIdeaTarget').value==='new';if(!isNew&&!project)return;
-    const value={...(isNew?{parentRoot:$('corpIdeaParentRoot').value.trim()}:{workspaceId:project.id}),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked}:{})};
+    const value={...(isNew?{parentRoot:$('corpIdeaParentRoot').value.trim()}:{workspaceId:project.id}),customerName:$('corpIdeaCustomer').value.trim(),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked}:{})};
     if(isNew)window.umiFolderDialog.remember($('corpIdeaParentRoot'));
     const signature=JSON.stringify(value);if(ideaRequest?.signature!==signature)ideaRequest={signature,key:crypto.randomUUID()};
-    ideaSending=true;$('corpIdeaForm').setAttribute('aria-busy','true');$('corpIdeaText').readOnly=true;$('corpIdeaMode').disabled=true;$('corpIdeaTarget').disabled=true;$('corpProject').disabled=true;renderIdea();$('corpIdeaError').hidden=true;
+    ideaSending=true;$('corpIdeaForm').setAttribute('aria-busy','true');$('corpIdeaText').readOnly=true;$('corpIdeaCustomer').readOnly=true;$('corpIdeaMode').disabled=true;$('corpIdeaTarget').disabled=true;$('corpProject').disabled=true;renderIdea();$('corpIdeaError').hidden=true;
     try {const result=await api(isNew?'/projects':'/ideas',{...value,requestKey:ideaRequest.key});if(isNew){focusBootstrap=result.id;localStorage.setItem('umibridge.corp.bootstrap',result.id);}await load();$('corpIdeaText').value='';ideaRequest=null;setCorpTab('queue');$('corpRunFilter').value='active';render();}
     catch(cause){if(cause.code==='project_folder_exists')ideaRequest=null;$('corpIdeaError').textContent=cause.message;$('corpIdeaError').hidden=false;}
-    finally{ideaSending=false;$('corpIdeaForm').setAttribute('aria-busy','false');$('corpIdeaText').readOnly=false;$('corpIdeaMode').disabled=false;$('corpIdeaTarget').disabled=false;$('corpProject').disabled=false;renderIdea();}
+    finally{ideaSending=false;$('corpIdeaForm').setAttribute('aria-busy','false');$('corpIdeaText').readOnly=false;$('corpIdeaCustomer').readOnly=false;$('corpIdeaMode').disabled=false;$('corpIdeaTarget').disabled=false;$('corpProject').disabled=false;renderIdea();}
   };
   $('corpDirectBriefForm').onsubmit=async event=>{
     event.preventDefault();if(directSending||ideaSending)return;
     const chats=scopedChats(),chat=chats.find(item=>(item.chatId||item.id)===$('corpDirectChat').value),project=selectedProject(),prompt=$('corpDirectBrief').value.trim();
     if(!chat||prompt.length<4)return;
     const title=`Brief Corp · ${prompt.split(/\r?\n/,1)[0].slice(0,120)}`;
-    const body={title,...(project?{workspaceId:project.id}:{}),steps:[{workspaceId:project?.id||chat.id,chatId:chat.chatId,role:chat.name?.split('\n')[0]||'Nhân viên Corp',prompt}]};
+    const body={title,customerName:$('corpDirectCustomer').value.trim(),...(project?{workspaceId:project.id}:{}),steps:[{workspaceId:project?.id||chat.id,chatId:chat.chatId,role:chat.name?.split('\n')[0]||'Nhân viên Corp',prompt}]};
     const signature=JSON.stringify(body);if(directRequest?.signature!==signature)directRequest={signature,key:crypto.randomUUID(),runId:null};
     directSending=true;$('corpDirectBriefForm').setAttribute('aria-busy','true');$('corpDirectBriefStatus').dataset.sticky='true';$('corpDirectBriefStatus').textContent='Đang lưu brief...';renderDirectBrief();
     $('corpProject').disabled=true;
@@ -306,7 +306,7 @@
       const run=directRequest.runId?{id:directRequest.runId}:await api('/runs',{...body,requestKey:directRequest.key});directRequest.runId=run.id;
       if(data.enabled){await api('/runs/'+run.id+'/start',{});$('corpDirectBriefStatus').textContent='Đã xếp lượt gửi. Xem tiến độ trong Hàng đợi.';}
       else $('corpDirectBriefStatus').textContent='Đã lưu ở trạng thái tạm dừng. Bật Điều phối rồi mở Hàng đợi để gửi.';
-      $('corpDirectBrief').value='';directRequest=null;await load();
+      $('corpDirectBrief').value='';$('corpDirectCustomer').value='';directRequest=null;await load();
     } catch(cause) { $('corpDirectBriefStatus').textContent=directRequest?.runId?'Brief đã lưu. Chưa xác nhận xếp lượt gửi; kiểm tra Hàng đợi. '+cause.message:cause instanceof TypeError?'Chưa xác nhận brief đã lưu. Giữ nguyên nội dung và thử lại để đối chiếu.':cause.message; }
     finally { directSending=false;$('corpProject').disabled=false;$('corpDirectBriefForm').setAttribute('aria-busy','false');renderDirectBrief(); }
   };
@@ -336,7 +336,7 @@
   });
   $('corpSetupToggle').onclick = () => { const open = $('corpSetup').hidden; $('corpSetup').hidden = !open; $('corpSetupToggle').setAttribute('aria-expanded', String(open)); if (open) $('corpSetup').scrollIntoView({block:'nearest'}); };
   $('corpRunFilter').onchange = render;
-  $('corpForm').onsubmit = async event => { event.preventDefault(); const project = selectedProject(); const steps = [...$('corpSteps').children].map(field => ({...Object.fromEntries([...field.querySelectorAll('[name]')].map(input => [input.name, input.value])), ...(project ? {workspaceId:project.id} : {})})); const result = await act('/runs', {title:$('corpRunTitle').value, ...(project ? {workspaceId:project.id} : {}), steps}); if (result) { $('corpForm').reset(); $('corpSteps').replaceChildren(); addStep(); $('corpRunFilter').value = 'active'; compose(false); render(); } };
+  $('corpForm').onsubmit = async event => { event.preventDefault(); const project = selectedProject(); const steps = [...$('corpSteps').children].map(field => ({...Object.fromEntries([...field.querySelectorAll('[name]')].map(input => [input.name, input.value])), ...(project ? {workspaceId:project.id} : {})})); const result = await act('/runs', {title:$('corpRunTitle').value, customerName:$('corpCustomerName').value.trim(), ...(project ? {workspaceId:project.id} : {}), steps}); if (result) { $('corpForm').reset(); $('corpSteps').replaceChildren(); addStep(); $('corpRunFilter').value = 'active'; compose(false); render(); } };
   $('corpProject').onchange = () => { localStorage.setItem('umibridge.corp.project',$('corpProject').value); first = true; for (const select of $('corpSteps').querySelectorAll('select')) select.value = ''; render(); };
   $('corpSync').onclick = async () => {
     const project = selectedProject(); if (!project) return;

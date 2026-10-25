@@ -2,7 +2,7 @@
 
 UmiBridge kết nối ChatGPT với máy Windows của bạn: đọc và sửa tệp, chạy PowerShell, quan sát và điều khiển cửa sổ. Dashboard local quản lý quyền công cụ, lịch sử, thiết bị, thống kê token và điều phối nhiều chat trong một ChatGPT Project.
 
-**Bản 1.2.1.** Giao diện dành cho máy tính để bàn và laptop.
+**Bản 1.3.0.** Giao diện dành cho máy tính để bàn và laptop. Văn phòng Corp có quầy khách, pantry, sofa, góc nghỉ và hoạt cảnh sinh hoạt.
 
 [Tải bản chính thức mới nhất](https://github.com/TDUmii/umi-bridge/releases/latest) · [Thay đổi từng bản](RELEASE_NOTES.md) · [Hướng dẫn Corp](docs/CORP.vi.md) · [Hướng dẫn Arena](docs/ARENA.vi.md)
 
