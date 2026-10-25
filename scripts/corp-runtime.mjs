@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile, rename, lstat, realpath } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rename, lstat, realpath, access, open, unlink, rmdir } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { dirname, resolve, join, relative, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -9,6 +10,11 @@ const hash = value => createHash('sha256').update(String(value)).digest();
 const copy = value => structuredClone(value);
 const text = (value, max) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const active = step => !['done', 'cancelled'].includes(step.status);
+export const validateParentRoot = value => {
+  if (typeof value !== 'string' || !value || value.length > 1500 || !isAbsolute(value) || /[\x00-\x1f\x7f-\x9f]/.test(value) || /^[\\/]{2}[?.][\\/]/.test(value)) throw Error('invalid_parent_root');
+  if (process.platform === 'win32' && (!/^(?:[a-z]:[\\/]|[\\/]{2}[^\\/]+[\\/][^\\/]+)/i.test(value) || /[<>"|?*]/.test(value) || /:/.test(value.replace(/^[a-z]:/i,'')) || value.split(/[\\/]+/).some(part => /[. ]$/.test(part) && !['.','..'].includes(part) || /^(?:con|conin\$|conout\$|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(part)))) throw Error('invalid_parent_root');
+  return resolve(value);
+};
 const chatId = value => {
   const url = new URL(value);
   if (url.protocol !== 'https:' || !['chatgpt.com', 'chat.openai.com'].includes(url.hostname) || url.port || url.username || url.password) throw Error('invalid_chat_url');
@@ -77,9 +83,9 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     await rename(temp, filePath);
   };
   const transaction = fn => serial(async () => {
-    const before = copy(state);
-    try { const result = await fn(); if (JSON.stringify(state) !== JSON.stringify(before)) await save(); return result; }
-    catch (error) { state = before; throw error; }
+    const before = copy(state), rollbacks = [];
+    try { const result = await fn(cleanup => rollbacks.push(cleanup)); if (JSON.stringify(state) !== JSON.stringify(before)) await save(); return result; }
+    catch (error) { state = before; for (const cleanup of rollbacks.reverse()) { try { await cleanup(); } catch {} } throw error; }
   });
   const event = (type, run, step, extra = {}) => {
     state.events.push({ id: randomUUID(), type, runId: run.id, stepId: step?.id, at: new Date(clock()).toISOString(), ...extra });
@@ -312,7 +318,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     if(url.protocol!=='https:'||url.hostname!=='chatgpt.com'||url.port||url.username||url.password||url.search||url.hash||!match)throw Error('invalid_project_url');
     return {projectId:match[1],projectUrl:`https://chatgpt.com/g/${match[1]}/project`};
   };
-  const createBootstrap = async input => {
+  const createBootstrap = async (input, onRollback) => {
       if(!createWorkspace||!syncProject)throw Error('bootstrap_unavailable');if(!state.tokenHash)throw Error('pair_corp_first');
       if(typeof input.idea!=='string'||input.idea.trim().length<4||input.idea.trim().length>8000)throw Error('invalid_idea');
       if(!['build','plan'].includes(input.mode||'build'))throw Error('invalid_idea_mode');
@@ -323,15 +329,39 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(kind==='arena'&&!['knockout','group_knockout'].includes(input.format ?? 'knockout'))throw Error('invalid_arena_format');
       if(typeof input.requestKey!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestKey))throw Error('invalid_idea_request');
       const existing=state.bootstraps.find(job=>job.id===input.requestKey);
-      if(existing){if(existing.idea!==input.idea.trim()||existing.mode!==(input.mode||'build')||(existing.kind||'idea')!==kind||(existing.count??null)!==count||kind==='arena'&&(existing.format??'knockout')!==(input.format??'knockout'))throw Error('idea_request_conflict');return copy(existing);}
+      const fallback=input.parentRoot===undefined||input.parentRoot==='';
+      const defaultParent=validateParentRoot(projectsRoot);
+      const requestedParent=fallback?defaultParent:validateParentRoot(input.parentRoot);
+      const useDefault=relative(defaultParent,requestedParent)==='';
+      if(existing){
+        let parent;try{parent=await realpath(requestedParent);}catch{throw Error('parent_folder_unavailable');}
+        const savedParent=existing.parentRoot??await realpath(dirname(existing.root));
+        if(existing.idea!==input.idea.trim()||existing.mode!==(input.mode||'build')||(existing.kind||'idea')!==kind||(existing.count??null)!==count||kind==='arena'&&(existing.format??'knockout')!==(input.format??'knockout')||relative(savedParent,parent)!=='')throw Error('idea_request_conflict');return copy(existing);
+      }
       if(state.bootstraps.length>=100)throw Error('corp_run_capacity');
       if(kind==='arena'&&(state.runs.length+reservedArenaRuns()+arenaRunCount(input)>2100||state.arenas.filter(arena=>!['done','cancelled'].includes(arena.status)).length+state.bootstraps.filter(job=>job.kind==='arena'&&!['done','cancelled'].includes(job.status)).length>=10))throw Error('corp_arena_capacity');
       const base=text(input.name,32)||input.idea.trim().split('\n')[0].slice(0,32).trim(),name=`${base} [UMI-${input.requestKey.slice(0,8)}]`;
       const slug=base.normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().replace(/đ/g,'d').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48)||'project';
-      const root=resolve(projectsRoot,`${slug}-${input.requestKey.slice(0,8)}`);await mkdir(root,{recursive:true});
-      const ideaFile=join(root,'UMI-IDEA.md'),contents=`# ${name}\n\n${input.idea.trim()}\n`;
-      try{await writeFile(ideaFile,contents,{encoding:'utf8',flag:'wx'});}catch(error){if(error.code!=='EEXIST'||await readFile(ideaFile,'utf8')!==contents)throw error;}
-      const job={id:input.requestKey,idea:input.idea.trim(),name,root,kind,count,...(kind==='arena'?{format:input.format??'knockout'}:{}),mode:input.mode||'build',runAfterSetup:kind==='arena'?false:input.runAfterSetup!==false,
+      let parentRoot;
+      try{
+        if(useDefault)await mkdir(requestedParent,{recursive:true});
+        parentRoot=await realpath(requestedParent);
+        if(!(await lstat(parentRoot)).isDirectory())throw Error('not_directory');
+        await access(parentRoot,constants.W_OK);
+      }catch{throw Error('parent_folder_unavailable');}
+      const root=resolve(parentRoot,`${slug}-${input.requestKey}`);
+      try{await mkdir(root);}catch(error){throw Error(error.code==='EEXIST'?'project_folder_exists':'parent_folder_unavailable');}
+      const ideaFile=join(root,'UMI-IDEA.md');let ideaCreated=false;
+      onRollback(async()=>{
+        if(ideaCreated)await unlink(ideaFile).catch(()=>{});
+        // Only this attempt's new directory: preserve any other files, including external writes.
+        await rmdir(root).catch(()=>{});
+      });
+      const canonicalRoot=await realpath(root),delta=relative(parentRoot,canonicalRoot);
+      if(!delta||delta==='..'||delta.startsWith('..\\')||delta.startsWith('../')||isAbsolute(delta)||(await lstat(root)).isSymbolicLink())throw Error('invalid_parent_root');
+      const contents=`# ${name}\n\n${input.idea.trim()}\n`,ideaHandle=await open(ideaFile,'wx');ideaCreated=true;
+      try{await ideaHandle.writeFile(contents,'utf8');}finally{await ideaHandle.close();}
+      const job={id:input.requestKey,idea:input.idea.trim(),name,parentRoot,root,kind,count,...(kind==='arena'?{format:input.format??'knockout'}:{}),mode:input.mode||'build',runAfterSetup:kind==='arena'?false:input.runAfterSetup!==false,
         status:input.start===true&&state.enabled?'running':'paused',createdAt:new Date(clock()).toISOString(),projectUrl:null,projectId:null,workspaceId:null,chats:[],attempt:null,issuedAt:null,reason:null,runId:null};
       state.bootstraps.push(job);return copy(job);
   };
@@ -401,7 +431,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       arenaHistory(arena,action);
       return copy(arena);
     }),
-    bootstrap: input => transaction(() => createBootstrap(input)),
+    bootstrap: input => transaction(onRollback => createBootstrap(input,onRollback)),
     bootstrapAction:(id,action)=>transaction(()=>{
       const job=bootstrapById(id);if(['done','cancelled'].includes(job.status))throw Error('bootstrap_finished');
       if(action==='start'){if(!state.enabled)throw Error('enable_corp_first');job.status='running';job.reason=null;job.issuedAt=null;job.attempt=null;}

@@ -5,6 +5,8 @@
   const arenaActions=new Set();
   const arenaDetails=new Map();
   const arenaHistoryFilters=new Map();
+  let folderPicking=null;
+  let folderTarget=null,folderListing=null,folderLoadVersion=0;
   let focusBootstrap=localStorage.getItem('umibridge.corp.bootstrap');
   const labels = { queued:'Chờ giao việc', dispatching:'Đang gửi', running:'Chờ phản hồi', limit_wait:'Chờ reset hạn mức', blocked:'Cần kiểm tra', paused:'Tạm dừng', done:'Hoàn thành', cancelled:'Đã hủy' };
   const reasons = { send_unconfirmed:'Chưa xác nhận đã gửi. Mở chat kiểm tra trước khi thử lại.', composer_busy:'Chat đang trả lời hoặc còn bản nháp. Corp giữ nguyên bản nháp.', composer_missing:'Chưa thấy ô nhập. Kiểm tra đăng nhập và giao diện chat.', chat_changed:'Chat đã thay đổi hoặc có lượt gửi khác. Kiểm tra trước khi tiếp tục.', browser_unavailable:'Không kết nối được tab chat.', response_timeout:'Chưa xác nhận kết quả sau 45 phút. Mở chat kiểm tra.', response_too_large:'Kết quả vượt 48.000 ký tự. Chia nhiệm vụ nhỏ hơn.', limit_time_unknown:'Có thông báo hạn mức nhưng không đọc được giờ reset. Cần kiểm tra thủ công.' };
@@ -16,6 +18,7 @@
   reasons.arena_decision_invalid='Báo cáo chấm trận chưa hợp lệ. Kiểm tra chat giám khảo trước khi thử lại.';
   reasons.arena_evidence_invalid='Bằng chứng sản phẩm chưa đủ để chấm trận. Kiểm tra tệp và báo cáo.';
   reasons.chat_outside_project='Chat đã rời Project. Đồng bộ và kiểm tra lại nhóm nhận việc.';
+  Object.assign(reasons,{folder_path_unavailable:'Không mở được thư mục. Kiểm tra đường dẫn và quyền truy cập.',invalid_parent_root:'Nhập đường dẫn thư mục tuyệt đối hợp lệ.',parent_folder_unavailable:'Thư mục không tồn tại hoặc không có quyền ghi.',project_folder_exists:'Thư mục dự án đã tồn tại. Bấm tạo lại để dùng thư mục riêng.'});
   const selectedProject = () => data?.workspaces.find(item => item.id === $('corpProject').value && item.kind === 'project');
   const scopedChats = () => selectedProject()?.chats || (data?.workspaces || []).filter(item => item.kind !== 'project');
   const scopedRuns = () => (data?.runs||[]).filter(run => selectedProject() ? run.workspaceId === selectedProject().id : !run.workspaceId);
@@ -27,10 +30,33 @@
     const response = await fetch('/admin/api/corp' + path, body === undefined ? { cache:'no-store' } : { method:'POST', headers:{ 'Content-Type':'application/json', 'X-DC-Admin-Action':'1' }, body:JSON.stringify(body) });
     const result = await response.json(); if (!response.ok) {
       const messages={invalid_idea:'Nhập ý tưởng từ 4 đến 8.000 ký tự.',invalid_arena_idea:'Nhập ý tưởng Arena từ 4 đến 8.000 ký tự.',invalid_arena_count:'Chọn 20, 50 hoặc 100 sản phẩm.',invalid_arena_request:'Yêu cầu Arena hết hiệu lực. Tạo lại trận.',arena_request_conflict:'Yêu cầu Arena đã thay đổi. Tạo lại trận.',project_folder_required:'Project cần có thư mục làm việc. Cập nhật trong Dự án & chat.',invalid_idea_request:'Yêu cầu đã hết hiệu lực. Đóng rồi mở lại phần Từ ý tưởng.',idea_request_conflict:'Ý tưởng đã thay đổi. Thử tạo lại quy trình.',enable_corp_first:'Bật Điều phối trước khi bắt đầu quy trình.',project_not_found:'Chọn một Project trước khi tạo quy trình.',pair_corp_first:'Kết nối extension Corp trước khi tạo Project tự động.',bootstrap_unavailable:'Khởi động lại UmiBridge để nạp chức năng tạo Project.',invalid_arena_chat:'Arena cần team chat hợp lệ trong cùng Project.',missing_arena_judge:'Project chưa có bộ phận Điều hành hoặc QA làm giám khảo.'};
-      throw Error(result.error?.startsWith('missing_company_roles:')?'Chưa có chat nhận việc cho: '+result.error.split(':')[1].split(',').map(id=>data?.companyRoles?.find(role=>role.id===id)?.department||id).join(', ')+'. Mở Bộ phận để phân công.':messages[result.error]||reasons[result.error]||result.error||'Không cập nhật được Corp');
+      const cause=Error(result.error?.startsWith('missing_company_roles:')?'Chưa có chat nhận việc cho: '+result.error.split(':')[1].split(',').map(id=>data?.companyRoles?.find(role=>role.id===id)?.department||id).join(', ')+'. Mở Bộ phận để phân công.':messages[result.error]||reasons[result.error]||result.error||'Không cập nhật được Corp');cause.code=result.error;throw cause;
     } return result;
   }
   async function act(path, body = {}) { try { error(''); const result = await api(path, body); await load(); return result; } catch (cause) { error(cause.message); return null; } }
+  function initializeFolderInput(id){const input=$(id);if(!input.dataset.initialized&&data){input.value=localStorage.getItem('umibridge.corp.parentRoot')||data.projectsRoot||'';input.dataset.initialized='true';}}
+  function rememberFolder(input){localStorage.setItem('umibridge.corp.parentRoot',input.value.trim());}
+  function chooseFolder(inputId,buttonId,statusId){
+    if(folderPicking||ideaSending||arenaSending)return;
+    folderPicking=inputId;folderTarget={inputId,buttonId,statusId};$(statusId).hidden=true;renderIdea();renderArena();$('corpFolderDialog').showModal();void loadFolder($(inputId).value.trim(),true);
+  }
+  async function loadFolder(path,initial=false){
+    const version=++folderLoadVersion;folderListing=null;$('corpFolderError').hidden=true;$('corpFolderList').replaceChildren();$('corpFolderList').setAttribute('aria-busy','true');$('corpFolderEmpty').hidden=true;
+    for(const id of ['corpFolderSelect','corpFolderUp','corpFolderOpen','corpFolderDrive'])$(id).disabled=true;$('corpFolderPath').value=path;$('corpFolderPath').readOnly=true;
+    try{
+      let result;
+      try{result=await api('/folder',{path});}
+      catch(cause){if(version!==folderLoadVersion||!folderTarget)return;if(!initial||!path||cause.code!=='folder_path_unavailable')throw cause;result=await api('/folder',{path:''});if(version!==folderLoadVersion||!folderTarget)return;$('corpFolderError').textContent='Không mở được vị trí đã nhập. Chọn thư mục khác.';$('corpFolderError').hidden=false;}
+      if(version!==folderLoadVersion||!folderTarget)return;folderListing=result;$('corpFolderPath').value=result.path;$('corpFolderDrive').replaceChildren();
+      for(const root of result.roots){const option=node('option',root.name);option.value=root.path;$('corpFolderDrive').append(option);}const drive=result.roots.find(root=>result.path.toLowerCase().startsWith(root.path.toLowerCase()));if(drive)$('corpFolderDrive').value=drive.path;
+      for(const folder of result.folders){const entry=button(folder.name,()=>void loadFolder(folder.path));entry.dataset.folderPath=folder.path;$('corpFolderList').append(entry);}
+      $('corpFolderEmpty').textContent=result.truncated?'Chỉ hiện 500 thư mục. Nhập đường dẫn để mở vị trí khác.':!result.folders.length?'Không có thư mục con.':'';$('corpFolderEmpty').hidden=!$('corpFolderEmpty').textContent;
+    }catch(cause){if(version!==folderLoadVersion||!folderTarget)return;$('corpFolderError').textContent=cause.message;$('corpFolderError').hidden=false;}
+    finally{if(version===folderLoadVersion&&folderTarget){$('corpFolderList').setAttribute('aria-busy','false');$('corpFolderPath').readOnly=false;$('corpFolderOpen').disabled=false;$('corpFolderDrive').disabled=!$('corpFolderDrive').options.length;$('corpFolderSelect').disabled=!folderListing;$('corpFolderUp').disabled=!folderListing?.parentPath;}}
+  }
+  function closeFolder(){
+    const target=folderTarget;folderTarget=null;folderPicking=null;folderListing=null;folderLoadVersion++;renderIdea();renderArena();if(target)$(target.buttonId).focus();
+  }
   function button(label, action) { const b = node('button', label, 'btn small'); b.type = 'button'; b.onclick = action; return b; }
   function addStep() {
     if ($('corpSteps').children.length >= 12) return;
@@ -73,6 +99,7 @@
   }
   function renderIdea(){
     if(!data)return;
+    initializeFolderInput('corpIdeaParentRoot');
     const project=selectedProject(),mode=$('corpIdeaMode').value,isNew=$('corpIdeaTarget').value==='new';
     const stages=(data.ideaStages||[]).filter((stage,index)=>mode==='build'||index<3);
     const required=isNew?(data.companyRoles||[]).map(role=>role.id):[...new Set(stages.map(stage=>stage.roleId))];
@@ -81,8 +108,10 @@
     const missing=required.filter(id=>!members.some(member=>member.roleId===id));
     $('corpIdeaProject').textContent=isNew?'Tự tạo Project mới, 8 chat và phân công bộ phận.':project?'Project: '+project.name:'Chọn Project ở thanh phía trên để bắt đầu.';
     $('corpIdeaProject').hidden=isNew;
-    $('corpIdeaRoot').textContent=isNew?'Thư mục dự án mới sẽ nằm trong: '+(data.projectsRoot||'Documents / UmiBridge Projects'):project?.root?'Thư mục làm việc: '+project.root:'Chưa có thư mục làm việc.';
-    $('corpIdeaReadiness').textContent=isNew?!data.paired?'Kết nối extension Corp trước khi tạo Project tự động.':!supported?'Nạp lại UmiBridge Corp 0.3.0 trong trang quản lý extension rồi chờ kết nối.':'Extension sẽ tạo các chat sau trong Project mới, sau đó tự chuyển sang văn phòng của dự án.':!project?'Chọn Project đã đồng bộ chat.':!stages.length?'Khởi động lại UmiBridge để nạp tính năng Từ ý tưởng.':missing.length?`${required.length-missing.length}/${required.length} bộ phận sẵn sàng. Bổ sung chat và phân công các bộ phận còn thiếu.`:`${required.length}/${required.length} bộ phận sẵn sàng. Phân công gợi ý theo tên chat sẽ được lưu khi tạo quy trình.`;
+    $('corpIdeaRoot').textContent=project?.root||'Chưa có thư mục làm việc.';$('corpIdeaRoot').hidden=isNew;$('corpIdeaFolder').hidden=!isNew;
+    $('corpIdeaParentRoot').readOnly=ideaSending||folderPicking==='corpIdeaParentRoot';$('corpIdeaBrowse').disabled=ideaSending||arenaSending||!!folderPicking;
+    $('corpIdeaReadiness').textContent=isNew?!data.paired?'Kết nối extension Corp để tạo Project.':!supported?'Nạp lại extension Corp 0.3.0.':'':!project?'Chọn Project đã đồng bộ chat.':!stages.length?'Khởi động lại UmiBridge.':`${required.length-missing.length}/${required.length} bộ phận sẵn sàng.`;
+    $('corpIdeaReadiness').hidden=!$('corpIdeaReadiness').textContent;
     const signature=JSON.stringify([isNew,project?.id,required,members,project?.chats]);
     if($('corpIdeaTeam').dataset.signature!==signature){
       $('corpIdeaTeam').dataset.signature=signature;$('corpIdeaTeam').replaceChildren();
@@ -95,9 +124,9 @@
     if($('corpIdeaStages').dataset.sequence!==sequence){$('corpIdeaStages').dataset.sequence=sequence;$('corpIdeaStages').replaceChildren();for(const stage of stages)$('corpIdeaStages').append(node('li',stage.title));}
     $('corpIdeaStagesTitle').textContent=`${stages.length} chặng thực hiện`;
     $('corpIdeaProcessNote').textContent=mode==='build'?'Có vòng sửa lỗi và nghiệm thu lại, tối đa 2 vòng sửa. Quy trình dừng nếu kiểm thử cuối chưa đạt hoặc một bộ phận bị chặn. Chạy thử và bàn giao ở local.':'Ba chặng tạo brief chi tiết, thiết kế giải pháp và kế hoạch triển khai, được lưu thành tệp trong thư mục dự án.';
-    $('corpIdeaDispatch').textContent=data.enabled?isNew?'Giữ Chrome và UmiBridge đang chạy trong khi khởi tạo.':'Bấm Tạo và bắt đầu để giao chặng đầu. Các chặng tiếp theo tự bàn giao theo kết quả.':'Điều phối đang tắt. Yêu cầu sẽ được lưu tạm dừng; bật Điều phối và bấm Bắt đầu khi sẵn sàng.';
+    $('corpIdeaDispatch').textContent=data.enabled?'':'Điều phối tắt · lưu tạm dừng.';$('corpIdeaDispatch').hidden=!$('corpIdeaDispatch').textContent;
     $('corpIdeaSubmit').textContent=ideaSending?'Đang tạo...':isNew?'Tạo Project':data.enabled?'Tạo và bắt đầu':'Tạo quy trình';
-    $('corpIdeaSubmit').disabled=ideaSending||!stages.length||(isNew?!data.paired||!supported:!project||!project.root||!!missing.length);
+    $('corpIdeaSubmit').disabled=ideaSending||!!folderPicking||!stages.length||(isNew?!data.paired||!supported:!project||!project.root||!!missing.length);
     $('corpIdeaConfigure').hidden=isNew;$('corpIdeaRun').closest('label').hidden=!isNew;
     $('corpIdeaConfigure').disabled=!project||ideaSending;
   }
@@ -171,13 +200,15 @@
   }
   function renderArena() {
     if(!data)return;
+    initializeFolderInput('corpArenaRoot');$('corpArenaRoot').readOnly=arenaSending||folderPicking==='corpArenaRoot';$('corpArenaBrowse').disabled=ideaSending||arenaSending||!!folderPicking;
     const version=data.extensionVersion?.split('.').map(Number),supported=!!version&&(version[0]>0||version[1]>=3);
-    $('corpArenaSubmit').disabled=arenaSending||!data.paired||!supported;
+    $('corpArenaSubmit').disabled=arenaSending||!!folderPicking||!data.paired||!supported;
     $('corpArenaSubmit').textContent=arenaSending?'Đang lưu...':'Tạo Project Arena';
-    $('corpArenaReadiness').textContent=!data.paired?'Kết nối extension Corp trước khi tạo Arena.':!supported?'Nạp lại extension UmiBridge Corp 0.3.0 rồi chờ kết nối.':data.enabled?'Khởi tạo Project và 8 chat. Arena dừng để bạn kiểm tra trước khi bắt đầu.':'Điều phối đang tắt. Yêu cầu khởi tạo sẽ được lưu tạm dừng.';
+    $('corpArenaReadiness').textContent=!data.paired?'Kết nối extension Corp để tạo Arena.':!supported?'Nạp lại extension Corp 0.3.0.':data.enabled?'Tạm dừng sau khi tạo xong đội ngũ.':'Điều phối tắt · lưu tạm dừng.';
     const count=Number($('corpArenaCount').value),groupFormat=$('corpArenaFormat').value==='group_knockout',expectedMatches=groupFormat?count/5*10+count/5*2-1:count-1;
     $('corpArenaWorkload').textContent=`${count*11+expectedMatches} lượt giao việc cơ bản: ${count} sản phẩm, ${expectedMatches} trận chấm; có thể thêm lượt sửa lỗi.${groupFormat?' Mỗi bảng 5 sản phẩm, lấy 2 sản phẩm đầu bảng.':''} Dùng lại 8 chat.`;
     const root=$('corpArenaMatches'),arenas=scopedArenas(),next=JSON.stringify([arenas,data.runs?.filter(run=>run.arenaId),data.enabled,selectedProject()?.id,[...arenaActions]]);
+    const create=$('corpArenaCreate'),projectKey=selectedProject()?.id||'';if(create.dataset.project!==projectKey){create.dataset.project=projectKey;create.open=!arenas.length;}
     if(arenaSignature===next)return;arenaSignature=next;
     const scrolls=new Map([...root.querySelectorAll('[data-scroll]')].map(el=>[el.dataset.scroll,{left:el.scrollLeft,top:el.scrollTop}]));
     const focusKey=root.contains(document.activeElement)?document.activeElement?.closest('[data-focus]')?.dataset.focus:null;
@@ -194,10 +225,12 @@
       const pendingMatch=matches.find(match=>match.rightId&&!['done','cancelled','bye'].includes(match.status)),judge=data.runs?.find(run=>run.id===pendingMatch?.judgeRunId),judgeStep=judge?.steps.find(step=>!['done','cancelled'].includes(step.status));
       const problem=arena.reason||current?.reason||currentStep?.reason||judgeStep?.reason;
       const heading=node('div',undefined,'corp-arena-heading');heading.append(node('h4',arena.title||'Arena'),node('span',arena.status==='running'?'Đang thực hiện':labels[arena.status]||arena.status,'corp-status'));card.append(heading);
-      card.append(node('p',arena.idea,'corp-arena-idea'),node('p',`${arena.format==='group_knockout'?'Vòng bảng + loại trực tiếp':'Loại trực tiếp'} · ${completed}/${arena.count} sản phẩm hoàn tất · ${judged}/${totalMatches} trận chấm hoàn tất`,'corp-arena-progress'));
+      card.append(node('p',`${completed}/${arena.count} sản phẩm · ${judged}/${totalMatches} trận`,'corp-arena-progress'));
       const progress=document.createElement('progress');progress.max=arena.count+totalMatches;progress.value=completed+judged;progress.setAttribute('aria-label','Tiến độ sản phẩm và trận chấm');card.append(progress);
-      if(arena.status==='paused'&&!problem)card.append(node('p','Đang tạm dừng. Kiểm tra Project, 8 chat và công cụ trước khi bấm Bắt đầu.'));
-      if(arena.status==='running')card.append(node('p',['groups','matches'].includes(arena.phase)?arena.phase==='groups'?'Đang chấm vòng bảng.':'Đang chấm vòng loại trực tiếp.':current?`Đang phát triển ${current.label}${currentStep?' · '+(currentStep.title||currentStep.role):''}`:'Đang chuẩn bị sản phẩm tiếp theo.'));
+      const info=detail(arena.id+'-info','Chi tiết giải');info.className='corp-arena-info';info.append(node('p',arena.idea),node('p',arena.format==='group_knockout'?'Vòng bảng + loại trực tiếp':'Loại trực tiếp'));
+      const projectRoot=data.workspaces.find(project=>project.id===arena.workspaceId)?.root;if(projectRoot)info.append(node('code',projectRoot,'corp-artifact'));
+      if(arena.rubric?.length)info.append(node('p',arena.rubric.map(item=>`${item.label}: ${item.max}`).join(' · ')));
+      card.append(info);
       if(problem)card.append(node('p',reasons[problem]||`Cần kiểm tra: ${problem}`,'corp-reason'));
       const waiting=currentStep?.status==='limit_wait'?currentStep:judgeStep?.status==='limit_wait'?judgeStep:null;
       if(waiting?.resetAt){const time=node('time');time.dataset.reset=waiting.resetAt;card.append(time);}
@@ -255,18 +288,16 @@
         for(const [index,id] of [featured.leftId,featured.rightId].entries()){
           if(index===1){const center=node('div',undefined,'corp-arena-duel');center.setAttribute('aria-hidden','true');center.append(node('i',undefined,'corp-arena-beam'),node('span','VS'),node('i',undefined,'corp-arena-beam'));battle.append(center);}
           const contender=node('div',undefined,'corp-arena-fighter'),candidate=candidates.find(item=>item.id===id),score=scoreFor(featured,id);contender.dataset.winner=String(featured.winnerId===id);contender.append(node('span',index===0?'Sản phẩm A':'Sản phẩm B','corp-arena-side'),node('h5',name(id)),node('p',candidate?.approach||'Phương án từ ý tưởng của bạn'),node('strong',score?score.score+'/100':'Chưa có điểm','corp-arena-live-score'));if(featured.winnerId===id)contender.append(node('span','Thắng trận','corp-arena-victory'));battle.append(contender);
-        }liveStage.append(battle,node('p',featured.decision?.summary||(arena.status==='paused'?'Trận đang tạm dừng. Bắt đầu Arena khi đã sẵn sàng.':arena.status==='cancelled'?'Arena đã hủy. Trận này chưa có kết quả.':!data.enabled?'Điều phối đang tắt. Trận chưa tiếp tục.':judgeStep?.status==='limit_wait'?'Đang chờ hạn mức nhà cung cấp. Trận chưa có kết quả.':judgeStep?.status==='running'?'Giám khảo đang đối chiếu sản phẩm và bằng chứng. Điểm xuất hiện khi nhận đủ báo cáo hợp lệ.':'Trận đang chờ lượt chấm. Điểm chỉ xuất hiện sau báo cáo hợp lệ.'),'corp-arena-live-note'));
+        }liveStage.append(battle);
+        const note=featured.decision?.summary||(arena.status==='paused'?'Trận tạm dừng.':arena.status==='cancelled'?'Arena đã hủy.':!data.enabled?'Điều phối đang tắt.':judgeStep?.status==='limit_wait'?'Đang chờ hạn mức nhà cung cấp.':'');if(note)liveStage.append(node('p',note,'corp-arena-live-note'));
         if(featured.decision)liveStage.append(reportFor({...featured,reportContext:'live'}));
-        else if(judgeStep)liveStage.append(node('p',(judgeStep.title||judgeStep.role)+' · '+(labels[judgeStep.status]||judgeStep.status)));
       }else{liveStage.append(node('h5',current?`Đang chuẩn bị ${current.label}`:'Chuẩn bị đấu trường'),node('p',currentStep?`${currentStep.title||currentStep.role} · ${labels[currentStep.status]||currentStep.status}`:'Hoàn tất sản phẩm trước khi bắt đầu các trận chấm.'));
         const phases=node('ol',undefined,'corp-arena-pipeline');for(const label of ['Phát triển sản phẩm','Vòng bảng','Loại trực tiếp','Quán quân']){const item=node('li',label);if(label==='Vòng bảng'&&arena.format!=='group_knockout')continue;phases.append(item);}liveStage.append(phases);
       }live.append(liveStage);
-      const rubric=node('p',(arena.rubric||[]).map(item=>`${item.label}: ${item.max}`).join(' · '),'corp-arena-rubric');if(rubric.textContent)live.append(rubric);
-      live.append(node('p','Diễn biến cập nhật từ trạng thái điều phối. Animation biểu thị xử lý, không mô phỏng điểm hoặc kết quả.','corp-arena-note'));
       const groupPanel=views.get('groups').panel;
       if(!groups.length)groupPanel.append(node('p',arena.format==='group_knockout'?'Bảng được lập sau khi tất cả sản phẩm hoàn tất.':'Giải này dùng loại trực tiếp. Chọn Vòng bảng + loại trực tiếp khi tạo giải mới.','corp-empty'));
-      else{groupPanel.append(node('p','Thắng 3 điểm. Mỗi bảng lấy 2 sản phẩm đầu vào vòng loại trực tiếp.','corp-arena-note'));const grid=node('div',undefined,'corp-arena-groups');grid.dataset.scroll=arena.id+'-groups';
-        for(const group of groups){const block=node('section',undefined,'corp-arena-group');block.append(node('h5',group.label),node('p',group.tieBreak||'Xếp hạng: điểm, hiệu số điểm chấm, tổng điểm chấm, thứ tự hạt giống.'));
+      else{const ranking=detail(arena.id+'-ranking','Cách xếp hạng');ranking.append(node('p','Thắng 3 điểm, lấy 2 sản phẩm đầu bảng. '+(groups[0]?.tieBreak||'Xếp theo điểm, hiệu số, tổng điểm chấm và hạt giống.')));groupPanel.append(ranking);const grid=node('div',undefined,'corp-arena-groups');grid.dataset.scroll=arena.id+'-groups';
+        for(const group of groups){const block=node('section',undefined,'corp-arena-group');block.append(node('h5',group.label));
           const wrap=node('div',undefined,'corp-arena-table-wrap'),table=node('table',undefined,'corp-arena-standings');table.append(node('caption',group.label+' - bảng xếp hạng'));const head=node('thead'),headRow=node('tr');for(const label of ['Hạng','Sản phẩm','Trận','Thắng','Thua','Điểm','Hiệu số']){const cell=node('th',label);cell.scope='col';headRow.append(cell);}head.append(headRow);table.append(head);const body=node('tbody');
           for(const standing of group.standings||[]){const row=node('tr');row.dataset.qualified=String(!!standing.qualified);for(const value of [standing.rank,name(standing.candidateId)+(standing.qualified?' · Đi tiếp':''),standing.played,standing.wins,standing.losses,standing.points,standing.scoreDifference])row.append(node('td',String(value??0)));body.append(row);}table.append(body);wrap.append(table);block.append(wrap);
           const games=detail(arena.id+'-group-'+group.id,`Các trận · ${(group.matches||[]).filter(match=>match.status==='done').length}/${group.matches?.length||0}`);for(const match of group.matches||[])games.append(matchRow(match,'groups'));block.append(games);grid.append(block);
@@ -276,7 +307,6 @@
       if(rounds.length){const columns=node('div',undefined,'corp-arena-bracket');columns.dataset.scroll=arena.id+'-bracket';columns.tabIndex=0;columns.setAttribute('role','region');columns.setAttribute('aria-label','Sơ đồ loại trực tiếp, cuộn ngang để xem các vòng');
         for(const [index,round] of rounds.entries()){const column=node('section',undefined,'corp-arena-round');column.append(node('h5',round.matches?.length===1?'Chung kết':`Vòng ${round.number}`));for(const match of round.matches||[])column.append(matchRow({...match,round:round.number},'bracket'));columns.append(column);}
         bracketPanel.append(columns);if(arena.winnerId)bracketPanel.append(node('p','Quán quân: '+name(arena.winnerId),'corp-arena-victory'));
-        if(!arena.winnerId)bracketPanel.append(node('p','Vòng tiếp theo xuất hiện khi toàn bộ trận vòng hiện tại chấm xong.','corp-arena-note'));
       }else bracketPanel.append(node('p',arena.format==='group_knockout'?'Sơ đồ loại trực tiếp xuất hiện sau vòng bảng.':'Sơ đồ xuất hiện sau khi tất cả sản phẩm hoàn tất.','corp-empty'));
       const historyPanel=views.get('history').panel,filterLabel=node('label','Lọc lịch sử trận '),filter=node('select',undefined,'corp-arena-history-filter');filter.dataset.focus=arena.id+'-filter';for(const [value,label] of [['all','Tất cả'],['group','Vòng bảng'],['knockout','Loại trực tiếp']]){const option=node('option',label);option.value=value;filter.append(option);}filter.value=arenaHistoryFilters.get(arena.id)||'all';filterLabel.append(filter);historyPanel.append(filterLabel);
       const history=node('div',undefined,'corp-arena-history');history.dataset.scroll=arena.id+'-history';historyPanel.append(history);
@@ -393,13 +423,24 @@
   $('corpIdeaConfigure').onclick=()=>team(true);
   $('corpIdeaMode').onchange=renderIdea;
   $('corpIdeaTarget').onchange=renderIdea;
+  $('corpIdeaBrowse').onclick=()=>chooseFolder('corpIdeaParentRoot','corpIdeaBrowse','corpIdeaFolderStatus');
+  $('corpArenaBrowse').onclick=()=>chooseFolder('corpArenaRoot','corpArenaBrowse','corpArenaFolderStatus');
+  $('corpFolderDialog').addEventListener('close',closeFolder);
+  $('corpFolderCancel').onclick=()=>$('corpFolderDialog').close();
+  $('corpFolderNavigate').onsubmit=event=>{event.preventDefault();void loadFolder($('corpFolderPath').value.trim());};
+  $('corpFolderPath').oninput=()=>{$('corpFolderSelect').disabled=!folderListing||$('corpFolderPath').value!==folderListing.path;};
+  $('corpFolderDrive').onchange=()=>void loadFolder($('corpFolderDrive').value);
+  $('corpFolderUp').onclick=()=>{if(folderListing?.parentPath)void loadFolder(folderListing.parentPath);};
+  $('corpFolderSelect').onclick=()=>{if(!folderListing||!folderTarget)return;const input=$(folderTarget.inputId);input.value=folderListing.path;rememberFolder(input);$('corpFolderDialog').close();};
+  for(const id of ['corpIdeaParentRoot','corpArenaRoot'])$(id).oninput=()=>rememberFolder($(id));
   $('corpIdeaForm').onsubmit=async event=>{
-    event.preventDefault();if(ideaSending)return;const project=selectedProject(),isNew=$('corpIdeaTarget').value==='new';if(!isNew&&!project)return;
-    const value={...(isNew?{}:{workspaceId:project.id}),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked}:{})};
+    event.preventDefault();if(ideaSending||folderPicking)return;const project=selectedProject(),isNew=$('corpIdeaTarget').value==='new';if(!isNew&&!project)return;
+    const value={...(isNew?{parentRoot:$('corpIdeaParentRoot').value.trim()}:{workspaceId:project.id}),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked}:{})};
+    if(isNew)rememberFolder($('corpIdeaParentRoot'));
     const signature=JSON.stringify(value);if(ideaRequest?.signature!==signature)ideaRequest={signature,key:crypto.randomUUID()};
     ideaSending=true;$('corpIdeaForm').setAttribute('aria-busy','true');$('corpIdeaText').readOnly=true;$('corpIdeaMode').disabled=true;$('corpIdeaTarget').disabled=true;$('corpProject').disabled=true;renderIdea();$('corpIdeaError').hidden=true;
     try {const result=await api(isNew?'/projects':'/ideas',{...value,requestKey:ideaRequest.key});if(isNew){focusBootstrap=result.id;localStorage.setItem('umibridge.corp.bootstrap',result.id);}await load();$('corpIdeaText').value='';ideaRequest=null;setCorpTab('queue');$('corpRunFilter').value='active';render();}
-    catch(cause){$('corpIdeaError').textContent=cause.message;$('corpIdeaError').hidden=false;}
+    catch(cause){if(cause.code==='project_folder_exists')ideaRequest=null;$('corpIdeaError').textContent=cause.message;$('corpIdeaError').hidden=false;}
     finally{ideaSending=false;$('corpIdeaForm').setAttribute('aria-busy','false');$('corpIdeaText').readOnly=false;$('corpIdeaMode').disabled=false;$('corpIdeaTarget').disabled=false;$('corpProject').disabled=false;renderIdea();}
   };
   $('corpTeamToggle').onclick=()=>team($('corpTeam').hidden);
@@ -424,18 +465,20 @@
     const next = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? (index - 1 + tabs.length) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : -1;
     if (next >= 0) { event.preventDefault(); setCorpTab(tabs[next].dataset.corpTab, true); }
   });
-  $('corpArenaRefresh').onclick = async () => { try{data=await api('');render();$('corpArenaStatus').textContent='Đã làm mới trạng thái Arena.';$('corpArenaStatus').classList.remove('error');}catch(cause){$('corpArenaStatus').textContent=cause.message;$('corpArenaStatus').classList.add('error');} };
+  $('corpArenaRefresh').onclick = async () => { try{data=await api('');render();$('corpArenaStatus').hidden=true;}catch(cause){$('corpArenaStatus').hidden=false;$('corpArenaStatus').textContent=cause.message;$('corpArenaStatus').classList.add('error');} };
   $('corpArenaCount').onchange=renderArena;
   $('corpArenaFormat').onchange=renderArena;
   $('corpArenaForm').onsubmit = async event => {
-    event.preventDefault();if(arenaSending||!data)return;
-    const value={kind:'arena',idea:$('corpArenaPrompt').value.trim(),count:Number($('corpArenaCount').value),format:$('corpArenaFormat').value,mode:'build',start:data.enabled,runAfterSetup:false};
+    event.preventDefault();if(arenaSending||folderPicking||!data)return;
+    const value={kind:'arena',idea:$('corpArenaPrompt').value.trim(),parentRoot:$('corpArenaRoot').value.trim(),count:Number($('corpArenaCount').value),format:$('corpArenaFormat').value,mode:'build',start:data.enabled,runAfterSetup:false};
+    rememberFolder($('corpArenaRoot'));
     const requestSignature=JSON.stringify(value);if(arenaRequest?.signature!==requestSignature)arenaRequest={signature:requestSignature,key:crypto.randomUUID()};
     arenaSending=true;$('corpArenaForm').setAttribute('aria-busy','true');$('corpArenaPrompt').readOnly=true;$('corpArenaCount').disabled=true;$('corpArenaFormat').disabled=true;renderArena();
     $('corpArenaStatus').textContent = 'Đang lưu yêu cầu khởi tạo...';
+    $('corpArenaStatus').hidden=false;
     $('corpArenaStatus').classList.remove('error');
-    try { const result = await api('/projects', {...value,requestKey:arenaRequest.key});focusBootstrap=result.id;localStorage.setItem('umibridge.corp.bootstrap',result.id);await load();$('corpArenaStatus').textContent=result.status==='paused'?'Đã lưu yêu cầu. Khởi tạo đang tạm dừng; bật Điều phối và bấm Bắt đầu trên thanh khởi tạo khi sẵn sàng.':'Đã lưu yêu cầu. Đang tạo Project, sau đó tạo 8 chat bên trong. Arena sẽ tạm dừng để kiểm tra.';$('corpArenaForm').reset();arenaRequest=null; }
-    catch (cause) { $('corpArenaStatus').textContent = cause.message; $('corpArenaStatus').classList.add('error'); }
+    try { const result = await api('/projects', {...value,requestKey:arenaRequest.key});focusBootstrap=result.id;localStorage.setItem('umibridge.corp.bootstrap',result.id);await load();$('corpArenaStatus').textContent=result.status==='paused'?'Đã lưu · khởi tạo tạm dừng.':'Đang tạo Project và 8 chat · Arena tạm dừng sau khởi tạo.';$('corpArenaForm').reset();$('corpArenaRoot').value=value.parentRoot;arenaRequest=null; }
+    catch (cause) { if(cause.code==='project_folder_exists')arenaRequest=null;$('corpArenaStatus').textContent = cause.message; $('corpArenaStatus').classList.add('error'); }
     finally{arenaSending=false;$('corpArenaForm').setAttribute('aria-busy','false');$('corpArenaPrompt').readOnly=false;$('corpArenaCount').disabled=false;$('corpArenaFormat').disabled=false;renderArena();}
   };
   $('corpSetupToggle').onclick = () => { const open = $('corpSetup').hidden; $('corpSetup').hidden = !open; $('corpSetupToggle').setAttribute('aria-expanded', String(open)); if (open) $('corpSetup').scrollIntoView({block:'nearest'}); };

@@ -2,7 +2,7 @@
 
 Corp nằm ngay trong dashboard UmiBridge. Mỗi chat đã khai báo là một nhân viên, nhận việc và chuyển kết quả theo các bước do người dùng đặt.
 
-Phạm vi chính là máy tính để bàn và laptop, với mốc bố cục 1600×1000 và 1366×768. Kiểm tra reflow màn hình hẹp là bổ sung, không chứng nhận chạy trên thiết bị di động thật.
+Giao diện dành cho máy tính để bàn và laptop, với mốc bố cục 1600×1000 và 1366×768. Không phát triển bố cục riêng cho màn hình hẹp.
 
 ## Kết nối lần đầu
 
@@ -16,7 +16,9 @@ Extension có quyền truy cập loopback và ChatGPT, không đọc cookie, m�
 
 ## Chỉ có ý tưởng ban đầu
 
-Mở **Corp → Từ ý tưởng**. Giữ lựa chọn **Tạo Project ChatGPT và 8 chat bộ phận mới**, nhập ý tưởng và bấm **Tạo Project** khi Điều phối đang bật. Extension 0.3.0 tạo Project, chuẩn bị 8 chat rồi tự phân công và chạy các chặng. Không cần thêm Project hoặc tạo chat thủ công trước. Thư mục local được tạo riêng trong `Documents\UmiBridge Projects`, với ý tưởng gốc trong `UMI-IDEA.md`.
+Mở **Corp → Từ ý tưởng**. Chọn **Tạo Project mới và 8 chat bộ phận**, nhập ý tưởng, chọn **Thư mục lưu** và bấm **Tạo Project** khi Điều phối đang bật. Extension 0.3.0 tạo Project, chuẩn bị 8 chat rồi tự phân công và chạy các chặng. Không cần thêm Project hoặc tạo chat thủ công trước. UmiBridge tạo thư mục con riêng trong vị trí đã chọn, với ý tưởng gốc trong `UMI-IDEA.md`.
+
+**Thư mục lưu** cho phép nhập đường dẫn tuyệt đối hoặc bấm **Chọn thư mục** để duyệt ổ đĩa và thư mục ngay trong dashboard. Chọn ổ, mở thư mục con hoặc nhập đường dẫn rồi bấm **Mở**; bấm **Dùng thư mục này** để xác nhận. Thư mục tự chọn phải tồn tại và có quyền ghi; vị trí mặc định `Documents\UmiBridge Projects` được tạo tự động khi cần. **Hủy** hoặc Escape không đổi đường dẫn đang nhập. Lựa chọn được nhớ trên trình duyệt và cố định trong yêu cầu đã tạo, kể cả khi tạm dừng hoặc khởi động lại. Không di chuyển dự án cũ. Hộp chọn chỉ đọc tên thư mục, không mở nội dung tệp; mỗi lượt tối đa 500 mục, có thể nhập đường dẫn để đi tới vị trí khác.
 
 Luồng đầy đủ: Sản phẩm làm rõ ý tưởng → Thiết kế → Điều hành chốt kế hoạch → Kỹ thuật triển khai → QA → Bảo mật → Kỹ thuật sửa → QA nghiệm thu → DevOps chạy local → Tài liệu → Điều hành bàn giao. Có tối đa một vòng sửa/QA bổ sung nếu nghiệm thu còn lỗi. Các bộ phận nhận các báo cáo trước cùng đường dẫn artifact, không chỉ phản hồi của người ngay trước.
 
@@ -28,7 +30,7 @@ Tiến độ tạo Project/chat được lưu sau từng bước. Khi không xá
 
 ## Arena - nhiều sản phẩm từ một ý tưởng
 
-Mở **Corp → Arena**, nhập ý tưởng và chọn **20**, **50** hoặc **100** sản phẩm. Form mặc định **Vòng bảng + loại trực tiếp**; có thể đổi sang **Loại trực tiếp** trước khi tạo. Mỗi Arena tạo một Project ChatGPT mới và 8 chat bộ phận, sau đó dùng lại đội ngũ theo thứ tự. Mỗi sản phẩm có thư mục riêng dưới `.umibridge-arenas` trong thư mục Project, giữ cùng yêu cầu gốc và tiêu chí nghiệm thu.
+Mở **Corp → Arena**, nhập ý tưởng, chọn **Thư mục lưu** và **20**, **50** hoặc **100** sản phẩm. Form mặc định **Vòng bảng + loại trực tiếp**; có thể đổi sang **Loại trực tiếp** trước khi tạo. Mỗi Arena tạo một Project ChatGPT mới và 8 chat bộ phận, sau đó dùng lại đội ngũ theo thứ tự. Mỗi sản phẩm có thư mục riêng dưới `.umibridge-arenas` trong thư mục Project, giữ cùng yêu cầu gốc và tiêu chí nghiệm thu.
 
 1. Bấm **Tạo Project Arena**. Nếu Điều phối đang tắt, yêu cầu được lưu tạm dừng; form không tự bật Điều phối.
 2. Khi sẵn sàng, bật Điều phối và bấm **Bắt đầu** ở thanh khởi tạo. Extension tạo Project trước rồi tạo 8 chat, lưu từng xác nhận. Thao tác không chắc chắn dừng để đối chiếu.

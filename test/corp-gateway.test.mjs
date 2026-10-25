@@ -1,14 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { startGateway } from '../scripts/local-web-gateway.mjs';
 
 test('Corp local API protects writes and browser credentials; dispatch is controlled and assets are local',async t=>{
   const root=await mkdtemp(join(tmpdir(),'umibridge-corp-http-'));
-  const gateway=await startGateway({port:0,publicUrl:'https://corp-test.example',connectionSecret:randomBytes(32).toString('base64url'),configDir:join(root,'profile')});
+  let pickerCalls=0,pickerInput,pickerResult={path:root,parentPath:dirname(root),roots:[],folders:[],truncated:false};
+  const gateway=await startGateway({port:0,publicUrl:'https://corp-test.example',connectionSecret:randomBytes(32).toString('base64url'),configDir:join(root,'profile'),corpFolderPicker:async input=>{pickerCalls++;pickerInput=input;if(pickerResult instanceof Error)throw pickerResult;return pickerResult;}});
   t.after(async()=>{await gateway.close();await rm(root,{recursive:true,force:true});});
   const base=`http://127.0.0.1:${gateway.port}`;
   const request=(path,body,headers={})=>fetch(base+path,{method:body===undefined?'GET':'POST',headers:{'x-local-admin':'1',...(body===undefined?{}:{'content-type':'application/json','x-dc-admin-action':'1'}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
@@ -19,16 +20,27 @@ test('Corp local API protects writes and browser credentials; dispatch is contro
   assert.equal((await fetch(base+'/admin/api/usage')).status,404);
   const usage=await (await request('/admin/api/usage?period=all')).json();assert.equal(usage.totals.requests,0);assert.equal(usage.providerReported,null);
   assert.equal((await request('/admin/api/corp/pair',{}, {'x-dc-admin-action':'0'})).status,403);
-  for(const path of ['/admin/api/corp/ideas','/admin/api/corp/projects','/admin/api/corp/projects/unknown/start','/admin/api/corp/arenas','/admin/api/corp/arenas/unknown/start','/admin/api/corp/arenas/unknown/retry']){
+  for(const path of ['/admin/api/corp/folder','/admin/api/corp/ideas','/admin/api/corp/projects','/admin/api/corp/projects/unknown/start','/admin/api/corp/arenas','/admin/api/corp/arenas/unknown/start','/admin/api/corp/arenas/unknown/retry']){
     assert.equal((await request(path,{}, {'x-dc-admin-action':'0'})).status,403,path+' requires an admin write action');
     assert.equal((await fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:'{}'})).status,404,path+' is local only');
   }
+  assert.equal(pickerCalls,0,'local/admin-write guards run before reading folder metadata');
+  assert.equal((await fetch(base+'/admin/api/corp/folder',{method:'POST',headers:{'x-local-admin':'1',origin:'https://untrusted.example','content-type':'application/json'},body:'{}'})).status,403);
+  assert.deepEqual(await (await request('/admin/api/corp/folder',{path:root})).json(),pickerResult);assert.deepEqual(pickerInput,{path:root});
+  pickerResult=Error('folder_path_unavailable');const unavailableFolder=await request('/admin/api/corp/folder',{path:'missing'});
+  assert.equal(unavailableFolder.status,400);assert.deepEqual(await unavailableFolder.json(),{error:'folder_path_unavailable'});
   for(const path of ['/admin/corp/bridge/bootstrap-authorize','/admin/corp/bridge/bootstrap-report'])assert.equal((await request(path,{})).status,401,path+' requires a paired adapter');
   assert.equal((await request('/admin/corp/bridge/poll',{})).status,401);
   const snapshot=await (await request('/admin/api/corp')).json();assert.equal(snapshot.enabled,false);assert.equal(snapshot.office,true);
   assert.equal(snapshot.companyRoles.length,8);
   assert.equal((await request('/admin/api/corp/team',{workspaceId:'missing',members:[]},{'x-dc-admin-action':'0'})).status,403);
   const {token}=await (await request('/admin/api/corp/pair',{})).json();
+  const setupInput={requestKey:randomUUID(),idea:'Synthetic selected folder setup',parentRoot:root};
+  const setupResponse=await request('/admin/api/corp/projects',setupInput);assert.equal(setupResponse.status,200);
+  const setup=await setupResponse.json();assert.equal(setup.parentRoot,root);assert.equal(setup.status,'paused');assert.ok(setup.root.startsWith(root));
+  assert.equal((await request('/admin/api/corp/projects',setupInput)).status,200);
+  assert.equal((await request('/admin/api/corp/projects',{...setupInput,parentRoot:'relative'})).status,400);
+  assert.equal((await (await request('/admin/api/corp')).json()).bootstraps[0].root,setup.root);
   assert.equal((await request('/admin/corp/bridge/sync',{})).status,401);
   const projectId='g-p-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', projectUrl=`https://chatgpt.com/g/${projectId}/project`;
   const project=(await (await request('/admin/api/workspaces',{name:'Project fixture',root:'D:\\ProjectFixture',chatUrl:projectUrl})).json()).workspace;

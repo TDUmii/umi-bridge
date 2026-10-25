@@ -30,7 +30,7 @@ Controls use 6-8px corners, and the office frame and usage panes use 12px corner
 
 ## Components
 
-The Corp header offers Từ ý tưởng as the primary entry. Its inline pane accepts an idea, defaults to creating a new ChatGPT Project plus eight department chats, shows the local parent folder and team, and lets users choose planning-only or full delivery. Existing Project reuse remains an option. A compact status strip records setup progress, pause/resume and exact blocked reasons; completion selects the created Project. Setup writes are version-gated to extension 0.3.0. No credentials or internal reporting protocol appear in the main form.
+The Corp header offers Từ ý tưởng as the primary entry. Its inline pane accepts an idea, defaults to creating a new ChatGPT Project plus eight department chats, offers a remembered save-location input and dashboard directory browser, and shows the team, and lets users choose planning-only or full delivery. Existing Project reuse remains an option. A compact status strip records setup progress, pause/resume and exact blocked reasons; completion selects the created Project. Setup writes are version-gated to extension 0.3.0. No credentials or internal reporting protocol appear in the main form.
 
 Idea runs show named stages, department reports, artifacts and textual check results. Arena accepts one user idea, a 20/50/100 product count and a format. The default is `group_knockout`: groups of five play a single round robin, with two qualifiers per group entering knockout. `knockout` is available as an alternative. Setup provisions one new Project plus eight department chats, develops candidates sequentially in separate local folders and leaves the Arena paused after setup. Full build is required. The form explains 47/119/239 matches and 267/669/1339 baseline tasks for groups plus knockout, or 19/49/99 matches and 239/599/1199 tasks for knockout-only, before repairs. Format stays fixed after creation.
 
@@ -39,6 +39,12 @@ Each Arena has keyboard-accessible Trực tiếp, Vòng bảng, Sơ đồ đấu
 Judge reports show five criterion scores and reasons: requirements/function 35, UX 15, tests/evidence 20, security 15 and local delivery/docs 15. The total must equal the five scores, and each product needs checks plus nonempty evidence files inside its own folder. Report and path validation do not certify the contents or independently rerun commands. Arena member workflows appear through a jump from Queue instead of hundreds of full task cards. The workflow has fixed stage order, at most two repair rounds, and explicit pass gates for plan, final QA, local run and delivery. Arena also requires successful repair and documentation reports. A failed or missing required report is visibly blocked; receiving a response alone never becomes a success badge. Files remain local to the generated project folder. Existing manual task composition and the office keep their established controls.
 
 Buttons show explicit enabled/disabled state with `aria-pressed` or `aria-expanded`. New tasks start paused. Paired-but-offline, no chats, empty queue, missing composer, active draft, unknown reset and ambiguous sends have textual recovery instructions. Results render as text, never HTML. Synthetic screenshots carry MINH HỌA in task/chat names.
+
+## Desktop project controls
+
+Project creation and Arena share a save-location input with a local directory-browser dialog. The dialog lists drives and child directories, accepts a typed path, provides parent navigation and confirms only a successfully loaded folder. Cancel and Escape retain the draft. Read-only metadata browsing remains available when the gateway has no interactive Windows desktop. Existing projects display their fixed folder.
+
+Desktop/laptop composition targets 1600x1000 and 1366x768 only. Repeated Arena introductions and Project scope captions are removed. Idea, rubric and location move under Chi tiết giải; setup workload and group ranking rules use disclosures. The main view retains status, progress, actions and the selected Arena tab. Group tables reset global history-table column widths, with two columns on desktop and one on laptop so all seven standings columns remain visible. Idea creation actions fit inside the laptop workspace. No new narrow-screen layout or mobile QA.
 
 ## Usage surface
 

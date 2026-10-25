@@ -2,7 +2,7 @@
 
 UmiBridge kết nối ChatGPT với máy Windows của bạn: đọc và sửa tệp, chạy PowerShell, quan sát và điều khiển cửa sổ. Dashboard local quản lý quyền công cụ, lịch sử, thiết bị, thống kê token và điều phối nhiều chat trong một ChatGPT Project.
 
-**Bản chính thức 1.0.0.** Các bản tiếp theo bổ sung tính năng và sửa lỗi theo phiên bản. Giao diện dành cho máy tính để bàn và laptop.
+**Bản chính thức 1.0.1.** Giao diện dành cho máy tính để bàn và laptop.
 
 [Tải bản chính thức mới nhất](https://github.com/TDUmii/umi-bridge/releases/latest) · [Thay đổi từng bản](RELEASE_NOTES.md) · [Hướng dẫn Corp](docs/CORP.vi.md)
 
@@ -116,7 +116,7 @@ Sau khi extension đã kết nối, vào **Corp → Từ ý tưởng**. Mặc đ
 3. Giữ **Tự bắt đầu các chặng sau khi tạo đội ngũ** bật để chạy tiếp ngay khi khởi tạo xong. Bỏ chọn nếu muốn kiểm tra Project và đội ngũ trước.
 4. Bật **Điều phối**, bấm **Tạo Project** và giữ Chrome/Edge cùng UmiBridge đang chạy.
 
-Extension tạo Project, lần lượt tạo 8 chat cho Điều hành, Sản phẩm, Thiết kế, Kỹ thuật, QA, Bảo mật, DevOps và Tài liệu, rồi tự phân công vai trò. Dashboard ghi tiến độ `0/8` đến `8/8` và chuyển sang Project mới. Tên Project có hậu tố UMI để nhận diện lần khởi tạo và tránh tạo trùng. Thư mục local mới nằm trong `Documents\UmiBridge Projects`; ý tưởng gốc được lưu tại `UMI-IDEA.md`.
+Extension tạo Project, lần lượt tạo 8 chat cho Điều hành, Sản phẩm, Thiết kế, Kỹ thuật, QA, Bảo mật, DevOps và Tài liệu, rồi tự phân công vai trò. Dashboard ghi tiến độ `0/8` đến `8/8` và chuyển sang Project mới. Tên Project có hậu tố UMI để nhận diện lần khởi tạo và tránh tạo trùng. Tại **Thư mục lưu**, nhập đường dẫn hoặc bấm **Chọn thư mục** để duyệt ổ đĩa/thư mục ngay trong dashboard, rồi bấm **Dùng thư mục này**. UmiBridge tạo thư mục dự án riêng bên trong, chứa `UMI-IDEA.md`. Đường dẫn được nhớ trên trình duyệt; mặc định là `Documents\UmiBridge Projects`. Project đang có giữ thư mục đã gắn.
 
 Luồng đầy đủ gồm 11 chặng: làm rõ ý tưởng, thiết kế giải pháp, chốt kế hoạch, triển khai MVP, kiểm thử độc lập, rà soát bảo mật, sửa lỗi, nghiệm thu sau sửa, chạy thử local, viết hướng dẫn và bàn giao. Khi nghiệm thu sau sửa còn lỗi, hệ thống thêm một vòng kỹ thuật sửa và QA kiểm lại, tối đa 13 chặng/2 vòng sửa. Kế hoạch, nghiệm thu cuối, chạy local và bàn giao phải có báo cáo đạt cùng bằng chứng; phản hồi thiếu báo cáo, thiếu công cụ hoặc bị chặn sẽ dừng thay vì ghi hoàn tất.
 
@@ -130,7 +130,7 @@ Tính năng tạo Project cần extension **0.3.0**. Sau khi cập nhật source
 
 ## Arena từ một ý tưởng
 
-Trong **Corp → Arena**, nhập ý tưởng, chọn **20**, **50** hoặc **100** sản phẩm và thể thức. Mặc định **Vòng bảng + loại trực tiếp**; có thể chọn **Loại trực tiếp**. Arena luôn chuẩn bị **một Project ChatGPT mới với 8 chat bộ phận bên trong**; các sản phẩm dùng lại đội ngũ này theo thứ tự, không tạo chat riêng cho từng sản phẩm. Mỗi sản phẩm có thư mục local riêng trong `.umibridge-arenas` của thư mục Project.
+Trong **Corp → Arena**, nhập ý tưởng, chọn **Thư mục lưu**, số sản phẩm **20**, **50** hoặc **100** và thể thức. Mặc định **Vòng bảng + loại trực tiếp**; có thể chọn **Loại trực tiếp**. Arena luôn chuẩn bị **một Project ChatGPT mới với 8 chat bộ phận bên trong**; các sản phẩm dùng lại đội ngũ này theo thứ tự, không tạo chat riêng cho từng sản phẩm. Mỗi sản phẩm có thư mục local riêng trong `.umibridge-arenas` của thư mục Project. Đường dẫn đã chọn được giữ qua tạm dừng và khởi động lại; đổi lựa chọn không chuyển các dự án cũ.
 
 1. Bấm **Tạo Project Arena**. Điều phối đang tắt thì yêu cầu khởi tạo được lưu tạm dừng; bật Điều phối rồi bấm **Bắt đầu** trên thanh khởi tạo khi sẵn sàng.
 2. Extension tạo Project trước, sau đó lần lượt tạo 8 chat bên trong Project và phân công bộ phận. Dashboard ghi đúng tiến độ và dừng nếu chưa xác nhận được thao tác.

@@ -1,4 +1,16 @@
-# UmiBridge Sakura Console - 1.0.0
+# UmiBridge Sakura Console - 1.0.1
+
+## Save location and desktop workspace
+
+Idea and Arena creation now accept a save location. Users can type an absolute path or browse drives and directories in a local dashboard dialog, then confirm the current directory. Cancellation and failed navigation preserve the form value. The browser remembers the last location; each saved request retains its canonical parent and a separate project folder across pause and restart. The configured default folder is created on first use. Existing projects keep their current folder.
+
+Directory browsing uses local filesystem metadata through the existing local-admin/CSRF guards and works with the gateway running in the background. It reads directory names only, caps each listing at 500 entries and does not launch PowerShell or a Windows dialog. Custom locations must already exist and be writable. Exclusive project folders prevent overwrite; handled file/state write failures clean up only files owned by that attempt, preserving unrelated files.
+
+Corp reduces repeated descriptions and subtitles. Arena puts idea/rubric/location details behind a disclosure, keeps setup information collapsed and focuses the selected tournament. Group standings clear inherited history-table widths so every column is visible. Desktop uses two table columns and laptop uses one. Idea forms retain visible creation controls. Validation targets 1600x1000 and 1366x768; no narrow-screen feature development or mobile QA is included.
+
+Validation includes syntax build, path/default/idempotency/restart/rollback checks, local API guards and folder-browser tests. Browser checks cover navigation, confirmation, cancellation, failures, input retention, creation locks and desktop/laptop layouts. Existing tournament, workflow and provider-fixture limits continue to apply.
+
+## Previous 1.0.0
 
 First stable release. Future releases track feature updates and fixes; historical beta releases remain available.
 

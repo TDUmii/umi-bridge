@@ -18,6 +18,7 @@ import { createOAuthState } from './oauth-state.mjs';
 import { createDeviceRegistry } from './device-registry.mjs';
 import { createWorkflowLedger } from './workflow-ledger.mjs';
 import { createCorpRuntime } from './corp-runtime.mjs';
+import { createCorpFolderBrowser } from './corp-folder-browser.mjs';
 import { baseInstructions, CATALOG_META, createToolPolicy, WINDOWS_TOOL_NAMES, withContext, withoutContext } from './tool-policy.mjs';
 import { createPrivilegeControl } from './privilege-control.mjs';
 
@@ -55,7 +56,7 @@ const deviceToolSpecs = deviceToolDefinitions.map(spec => {
 const deviceToolsByName = new Map(deviceToolDefinitions.map(tool => [tool.name, tool]));
 
 /** One local process shared by authorized MCP clients through an authenticated endpoint. */
-export async function startGateway({ port = 8767, publicUrl, connectionSecret, configDir, privilegeControl, workflowEnabled, corpClock, corpProjectsRoot } = {}) {
+export async function startGateway({ port = 8767, publicUrl, connectionSecret, configDir, privilegeControl, workflowEnabled, corpClock, corpProjectsRoot, corpFolderPicker = createCorpFolderBrowser() } = {}) {
   if (typeof connectionSecret !== 'string' || connectionSecret.length < 24) {
     throw new Error('connectionSecret must contain at least 24 characters.');
   }
@@ -378,6 +379,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       catch (error) { res.status(error.message === 'invalid_corp_key' ? 401 : error.message.endsWith('_not_found') ? 404 : 400).json({ error: error.message }); }
     };
     app.get('/admin/api/corp', localAdmin, (_req, res) => res.json({ ...corp.snapshot(), workspaces: chatLinks.workspaces() }));
+    app.post('/admin/api/corp/folder', localAdmin, adminWrite, corpJson, corpHandler(req => corpFolderPicker(req.body ?? {})));
     app.post('/admin/api/corp/settings', localAdmin, adminWrite, corpJson, corpHandler(req => corp.settings(req.body ?? {})));
     app.post('/admin/api/corp/team', localAdmin, adminWrite, corpJson, corpHandler(req => corp.team(req.body ?? {})));
     app.post('/admin/api/corp/pair', localAdmin, adminWrite, corpHandler(() => corp.pair()));

@@ -1,8 +1,8 @@
 // Isolated browser/extension proof: provider UI is synthetic and no account is used.
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import {mkdtemp,mkdir,rm} from 'node:fs/promises';
-import {join,resolve} from 'node:path';
+import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
+import {dirname,join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {randomBytes} from 'node:crypto';
 import {startGateway} from './local-web-gateway.mjs';
@@ -12,7 +12,8 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE);
 const root=await mkdtemp(join(tmpdir(),'umibridge-idea-browser-')),shots=resolve('.impeccable/review/corp-idea');await mkdir(shots,{recursive:true});
 const projectId='g-p-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',projectUrl=`https://chatgpt.com/g/${projectId}/project`;
 let context,gateway,projectName='',projectsCreated=0,chatSequence=0,finalQaCount=0;
-const chats=new Map(),turns=[],errors=[],remote=[],providerPaths=[];
+const chats=new Map(),turns=[],errors=[],remote=[],providerPaths=[],creationBodies=[];
+const manualRoot=join(root,'MINH HOA - manual folder'),pickerRoot=join(root,'projects'),pickedRoot=join(pickerRoot,'MINH HOA - picked folder');let folderError=null;
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const wait=async(fn,label,timeout=240000)=>{const start=Date.now();while(Date.now()-start<timeout){if(errors.length)throw Error(errors.join('\n'));if(await fn())return;await new Promise(resolve=>setTimeout(resolve,400));}throw Error('Timed out: '+label);};
 const html=(path)=>{
@@ -26,12 +27,15 @@ const user=document.createElement('div');user.dataset.messageAuthorRole='user';u
 };
 new Function(html('/').match(/<script>([\s\S]*?)<\/script>/)[1]);
 try{
+  await mkdir(manualRoot,{recursive:true});await mkdir(pickedRoot,{recursive:true});
   gateway=await startGateway({port:0,publicUrl:'http://127.0.0.1',connectionSecret:randomBytes(32).toString('base64url'),configDir:join(root,'profile'),corpProjectsRoot:join(root,'projects')});
   const origin=`http://127.0.0.1:${gateway.port}`;
   const api=async(path,body)=>{const response=await fetch(origin+'/admin/api/'+path,{method:body===undefined?'GET':'POST',headers:{'content-type':'application/json','x-dc-admin-action':'1'},...(body===undefined?{}:{body:JSON.stringify(body)})});const value=await response.json();assert.ok(response.ok,JSON.stringify(value));return value;};
   const extension=resolve('extensions/umibridge-corp');
   context=await chromium.launchPersistentContext(join(root,'browser'),{headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||'msedge',ignoreDefaultArgs:['--disable-extensions'],args:[`--disable-extensions-except=${extension}`,`--load-extension=${extension}`],viewport:{width:1600,height:1000}});
   await context.addInitScript(()=>{try{localStorage.setItem('umibridge.admin.language','vi');}catch{}});
+  await context.route('**/admin/api/corp/folder',route=>{if(folderError)return route.fulfill({status:400,json:{error:folderError}});const path=JSON.parse(route.request().postData()||'{}').path||pickerRoot;return route.fulfill({json:{path,parentPath:path===root?null:dirname(path),roots:[{name:'MINH HỌA',path:pickerRoot}],folders:path===pickerRoot?[{name:'MINH HOA - picked folder',path:pickedRoot}]:[],truncated:false}});});
+  await context.route('**/admin/api/corp/projects',async route=>{const body=JSON.parse(route.request().postData()||'{}');creationBodies.push(body);await new Promise(resolve=>setTimeout(resolve,300));if(process.env.CORP_FOLDER_ONLY)return route.fulfill({json:{id:'fixture-folder-only',name:'MINH HỌA - Chọn thư mục',root:join(body.parentRoot,'fixture-project'),status:'paused',chats:[]}});await route.continue();});
   await context.route('https://chatgpt.com/**',async route=>{
     const url=new URL(route.request().url());
     providerPaths.push({path:url.pathname,method:route.request().method()});
@@ -67,19 +71,32 @@ try{
   await wait(async()=>(await api('corp')).connected,'extension connected');
   const page=await context.newPage();await page.goto(origin+'/admin#corp');await page.locator('#corpTabIdea').click();
   assert.equal(await page.locator('#corpIdeaTarget').inputValue(),'new');assert.equal(await page.locator('#corpIdeaTeam>div').count(),8);
+  const folderInput=page.locator('#corpIdeaParentRoot'),folderBrowse=page.locator('#corpIdeaBrowse'),folderDialog=page.locator('#corpFolderDialog');assert.equal(await folderInput.inputValue(),pickerRoot);
+  const folderReady=()=>page.waitForFunction(()=>!document.getElementById('corpFolderSelect').disabled);
+  await folderBrowse.click();await folderDialog.waitFor();await folderReady();assert.equal(await page.locator('#corpFolderPath').inputValue(),pickerRoot);await page.locator('#corpFolderList button',{hasText:'MINH HOA - picked folder'}).click();await folderReady();assert.equal(await folderInput.inputValue(),pickerRoot,'navigation waits for confirmation');await page.screenshot({path:join(shots,'folder-dialog-desktop.png'),animations:'disabled'});await page.setViewportSize({width:1366,height:768});await page.screenshot({path:join(shots,'folder-dialog-laptop.png'),animations:'disabled'});await page.locator('#corpFolderSelect').click();await folderDialog.waitFor({state:'hidden'});assert.equal(await folderInput.inputValue(),pickedRoot);
+  await folderBrowse.click();await folderReady();await page.locator('#corpFolderUp').click();await folderReady();await page.locator('#corpFolderCancel').click();await folderDialog.waitFor({state:'hidden'});assert.equal(await folderInput.inputValue(),pickedRoot,'cancel preserves chosen folder');
+  await folderBrowse.click();await folderReady();await page.keyboard.press('Escape');await folderDialog.waitFor({state:'hidden'});assert.equal(await folderInput.inputValue(),pickedRoot,'Escape preserves chosen folder');
+  folderError='folder_path_unavailable';await folderBrowse.click();await page.locator('#corpFolderError').waitFor({state:'visible'});assert.equal(await folderDialog.isVisible(),true);assert.equal(await page.locator('#corpFolderSelect').isDisabled(),true);assert.equal(await folderInput.inputValue(),pickedRoot,'listing error preserves chosen folder');folderError=null;await page.locator('#corpFolderPath').fill(manualRoot);await page.locator('#corpFolderOpen').click();await folderReady();await page.locator('#corpFolderCancel').click();await folderDialog.waitFor({state:'hidden'});
+  if(process.env.CORP_FOLDER_ONLY){
+    await page.locator('#corpIdeaText').fill('MINH HỌA - Chọn thư mục đầu ra Project.');await Promise.all([page.waitForRequest(request=>request.url()===origin+'/admin/api/corp/projects'),page.locator('#corpIdeaSubmit').click()]);assert.equal(await folderInput.evaluate(el=>el.readOnly),true);assert.equal(await folderBrowse.isDisabled(),true);await page.waitForFunction(()=>!document.getElementById('corpIdeaSubmit').disabled);assert.equal(creationBodies[0].parentRoot,pickedRoot);assert.deepEqual(errors,[]);assert.deepEqual(remote,[]);assert.equal(projectsCreated,0);assert.equal(turns.length,0);const report={pass:true,fixture:'disposable gateway + mocked dashboard folder tree; no provider actions',dashboardFolderBrowser:true,navigationAndConfirm:true,cancelAndEscapePreserve:true,listErrorPreserves:true,chosenParentRootSubmitted:true,creationFreezesFolder:true,providerActions:0,remoteRequests:0};await writeFile(join(shots,'folder-dialog-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+  }else{
+  await page.setViewportSize({width:1600,height:1000});
+  await folderInput.fill(manualRoot);await folderInput.dispatchEvent('change');await page.waitForResponse(response=>response.url()===origin+'/admin/api/corp');assert.equal(await folderInput.inputValue(),manualRoot,'polling preserves manual folder');
+  await page.reload();await folderInput.waitFor();assert.equal(await folderInput.inputValue(),manualRoot,'saved folder restores after reload');
   await page.locator('#corpIdeaText').fill('MINH HỌA - Tạo ứng dụng quản lý bài tập cho học sinh, có lịch học và danh sách việc cần làm.');
   await page.screenshot({path:join(shots,'idea-desktop.png'),animations:'disabled'});
   await page.setViewportSize({width:1366,height:768});await page.screenshot({path:join(shots,'idea-laptop.png'),animations:'disabled'});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  await page.locator('#corpIdeaSubmit').click();await page.locator('#corpBootstraps').waitFor();
+  await Promise.all([page.waitForRequest(request=>request.url()===origin+'/admin/api/corp/projects'),page.locator('#corpIdeaSubmit').click()]);assert.equal(await folderInput.evaluate(el=>el.readOnly),true,'creation freezes folder input');assert.equal(await folderBrowse.isDisabled(),true,'creation freezes folder picker');await page.locator('#corpBootstraps').waitFor();assert.equal(creationBodies[0].parentRoot,manualRoot,'typed folder is submitted');
   await wait(async()=>{const data=await api('corp');if(data.bootstraps[0]?.status==='blocked')throw Error('Bootstrap blocked: '+data.bootstraps[0].reason);return data.bootstraps[0]?.status==='done';},'one Project and eight department chats');
-  assert.equal(projectsCreated,1);assert.equal(chats.size,8);
+  assert.equal(projectsCreated,1);assert.equal(chats.size,8);assert.ok((await api('corp')).bootstraps[0].root.startsWith(manualRoot),'Project files use chosen parent folder');
   await wait(async()=>{const run=(await api('corp')).runs[0];if(run?.steps.some(step=>step.status==='blocked'))throw Error('Workflow blocked: '+run.steps.find(step=>step.status==='blocked').reason);return run?.status==='done';},'idea workflow including extra repair and final delivery');
   const data=await api('corp'),run=data.runs[0];assert.equal(run.steps.length,13);assert.equal(run.idea.repairRounds,2);assert.equal(turns.length,13);
   assert.equal(run.steps.at(-1).assessment.outcome,'pass');assert.ok(run.steps.filter(step=>step.stage==='qa-final').some(step=>step.assessment.outcome==='needs_changes'));
   assert.equal(await page.locator('#corpProject').inputValue(),data.bootstraps[0].workspaceId,'dashboard follows the new Project');
   await page.locator('#corpTabQueue').click();await page.locator('#corpRunFilter').selectOption('all');await page.locator('.corp-run[data-status="done"]').waitFor();await page.screenshot({path:join(shots,'idea-delivery.png'),animations:'disabled'});
   assert.deepEqual(errors,[]);assert.deepEqual(remote,[]);
-  console.log(JSON.stringify({pass:true,realExtension:true,syntheticProvider:true,projectsCreated,departmentChats:chats.size,workflowTurns:turns.length,extraRepair:true,delivered:true,remoteRequests:remote.length,screenshots:shots},null,2));
+  console.log(JSON.stringify({pass:true,realExtension:true,syntheticProvider:true,desktop:[1600,1000],laptop:[1366,768],folderSelection:true,folderCancelAndErrorPreserveInput:true,manualFolderSurvivesPollingAndReload:true,creationFreezesFolder:true,chosenRootUsed:true,projectsCreated,departmentChats:chats.size,workflowTurns:turns.length,extraRepair:true,delivered:true,remoteRequests:remote.length,screenshots:shots},null,2));
+  }
 }catch(error){console.error(JSON.stringify({projectsCreated,chats:chats.size,turns:turns.length,errors,providerPaths,pages:await Promise.all((context?.pages()||[]).map(async page=>({url:page.url(),text:(await page.locator('body').innerText().catch(()=>'' )).slice(0,800)})))}));throw error;}
 finally{await context?.close();await gateway?.close();await rm(root,{recursive:true,force:true});}
