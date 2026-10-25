@@ -396,8 +396,8 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     revoke: () => transaction(() => { state.tokenHash = null; state.enabled = false; lastSeen = 0; return summary(); }),
     create: input => transaction(() => copy(createRun(input))),
     idea: input => transaction(() => copy(createIdeaRun(input))),
-    arena: input => transaction(() => createBootstrap({...input,kind:'arena'})),
-    createArena: input => transaction(() => createBootstrap({...input,kind:'arena'})),
+    arena: input => transaction(onRollback => createBootstrap({...input,kind:'arena'},onRollback)),
+    createArena: input => transaction(onRollback => createBootstrap({...input,kind:'arena'},onRollback)),
     arenaAction: (id, action) => transaction(async () => {
       const arena = arenaById(id), run = arenaCurrentRun(arena);
       if (action === 'delete') {

@@ -117,6 +117,17 @@ test('explicit configured default parent is created on first use while missing c
   await assert.rejects(f.corp.bootstrap({requestKey:randomUUID(),idea:'Missing custom parent remains invalid',parentRoot:join(f.root,'missing custom')}),/parent_folder_unavailable/);
 });
 
+for(const method of ['arena','createArena'])test(`Arena creation alias ${method} preserves rollback, chosen parent and same-key retry`,async t=>{
+  const f=await fixture(t);await f.corp.pair();
+  const parentRoot=join(f.root,'selected arena parent');await mkdir(parentRoot);
+  const input={requestKey:randomUUID(),idea:'Arena alias rollback check',count:20,parentRoot};
+  const saved=await readFile(f.path,'utf8');await unlink(f.path);await mkdir(f.path);
+  await assert.rejects(f.corp[method](input));assert.deepEqual(await readdir(parentRoot),[]);
+  await rmdir(f.path);await writeFile(f.path,saved);
+  const job=await f.corp[method](input);assert.equal(job.kind,'arena');assert.equal(job.parentRoot,await realpath(parentRoot));assert.equal(job.status,'paused');
+  assert.equal((await f.corp[method](input)).id,job.id);
+});
+
 test('handled state-save failure cleans only its newly created bootstrap files and same-key retry succeeds',async t=>{
   const f=await fixture(t);await f.corp.pair();
   const saved=await readFile(f.path,'utf8');await unlink(f.path);await mkdir(f.path);
