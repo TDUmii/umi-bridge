@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, realpath } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -37,7 +37,7 @@ test('Corp local API protects writes and browser credentials; dispatch is contro
   const {token}=await (await request('/admin/api/corp/pair',{})).json();
   const setupInput={requestKey:randomUUID(),idea:'Synthetic selected folder setup',parentRoot:root};
   const setupResponse=await request('/admin/api/corp/projects',setupInput);assert.equal(setupResponse.status,200);
-  const setup=await setupResponse.json();assert.equal(setup.parentRoot,root);assert.equal(setup.status,'paused');assert.ok(setup.root.startsWith(root));
+  const setup=await setupResponse.json(),canonicalRoot=await realpath(root);assert.equal(setup.parentRoot,canonicalRoot);assert.equal(setup.status,'paused');assert.equal(dirname(setup.root),canonicalRoot);
   assert.equal((await request('/admin/api/corp/projects',setupInput)).status,200);
   assert.equal((await request('/admin/api/corp/projects',{...setupInput,parentRoot:'relative'})).status,400);
   assert.equal((await (await request('/admin/api/corp')).json()).bootstraps[0].root,setup.root);
