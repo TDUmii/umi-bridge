@@ -39,6 +39,7 @@
     if(!result?.allowed)throw Error('bootstrap_stopped');
   }
   async function setupProject(command){
+    await UmiModelPicker.ensureChat();
     const prior=bootstrapInspect(command);if(prior)return prior;
     const existing=[...document.querySelectorAll('nav button,nav a')].find(el=>visible(el)&&el.textContent.trim()===command.projectName);
     // Arena owns a new Project; a matching title cannot prove ownership of another lane's Project.
@@ -60,6 +61,7 @@
     return waitForValue(()=>bootstrapInspect(command));
   }
   async function setupChat(command){
+    await UmiModelPicker.ensureChat();
     if(typeof command.roleId!=='string'||!/^[a-zA-Z0-9_-]{1,100}$/.test(command.roleId)||typeof command.seed!=='string'||command.seed.length>48000||!command.seed.includes(setupMarker(command)))throw Error('bootstrap_invalid_descriptor');
     const prior=bootstrapInspect(command);if(prior)return prior;
     if(command.reconcileOnly)throw Error('bootstrap_recovery_required');
@@ -149,7 +151,7 @@
       memory.delete(attemptKey(command));return {...base,kind:'blocked',sent:true,reason:'response_unavailable'};
     }
     if (answer && finished && !sending()) {
-      if (result.length > 48_000) return { ...base, kind: 'blocked', reason: 'response_too_large' };
+      if (result.length > (channelOf(command)==='arena'?240_000:48_000)) return { ...base, kind: 'blocked', reason: 'response_too_large' };
       const prior = memory.get(attemptKey(command));
       if (prior?.result === result && result && Date.now() - prior.since >= 6000) return { ...base, kind: 'done', sent: true, result };
       if (prior?.result !== result) memory.set(attemptKey(command), { result, since: Date.now() });
@@ -163,6 +165,8 @@
     if (dispatching) return { ...base, kind: 'blocked', reason: 'composer_busy' };
     dispatching = true;
     try {
+      if(sending()||value(composer()).trim())return {...base,kind:'blocked',reason:'composer_busy'};
+      try{await UmiModelPicker.ensureChat();}catch{return {...base,kind:'blocked',reason:'chat_mode_unconfirmed'};}
       const input = composer();
       if (!input) return { ...base, kind: 'blocked', reason: 'composer_missing' };
       if (sending() || value(input).trim()) return { ...base, kind: 'blocked', reason: 'composer_busy' };
@@ -203,7 +207,7 @@
     if (sender.id !== chrome.runtime.id) return;
     if(command.type==='model-catalog'){
       if(dispatching||sending()||value(composer()).trim()){respond({models:[],error:'composer_busy'});return;}
-      dispatching=true;UmiModelPicker.scan().then(models=>respond({models}),error=>respond({models:[],error:error.message})).finally(()=>{dispatching=false;});return true;
+      dispatching=true;UmiModelPicker.scan().then(models=>respond({models,surface:'chat'}),error=>respond({models:[],surface:'chat',error:error.message})).finally(()=>{dispatching=false;});return true;
     }
     if(command.type==='bootstrap-inspect'){respond(bootstrapInspect(command.command));return;}
     if(command.type==='bootstrap-project'||command.type==='bootstrap-chat'){

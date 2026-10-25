@@ -45,6 +45,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     if (saved.schema !== 1 || !Array.isArray(saved.runs) || !Array.isArray(saved.events)) throw Error('corp_store_invalid');
     state = saved;
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if(state.modelSurface!=='chat'){state.modelSurface='chat';state.modelCatalog=[];state.modelScan=null;}
   state.usage = Array.isArray(state.usage) ? state.usage : [];
   state.teams = Array.isArray(state.teams) ? state.teams : [];
   state.bootstraps = Array.isArray(state.bootstraps) ? state.bootstraps : [];
@@ -102,7 +103,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     return Boolean(workspace && workspace.projectId === run.projectId && step.workspaceId === workspace.id && workspace.chats.some(chat => chat.chatId === step.chatId) && (!arena || arena.team.every(member => workspace.chats.some(chat => chat.chatId === member.chatId))));
   };
   const bootstrapRoles=job=>[...companyRoles,...(job.mode==='plan'?[]:reviewTeams.filter(team=>(job.reviewTeams||[]).includes(team.id)).map(team=>({...team,brief:team.checks})))];
-  const summary = () => ({ enabled: state.enabled, office: state.office, autoResume: state.autoResume, resetGeneration:state.resetGeneration||null, modelPreference:state.modelPreference??null,modelCatalog:copy(state.modelCatalog||[]),modelScan:copy(state.modelScan||null),
+  const summary = () => ({ enabled: state.enabled, office: state.office, autoResume: state.autoResume, resetGeneration:state.resetGeneration||null, modelSurface:'chat',modelPreference:state.modelPreference??null,modelCatalog:copy(state.modelCatalog||[]),modelScan:copy(state.modelScan||null),
     paired: Boolean(state.tokenHash), connected: lastSeen > 0 && clock() - lastSeen < 45_000,
     lastSeen: lastSeen ? new Date(lastSeen).toISOString() : null, connectedChats: [...connectedChats],extensionVersion,
     runs: copy(state.runs), events: copy(state.events), teams:copy(state.teams), companyRoles:copy(companyRoles),reviewTeams:copy(reviewTeams),productProfiles:copy(productProfiles), deliveryOrder:[...deliveryOrder],
@@ -398,7 +399,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       return summary();
     }),
     models:(token,input)=>transaction(()=>{
-      authenticate(token);if(!state.modelScan||input.id!==state.modelScan.id||state.modelScan.status!=='pending')throw Error('stale_model_scan');
+      authenticate(token);if(input.surface!=='chat')throw Error('invalid_model_surface');if(!state.modelScan||input.id!==state.modelScan.id||state.modelScan.status!=='pending')throw Error('stale_model_scan');
       state.modelCatalog=modelCatalog(input.models||[]);state.modelScan={...state.modelScan,status:input.error?'error':'done',error:text(input.error,100)||null,at:new Date(clock()).toISOString()};return {ok:true};
     }),
     authenticate,
@@ -516,6 +517,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       extensionVersion=typeof input.extensionVersion==='string'&&/^\d+\.\d+\.\d+$/.test(input.extensionVersion)?input.extensionVersion:null;
       connectedChats = Array.isArray(input.chats) ? input.chats.filter(id => /^[a-zA-Z0-9-]{1,120}$/.test(id)).slice(0, 100) : [];
       const before = copy(state);
+      if(input.suppressDispatch)return {monitors:[],command:null,bootstrap:null};
       if(state.modelPreference&&!extensionVersion?.match(/^(?:[1-9]\d*\.|0\.(?:[5-9]|[1-9]\d)\.)/))return {monitors:[],command:null,bootstrap:null};
       const monitors = [];
       let command = null;
@@ -647,7 +649,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       } else if (input.kind === 'blocked') {
         step.sent ||= input.sent === true;
         recordUsage(run, step, 'error');
-        step.status = 'blocked'; step.reason = ['composer_busy', 'composer_missing', 'send_unconfirmed', 'chat_changed', 'response_too_large', 'response_unavailable','model_selection_unconfirmed'].includes(input.reason) ? input.reason : 'browser_unavailable';
+        step.status = 'blocked'; step.reason = ['composer_busy', 'composer_missing', 'send_unconfirmed', 'chat_changed', 'response_too_large', 'response_unavailable','model_selection_unconfirmed','chat_mode_unconfirmed'].includes(input.reason) ? input.reason : 'browser_unavailable';
         markArenaBlocked(run, step.reason);
         event('blocked', run, step);
       } else throw Error('invalid_report');

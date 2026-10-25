@@ -14,7 +14,7 @@ The independent Arena and split observation view bundle adapted **RPG Asset Char
 - Source: https://opengameart.org/content/rpg-asset-character-gladiator-sms
 - License: `scripts/arena-assets/LICENSE.CC0.txt` and https://creativecommons.org/publicdomain/zero/1.0/
 - Archive, original PNG and derived atlas SHA-256: `scripts/arena-assets/provenance.json`.
-- Changes: fixed frame crop/baseline, five cloth/helmet palette rows, charcoal outlines and ivory fabric; avatar head crop. Sprite preparation script: `scripts/prepare-arena-sprites.py`.
+- Changes: fixed frame crop/baseline, five cloth/helmet palette rows, charcoal outlines and ivory fabric; avatar head crop.
 - These are raster pixel sprites; they are not AI-generated. Animation only projects the recorded active step and does not create fights, scores or outcomes.
 
 # Windows-MCP

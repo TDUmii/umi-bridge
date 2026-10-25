@@ -1,6 +1,7 @@
 import {mkdir, readFile, writeFile, rename, lstat, realpath, open, unlink, rmdir} from 'node:fs/promises';
 import {dirname, resolve, join, relative, isAbsolute} from 'node:path';
-import {homedir} from 'node:os';
+import {homedir,totalmem,availableParallelism} from 'node:os';
+export function recommendArenaCount(memory=totalmem(),cores=availableParallelism()){const gib=memory/1073741824;return gib<8||cores<4?10:gib<16||cores<8?20:gib<32?40:gib<64?60:100;}
 import {createHash, randomBytes, randomUUID, timingSafeEqual} from 'node:crypto';
 import {countTextTokens} from './local-admin.mjs';
 
@@ -85,7 +86,7 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
   const jobById=id=>{const job=state.bootstraps.find(row=>row.id===id);if(!job)throw Error('bootstrap_not_found');return job;};
   const history=(arena,type,extra={})=>{const row={id:randomUUID(),arenaId:arena.id,type,at:now(),...extra};arena.history.push(row);state.events.push(row);state.events=state.events.slice(-300);};
   const current=arena=>arena.steps.find(step=>!finished(step));
-  const supported=()=>{const [major,minor]=String(extensionVersion||'').split('.').map(Number);return major>0||minor>=4;};
+  const supported=(count=20)=>{if(count>20){const [major,minor]=String(extensionVersion||'').split('.').map(Number);return major>0||minor>=6;}const [major,minor]=String(extensionVersion||'').split('.').map(Number);return major>0||minor>=4;};
   const block=(arena,step,reason)=>{arena.status='paused';arena.reason=reason;if(step){step.status='blocked';step.reason=reason;}history(arena,'blocked',{stepId:step?.id,reason});};
   const usage=(arena,step,status='pending')=>{
     if(!step.sent)return;
@@ -99,7 +100,7 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
   };
   const promptJudge=(arena,round)=>{
     const candidates=round.inputIds.map(id=>arena.candidates.find(row=>row.id===id));
-    return `Bạn là giám khảo duy nhất của Arena, vòng ${round.number}. Chấm TẤT CẢ ${candidates.length} sản phẩm độc lập theo cùng ý tưởng và rubric, sau đó chọn ${Math.ceil(candidates.length/2)} sản phẩm mạnh nhất. Không sửa source hoặc tạo bằng chứng thay thí sinh. Ý tưởng:\n<user_idea>\n${arena.idea}\n</user_idea>\n${candidates.map(candidate=>`ID ${candidate.id}; ${candidate.label}; source ${candidate.root}; phiên bản/bằng chứng bất biến ${candidate.versions.at(-1).snapshotRoot}; báo cáo ${JSON.stringify(candidate.versions.at(-1).report)}`).join('\n')}\nĐọc source, kiểm tra build/test/run và trải nghiệm thật. Rubric v${arena.rubricVersion} tổng 100: ${arena.rubric.map(row=>`${row.id}: ${row.label} tối đa ${row.max}`).join('; ')}. Công bằng là quy tắc chấm chung, không phải tiêu chí cho điểm sản phẩm: dùng cùng tiêu chí, cùng dữ liệu và cùng mức kiểm tra; không dùng tên, ngôn ngữ, framework, khuyết tật hoặc nguồn gốc làm điểm phạt. Chấm accessibility trong ux: kiểm tra bàn phím, focus, nhãn, tương phản và giảm chuyển động khi phù hợp. Ghi nhận hiệu năng bằng số đo hoặc hành vi quan sát được, và maintainability bằng cấu trúc, hướng dẫn sửa và độ rõ ràng. Cung cấp đầy đủ feedback cụ thể cho MỌI thí sinh: điểm mạnh, lỗi, thay đổi phải làm vòng sau. Ranking giảm dần theo score; score bằng tổng criteria. Chỉ cho sản phẩm hoàn chỉnh với checks pass đi tiếp; thiếu bằng chứng phải blocked, không ép chọn. Mỗi check artifacts là đường dẫn tương đối trong thư mục đúng thí sinh. Hòa điểm tại ranh giới loại phải giải thích tieBreak. Kết thúc JSON ngoài code fence:\nUMI_ARENA_RESULT: {"summary":"Kết quả và lý do","ranking":[${candidates.map(candidate=>JSON.stringify({candidateId:candidate.id,score:80,feedback:'Điểm mạnh, lỗi cần sửa và cải tiến cụ thể',criteria:arena.rubric.map(row=>({id:row.id,score:row.max*0.8,reason:'Bằng chứng tiêu chí'})),checks:[{name:'Nghiệm thu sản phẩm',status:'pass',evidence:'Lệnh và kết quả quan sát',artifacts:candidate.versions.at(-1).report.checks[0].artifacts}]})).join(',')}],"advance":["các ID đứng đầu đúng số lượng"],"tieBreak":"Lý do nếu hòa tại ranh giới"}`;
+    return `Bạn là giám khảo duy nhất của Arena, vòng ${round.number}. Chấm TẤT CẢ ${candidates.length} sản phẩm độc lập theo cùng ý tưởng và rubric, sau đó chọn ${Math.ceil(candidates.length/2)} sản phẩm mạnh nhất. Không sửa source hoặc tạo bằng chứng thay thí sinh. Ý tưởng:\n<user_idea>\n${arena.idea}\n</user_idea>\n${candidates.map(candidate=>`ID ${candidate.id}; ${candidate.label}; source ${candidate.root}; phiên bản/bằng chứng bất biến ${candidate.versions.at(-1).snapshotRoot}; báo cáo ${JSON.stringify({summary:candidate.versions.at(-1).report.summary,checks:candidate.versions.at(-1).report.checks.map(({name,status,command,evidence,artifacts})=>({name,status,command:command?.slice(0,400),evidence:evidence?.slice(0,600),artifacts}))})}`).join('\n')}\nĐọc source, kiểm tra build/test/run và trải nghiệm thật. Rubric v${arena.rubricVersion} tổng 100: ${arena.rubric.map(row=>`${row.id}: ${row.label} tối đa ${row.max}`).join('; ')}. Công bằng là quy tắc chấm chung, không phải tiêu chí cho điểm sản phẩm: dùng cùng tiêu chí, cùng dữ liệu và cùng mức kiểm tra; không dùng tên, ngôn ngữ, framework, khuyết tật hoặc nguồn gốc làm điểm phạt. Chấm accessibility trong ux: kiểm tra bàn phím, focus, nhãn, tương phản và giảm chuyển động khi phù hợp. Ghi nhận hiệu năng bằng số đo hoặc hành vi quan sát được, và maintainability bằng cấu trúc, hướng dẫn sửa và độ rõ ràng. Cung cấp đầy đủ feedback cụ thể cho MỌI thí sinh: điểm mạnh, lỗi, thay đổi phải làm vòng sau. Mẫu JSON chỉ minh họa một dòng; ranking thực phải có đủ mọi ID thí sinh nêu trên. Mỗi reason/feedback ngắn gọn, chi tiết ghi trong tệp. Ranking giảm dần theo score; score bằng tổng criteria. Chỉ cho sản phẩm hoàn chỉnh với checks pass đi tiếp; thiếu bằng chứng phải blocked, không ép chọn. Mỗi check artifacts là đường dẫn tương đối trong thư mục đúng thí sinh. Hòa điểm tại ranh giới loại phải giải thích tieBreak. Kết thúc JSON ngoài code fence:\nUMI_ARENA_RESULT: {"summary":"Kết quả và lý do","ranking":[${candidates.slice(0,1).map(candidate=>JSON.stringify({candidateId:candidate.id,score:80,feedback:'Điểm mạnh, lỗi cần sửa và cải tiến cụ thể',criteria:arena.rubric.map(row=>({id:row.id,score:row.max*0.8,reason:'Bằng chứng tiêu chí'})),checks:[{name:'Nghiệm thu sản phẩm',status:'pass',evidence:'Lệnh và kết quả quan sát',artifacts:candidate.versions.at(-1).report.checks[0].artifacts}]})).join(',')}],"advance":["các ID đứng đầu đúng số lượng"],"tieBreak":"Lý do nếu hòa tại ranh giới"}`;
   };
   const newStep=(arena,kind,round,candidate)=>{
     const chat=candidate||arena.judge;
@@ -112,7 +113,7 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
     const round=arena.rounds.at(-1);
     if(arena.phase==='build'||arena.phase==='revise'){arena.phase='judge';newStep(arena,'judge',round.number);}
   };
-  const snapshot=()=>({enabled:state.enabled,paired:paired(),connected:lastSeen>0&&clock()-lastSeen<45000,lastSeen:lastSeen?new Date(lastSeen).toISOString():null,extensionVersion,arenas:clone(state.arenas),bootstraps:clone(state.bootstraps),events:clone(state.events),rubricVersion:arenaRubricVersion,rubric:clone(arenaRubric),projectsRoot});
+  const snapshot=()=>({enabled:state.enabled,paired:paired(),connected:lastSeen>0&&clock()-lastSeen<45000,lastSeen:lastSeen?new Date(lastSeen).toISOString():null,extensionVersion,arenas:clone(state.arenas),bootstraps:clone(state.bootstraps),events:clone(state.events),rubricVersion:arenaRubricVersion,rubric:clone(arenaRubric),capacity:{min:10,max:100,recommended:recommendArenaCount()},projectsRoot});
   // Restart always pauses: an outbox item may already exist in a browser composer or have been sent.
   let recovered=false;
   for(const arena of state.arenas){if(arena.status==='running'){arena.status='paused';arena.reason='restart_reconcile';recovered=true;}for(const step of arena.steps.filter(row=>['dispatching','running'].includes(row.status))){step.status='blocked';step.reason='restart_reconcile';arena.status='paused';arena.reason='restart_reconcile';recovered=true;}}
@@ -128,11 +129,11 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
     create:input=>transaction(async rollback=>{
       if(!paired())throw Error('pair_arena_first');
       if(!bounded(input.idea,8000)||input.idea.trim().length<4)throw Error('invalid_idea');
-      if(input.count!==undefined&&input.count!==20)throw Error('invalid_arena_count');
+      const count=input.count??20;if(!Number.isInteger(count)||count<10||count>100)throw Error('invalid_arena_count');
       if(input.workspaceId!==undefined||input.mode!==undefined&&input.mode!=='build'||input.format!==undefined&&input.format!=='knockout')throw Error('independent_arena_required');
       if(typeof input.requestKey!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestKey))throw Error('invalid_arena_request');
       const requested=parentPath(input.parentRoot||projectsRoot),existing=state.arenas.find(row=>row.requestKey===input.requestKey);
-      if(existing){if(existing.idea!==input.idea.trim()||relative(existing.parentRoot,await realpath(requested))!=='')throw Error('arena_request_conflict');return clone(existing);}
+      if(existing){if(existing.idea!==input.idea.trim()||existing.count!==count||relative(existing.parentRoot,await realpath(requested))!=='')throw Error('arena_request_conflict');return clone(existing);}
       if(state.arenas.filter(row=>!finished(row)).length>=10||state.arenas.length>=100)throw Error('arena_capacity');
       if(relative(parentPath(projectsRoot),requested)==='')await mkdir(requested,{recursive:true});
       const parent=await realpath(requested).catch(()=>{throw Error('parent_folder_unavailable');});if(!(await lstat(parent)).isDirectory())throw Error('parent_folder_unavailable');
@@ -141,9 +142,9 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
       if((await lstat(root)).isSymbolicLink()||outside(parent,await realpath(root)))throw Error('invalid_parent_root');
       const ideaFile=join(root,'UMI-ARENA-IDEA.md'),handle=await open(ideaFile,'wx');rollback(()=>unlink(ideaFile));try{await handle.writeFile(`# ${base}\n\n${input.idea.trim()}\n`);}finally{await handle.close();}
       const id=input.requestKey,candidates=[];
-      for(let index=1;index<=20;index++){const roleId=`contestant-${String(index).padStart(2,'0')}`,candidateRoot=join(root,roleId);await mkdir(candidateRoot);rollback(()=>rmdir(candidateRoot));candidates.push({id:roleId,roleId,label:`Thí sinh ${String(index).padStart(2,'0')}`,root:candidateRoot,chatId:null,chatUrl:null,status:'waiting',versions:[],feedback:[]});}
-      const arena={id,requestKey:id,title:base,name:`${base.slice(0,30)} [Arena-${id.slice(0,8)}]`,idea:input.idea.trim(),parentRoot:parent,root,count:20,rubricVersion:arenaRubricVersion,rubric:clone(arenaRubric),status:'setup',phase:'setup',createdAt:now(),projectId:null,projectUrl:null,candidates,judge:null,steps:[],rounds:[],history:[],winnerId:null,reason:null};
-      const job={id,arenaId:id,kind:'arena',name:arena.name,root,idea:arena.idea,count:20,status:input.start===true&&state.enabled?'running':'paused',projectId:null,projectUrl:null,chats:[],attempt:null,issuedAt:null,reason:null,createdAt:now()};
+      for(let index=1;index<=count;index++){const roleId=`contestant-${String(index).padStart(2,'0')}`,candidateRoot=join(root,roleId);await mkdir(candidateRoot);rollback(()=>rmdir(candidateRoot));candidates.push({id:roleId,roleId,label:`Thí sinh ${String(index).padStart(2,'0')}`,root:candidateRoot,chatId:null,chatUrl:null,status:'waiting',versions:[],feedback:[]});}
+      const arena={id,requestKey:id,title:base,name:`${base.slice(0,30)} [Arena-${id.slice(0,8)}]`,idea:input.idea.trim(),parentRoot:parent,root,count,rubricVersion:arenaRubricVersion,rubric:clone(arenaRubric),status:'setup',phase:'setup',createdAt:now(),projectId:null,projectUrl:null,candidates,judge:null,steps:[],rounds:[],history:[],winnerId:null,reason:null};
+      const job={id,arenaId:id,kind:'arena',name:arena.name,root,idea:arena.idea,count,status:input.start===true&&state.enabled?'running':'paused',projectId:null,projectUrl:null,chats:[],attempt:null,issuedAt:null,reason:null,createdAt:now()};
       state.arenas.push(arena);state.bootstraps.push(job);history(arena,'created');return clone(arena);
     }),
     action:(id,action)=>transaction(()=>{
@@ -172,7 +173,7 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
         if(input.roleId!==member.roleId||job.chats.some(row=>row.chatId===chat.chatId))throw Error('bootstrap_role_mismatch');
         const row={roleId:member.roleId,name:member.label,...chat};job.chats.push(row);
         if(member.roleId==='judge')arena.judge=row;else Object.assign(member,chat);
-        if(job.chats.length===21){job.status='done';arena.status='paused';arena.phase='build';const ids=arena.candidates.map(row=>row.id);arena.rounds.push({number:1,inputIds:ids,outputIds:[],status:'building',decision:null});scheduleProducts(arena,ids,1);history(arena,'setup_completed',{chatCount:21});}
+        if(job.chats.length===arena.count+1){job.status='done';arena.status='paused';arena.phase='build';const ids=arena.candidates.map(row=>row.id);arena.rounds.push({number:1,inputIds:ids,outputIds:[],status:'building',decision:null});scheduleProducts(arena,ids,1);history(arena,'setup_completed',{chatCount:arena.count+1});}
       }else throw Error('invalid_bootstrap_report');
       job.lastAttempt=input.attempt;job.attempt=null;job.issuedAt=null;job.reason=null;return {ok:true};
     }),
@@ -182,7 +183,7 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
       const monitors=[];
       for(const job of state.bootstraps.filter(row=>row.status==='running')){
         if(job.issuedAt!==null){if(clock()-job.issuedAt>=120000){job.status='blocked';job.reason='bootstrap_unconfirmed';}continue;}
-        if(!state.enabled||!supported()||bootstrap||state.bootstraps.some(row=>row.issuedAt!==null&&!finished(row)))continue;
+        if(!state.enabled||!supported(job.count)||bootstrap||state.bootstraps.some(row=>row.issuedAt!==null&&!finished(row)))continue;
         job.attempt=randomUUID();job.issuedAt=clock();const arena=arenaById(job.arenaId),member=arena.candidates[job.chats.length]||{roleId:'judge',label:'Giám khảo'};
         const marker=`[UmiBridge arena setup ${job.id}:${member.roleId}]`;
         bootstrap={channel:'arena',mode:'arena',jobId:job.id,attempt:job.attempt,type:job.projectId?'bootstrap-chat':'bootstrap-project',projectName:job.name,projectUrl:job.projectUrl,projectId:job.projectId,...(job.projectId?{roleId:member.roleId,roleName:member.label,setupMarker:marker,seed:`${marker}\nBạn là ${member.roleId==='judge'?'giám khảo duy nhất':'thí sinh AI độc lập tự tạo sản phẩm hoàn chỉnh'} trong Arena riêng, không thuộc đội Corp. ${member.root?`Thư mục riêng: ${member.root}.`:''} Chờ nhiệm vụ Arena; không thao tác tệp lúc khởi tạo. Chỉ trả lời UMI_READY ${member.roleId}.`}:{})};
@@ -194,7 +195,7 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
           monitors.push({channel:'arena',mode:'arena',arenaId:arena.id,runId:arena.id,stepId:step.id,attempt:step.attempt,chatId:step.chatId,projectId:arena.projectId});
           if(clock()-step.issuedAt>(step.status==='dispatching'?90000:45*60000)){usage(arena,step,'error');block(arena,step,step.status==='dispatching'?'send_unconfirmed':'response_timeout');}
         }
-        if(!state.enabled||!supported()||arena.status!=='running'||step.status!=='queued'||command||bootstrap||inflight||state.bootstraps.some(row=>row.issuedAt!==null&&!finished(row)))continue;
+        if(!state.enabled||!supported(arena.count)||arena.status!=='running'||step.status!=='queued'||command||bootstrap||inflight||state.bootstraps.some(row=>row.issuedAt!==null&&!finished(row)))continue;
         // The adapter must attest the exact Project chat; a same-named ordinary chat is insufficient.
         if(!input.chats?.includes(step.chatId)||!input.projectChats?.some(row=>row.chatId===step.chatId&&row.projectId===arena.projectId))continue;
         step.status='dispatching';step.issuedAt=clock();

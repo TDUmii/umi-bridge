@@ -19,3 +19,15 @@ coverage/
 *.p12
 *.pfx
 *.key
+# Development-only material stays local, outside release source.
+test/
+docs/
+.github/
+DESIGN.md
+PRODUCT.md
+RELEASE_NOTES.md
+UMIBRIDGE*HANDOFF.md
+scripts/qa-*
+scripts/watch-dashboard.*
+scripts/prepare-arena-sprites.py
+assets/umibridge-banner.svg

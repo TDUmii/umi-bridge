@@ -1,6 +1,6 @@
 // API existence is documented; actual web availability is supplied by the paired picker.
-export const browserModels = ['GPT-6.1 Sol','GPT-6 Astra','GPT-6 Sol','GPT-6 Luna','GPT-5.6 Sol','GPT-5.6 Terra','GPT-5.6 Luna'];
-export const browserEfforts = ['low','medium','high','xhigh','max','ultra'];
+export const browserModels = ['GPT-6','GPT-5.6 Sol'];
+export const browserEfforts = ['instant','low','medium','high','xhigh','max','ultra'];
 export function modelCatalog(input) {
   if(!Array.isArray(input)||input.length>browserModels.length)throw Error('invalid_model_catalog');
   const rows=input.map(row=>{

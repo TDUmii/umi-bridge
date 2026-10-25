@@ -5,6 +5,7 @@
   const ms = value => value == null ? '-' : value < 1000 ? fmt(value) + ' ms' : fmt(Math.round(value / 100) / 10) + ' s';
   const date = value => new Date(value).toLocaleString('vi-VN', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
   const element = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
+  const diagnostics=element('section',null,'usage-diagnostics');diagnostics.id='usageDiagnostics';diagnostics.hidden=true;$('usageOverview').after(diagnostics);const diagnosticTab=element('button','Phân tích sâu','btn');diagnosticTab.type='button';diagnosticTab.dataset.pane='diagnostics';diagnosticTab.setAttribute('aria-pressed','false');$('usageTabs').insertBefore(diagnosticTab,$('usageCoverage'));
   let report = null, page = 0, period = '7d', sequence = 0, controller, timer, cost = {};
   try { cost = JSON.parse(localStorage.getItem('umibridge.usage.budget') || '{}') || {}; } catch {}
   for (const [key, id] of Object.entries({input:'usageInputRate', output:'usageOutputRate', budget:'usageBudget'})) {
@@ -80,6 +81,12 @@
     $('usageBudgetMessage').textContent = hasBudget ? (amount >= cost.budget ? 'Đã vượt ngân sách tham khảo: ' : 'Đã dùng ') + fmt(Math.round(amount / cost.budget * 1000) / 10) + '% kỳ đang lọc' : '';
     $('usageBudgetMessage').classList.toggle('over-budget', hasBudget && amount >= cost.budget);
   }
+  function renderDiagnostics(){
+    const root=$('usageDiagnostics');root.replaceChildren();const totals=report.totals,list=element('dl',null,'usage-diagnostic-metrics');
+    for(const [name,value]of [['Token / lượt',totals.requests?fmt(Math.round(totals.totalTokens/totals.requests)):'—'],['Input / output',fmt(totals.inputTokens)+' / '+fmt(totals.outputTokens)],['Lượt có số đếm',totals.requests?fmt(Math.round(totals.measured/totals.requests*100))+'%':'—'],['Lượt lỗi',fmt(totals.errors)]]){const row=element('div');row.append(element('dt',name),element('dd',value));list.append(row);}root.append(list);
+    const grid=element('div',null,'usage-diagnostic-grid');for(const [heading,rows,type]of [['Đóng góp theo nguồn',report.groups.sources,'tokens'],['Nhóm có token nhiều nhất',report.groups.tools.slice(0,5),'tokens'],['Nhóm mất nhiều thời gian / lượt',[...report.groups.tools].filter(row=>row.averageMs!=null).sort((a,b)=>b.averageMs-a.averageMs).slice(0,5),'time'],['Nhóm cần kiểm tra lỗi',[...report.groups.tools].filter(row=>row.errors).sort((a,b)=>b.errors-a.errors).slice(0,5),'errors']]){const section=element('section');section.append(element('h3',heading));if(!rows.length)section.append(element('p','Chưa có dữ liệu trong bộ lọc.','usage-note'));for(const row of rows){const item=element('div',null,'usage-diagnostic-row');item.append(element('strong',({mcp:'Công cụ MCP',corp:'Corp',arena:'Arena'})[row.name]||row.name),element('span',fmt(row.requests)+' lượt · '+fmt(row.totalTokens)+' token · '+ms(row.averageMs)+'/lượt · '+fmt(row.errors)+' lỗi'));if(type==='tokens'){const bar=element('progress');bar.max=Math.max(1,totals.totalTokens);bar.value=row.totalTokens;bar.setAttribute('aria-label','Tỷ trọng '+row.name);item.append(bar);}section.append(item);}grid.append(section);}root.append(grid);
+    const peak=[...report.timeline].sort((a,b)=>b.totalTokens-a.totalTokens)[0];root.append(element('p',peak?.requests?'Khoảng có token cao nhất: '+date(peak.at)+' · '+fmt(peak.totalTokens)+' token, '+fmt(peak.requests)+' lượt.':'Chưa có hoạt động trong kỳ.','usage-note'));root.append(element('p','Số liệu theo bộ lọc và văn bản đã quan sát. Thời gian nhóm là trung bình; token ước tính, không phải hóa đơn hoặc hiệu năng model.','usage-note'));
+  }
   function render() {
     const totals = report.totals;
     for (const [id,key] of Object.entries({usageTotal:'totalTokens',usageInput:'inputTokens',usageOutput:'outputTokens',usageRequests:'requests'})) $(id).textContent = fmt(totals[key]);
@@ -92,7 +99,7 @@
     $('usagePageLabel').textContent = 'Trang ' + (report.pages ? page + 1 : 0) + '/' + report.pages + ' · ' + fmt(totals.requests) + ' lượt';
     $('usagePrevious').disabled = page === 0; $('usageNext').disabled = page + 1 >= report.pages;
     $('usageExport').disabled = !report.rows.length;
-    renderChart(); renderGroups(); renderLimits();
+    renderChart(); renderGroups(); renderLimits(); renderDiagnostics();
   }
   async function load() {
     const version = ++sequence; controller?.abort(); controller = new AbortController();
@@ -111,7 +118,7 @@
   }
   const reset = () => { page = 0; void load(); };
   $('usagePeriods').onclick = event => { const button = event.target.closest('[data-period]'); if (!button) return; period = button.dataset.period; for (const item of $('usagePeriods').querySelectorAll('button')) item.setAttribute('aria-pressed',String(item === button)); reset(); };
-  $('usageTabs').onclick = event => { const button = event.target.closest('[data-pane]'); if (!button) return; for (const item of $('usageTabs').querySelectorAll('button')) item.setAttribute('aria-pressed',String(item === button)); for (const name of ['Overview','History','Limits']) $('usage' + name).hidden = name.toLowerCase() !== button.dataset.pane; };
+  $('usageTabs').onclick = event => { const button = event.target.closest('[data-pane]'); if (!button) return; for (const item of $('usageTabs').querySelectorAll('button')) item.setAttribute('aria-pressed',String(item === button)); for (const name of ['Overview','History','Limits','Diagnostics']) $('usage' + name).hidden = name.toLowerCase() !== button.dataset.pane; };
   for (const id of ['usageSource','usageApplication','usageTool','usageStatus']) $(id).onchange = () => { if (id === 'usageSource') { $('usageApplication').value='all'; $('usageTool').value='all'; } reset(); };
   $('usageGroup').onchange = renderGroups;
   $('usageSearch').oninput = () => { clearTimeout(timer); timer = setTimeout(reset, 300); };

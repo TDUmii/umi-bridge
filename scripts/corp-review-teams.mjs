@@ -1,4 +1,4 @@
-// Original checklists informed by the upstream references in docs/REVIEW-SOURCES.vi.md.
+// Original checklists informed by Playwright, axe-core, ASVS and webapp-testing references in README.md.
 export const reviewTeams = [
   {id:'architecture',department:'Kiến trúc',name:'Architecture Reviewer',checks:'Ranh giới module, luồng dữ liệu, phụ thuộc, lỗi/khôi phục; đối chiếu mục tiêu, bỏ cấu trúc thừa.'},
   {id:'accessibility',department:'UX & tiếp cận',name:'Accessibility Reviewer',checks:'Luồng chính bằng bàn phím; focus, tên điều khiển, tương phản, thông báo lỗi, zoom và giảm chuyển động; xem UI thực, dùng axe nếu có.'},

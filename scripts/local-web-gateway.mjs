@@ -334,7 +334,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     };
     app.get('/', localAdmin, (_req, res) => res.redirect('/admin'));
     app.get('/admin', localAdmin, (_req, res) => {
-      res.set('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'");
+      res.set('Content-Security-Policy', "default-src 'none'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'");
       res.type('html').send(renderAdminPage());
     });
     app.get('/admin/i18n.js', localAdmin, (_req, res) => {
@@ -378,6 +378,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     // This header is a browser CSRF barrier: a third-party page cannot set it without CORS preflight.
     const adminWrite = (req, res, next) => req.headers['x-dc-admin-action'] === '1' ? next() : res.sendStatus(403);
     const corpJson = express.json({ limit: '256kb' });
+    const arenaJson=express.json({limit:'1mb'});
     const corpHandler = action => async (req, res) => {
       try { res.json(await action(req)); }
       catch (error) { res.status(['invalid_corp_key','invalid_arena_key'].includes(error.message) ? 401 : error.message.endsWith('_not_found') ? 404 : 400).json({ error: error.message }); }
@@ -393,7 +394,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.post('/admin/api/arena/arenas/:id/:action',localAdmin,adminWrite,corpHandler(req=>arena.action(req.params.id,req.params.action)));
     for(const action of ['poll','report','authorize','bootstrap-authorize','bootstrap-report']){
       const method={'bootstrap-authorize':'bootstrapAuthorize','bootstrap-report':'bootstrapReport'}[action]||action;
-      app.post('/admin/arena/bridge/'+action,localAdmin,corpJson,corpHandler(async req=>{if(action==='poll')corp.authenticate(String(req.headers.authorization??'').replace(/^Bearer /,''));if(action==='poll'&&corp.snapshot().modelPreference&&!/^([1-9]\d*\.|0\.([5-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||''))return {command:null,monitors:[],bootstrap:null};const result=await arena[method](String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{});if(action==='poll'){const preference=corp.snapshot().modelPreference;if(preference){if(result.command)result.command.modelPreference=preference;if(result.bootstrap)result.bootstrap.modelPreference=preference;}}return action==='poll'?{...result,resetGeneration:corp.snapshot().resetGeneration}:result;}));
+      app.post('/admin/arena/bridge/'+action,localAdmin,arenaJson,corpHandler(async req=>{if(action==='poll')corp.authenticate(String(req.headers.authorization??'').replace(/^Bearer /,''));if(action==='poll'&&!/^([1-9]\d*\.|0\.([7-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||''))return {command:null,monitors:[],bootstrap:null};const result=await arena[method](String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{});if(action==='poll'){const preference=corp.snapshot().modelPreference;if(preference){if(result.command)result.command.modelPreference=preference;if(result.bootstrap)result.bootstrap.modelPreference=preference;}}return action==='poll'?{...result,resetGeneration:corp.snapshot().resetGeneration}:result;}));
     }
     app.post('/admin/api/browser/pair',localAdmin,adminWrite,corpHandler(pairBrowser));
     app.post('/admin/api/browser/revoke',localAdmin,adminWrite,corpHandler(revokeBrowser));
@@ -413,6 +414,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     for (const action of ['poll', 'report', 'authorize','models']) {
       app.post(`/admin/corp/bridge/${action}`, localAdmin, corpJson, corpHandler(async req => {
         const token = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
+        if(action==='poll'&&!/^([1-9]\d*\.|0\.([7-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||'')){return corp.poll(token,{...(req.body??{}),suppressDispatch:true});}
         const result = await corp[action](token, req.body ?? {});
         if(action==='poll'&&corp.snapshot().modelPreference){if(result.command)result.command.modelPreference=corp.snapshot().modelPreference;if(result.bootstrap)result.bootstrap.modelPreference=corp.snapshot().modelPreference;}
         return action === 'poll' ? { ...result, modelScan:corp.snapshot().modelScan, resetGeneration:corp.snapshot().resetGeneration, projects: chatLinks.workspaces().filter(item => item.kind === 'project' && !corp.snapshot().bootstraps.some(job=>job.workspaceId===item.id&&!['done','cancelled'].includes(job.status))).map(({id, projectId, chatUrl, sync}) => ({id, projectId, chatUrl, requested: sync.requested})) } : result;
@@ -428,7 +430,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       next();
     }, express.static(resolve(ROOT, 'scripts/corp-office'), { dotfiles: 'deny', index: 'index.html' }));
     app.use('/admin/arena/assets', localAdmin, express.static(resolve(ROOT, 'scripts/arena-assets'), {dotfiles:'deny', index:false}));
-    for (const asset of ['model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'watch-dashboard.js', 'watch-dashboard.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
+    for (const asset of ['model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
       app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
     }
     const workflowAvailable = (_req, res, next) => {

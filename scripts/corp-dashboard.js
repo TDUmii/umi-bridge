@@ -5,7 +5,7 @@
   let folderPicking=null;
   let focusBootstrap=localStorage.getItem('umibridge.corp.bootstrap');
   const labels = { queued:'Chờ giao việc', dispatching:'Đang gửi', running:'Chờ phản hồi', limit_wait:'Chờ reset hạn mức', blocked:'Cần kiểm tra', paused:'Tạm dừng', done:'Hoàn thành', cancelled:'Đã hủy' };
-  const reasons = { send_unconfirmed:'Chưa xác nhận đã gửi. Mở chat kiểm tra trước khi thử lại.', composer_busy:'Chat đang trả lời hoặc còn bản nháp. Corp giữ nguyên bản nháp.', composer_missing:'Chưa thấy ô nhập. Kiểm tra đăng nhập và giao diện chat.', chat_changed:'Chat đã thay đổi hoặc có lượt gửi khác. Kiểm tra trước khi tiếp tục.', browser_unavailable:'Không kết nối được tab chat.', response_timeout:'Chưa xác nhận kết quả sau 45 phút. Mở chat kiểm tra.', response_too_large:'Kết quả vượt 48.000 ký tự. Chia nhiệm vụ nhỏ hơn.', limit_time_unknown:'Có thông báo hạn mức nhưng không đọc được giờ reset. Cần kiểm tra thủ công.' };
+  const reasons = {chat_mode_unconfirmed:'Chưa xác nhận Chat thường. Chọn Trò chuyện trên web rồi thử lại.', send_unconfirmed:'Chưa xác nhận đã gửi. Mở chat kiểm tra trước khi thử lại.', composer_busy:'Chat đang trả lời hoặc còn bản nháp. Corp giữ nguyên bản nháp.', composer_missing:'Chưa thấy ô nhập. Kiểm tra đăng nhập và giao diện chat.', chat_changed:'Chat đã thay đổi hoặc có lượt gửi khác. Kiểm tra trước khi tiếp tục.', browser_unavailable:'Không kết nối được tab chat.', response_timeout:'Chưa xác nhận kết quả sau 45 phút. Mở chat kiểm tra.', response_too_large:'Kết quả vượt 48.000 ký tự. Chia nhiệm vụ nhỏ hơn.', limit_time_unknown:'Có thông báo hạn mức nhưng không đọc được giờ reset. Cần kiểm tra thủ công.' };
   const node = (tag, value, className) => { const el = document.createElement(tag); if (value !== undefined) el.textContent = value; if (className) el.className = className; return el; };
   reasons.model_selection_unconfirmed='Chưa chọn/xác minh được model và mức suy nghĩ. Kiểm tra Cài đặt và model picker trên ChatGPT trước khi thử lại.';
   reasons.response_unavailable = 'ChatGPT không tải được phản hồi. Kiểm tra kết quả công cụ và chat; không tự chạy lại phần đã thực hiện.';
@@ -106,13 +106,13 @@
     const required=[...new Set([...stages.map(stage=>stage.roleId),...($('corpIdeaMode').value==='build'?chosenReviews:[])])];
     const ready=data.ideaProjects?.find(item=>item.workspaceId===project?.id),members=[...(ready?.members||[])];
     for(const member of teamMembers())if(!members.some(row=>row.chatId===member.chatId))members.push(member);
-    const version=data.extensionVersion?.split('.').map(Number),supported=!!version&&(version[0]>0||version[1]>=3);
+    const version=data.extensionVersion?.split('.').map(Number),supported=!!version&&(version[0]>0||version[1]>=7);
     const missing=required.filter(id=>!members.some(member=>member.roleId===id));
     $('corpIdeaProject').textContent=isNew?`Tự tạo Project mới, ${8+(mode==='build'?chosenReviews.length:0)} chat và phân công bộ phận.`:project?'Project: '+project.name:'Chọn Project ở thanh phía trên để bắt đầu.';
     $('corpIdeaProject').hidden=isNew;
     $('corpIdeaRoot').textContent=project?.root||'Chưa có thư mục làm việc.';$('corpIdeaRoot').hidden=isNew;$('corpIdeaFolder').hidden=!isNew;
     $('corpIdeaParentRoot').readOnly=ideaSending||folderPicking==='corpIdeaParentRoot';$('corpIdeaBrowse').disabled=ideaSending||!!folderPicking;
-    $('corpIdeaReadiness').textContent=isNew?!data.paired?'Kết nối extension Corp để tạo Project.':!supported?'Nạp lại extension Corp 0.3.0.':'':!project?'Chọn Project đã đồng bộ chat.':!stages.length?'Khởi động lại UmiBridge.':`${required.length-missing.length}/${required.length} bộ phận sẵn sàng.`;
+    $('corpIdeaReadiness').textContent=isNew?!data.paired?'Kết nối extension Corp để tạo Project.':!supported?'Nạp lại extension Corp 0.7.0.':'':!project?'Chọn Project đã đồng bộ chat.':!stages.length?'Khởi động lại UmiBridge.':`${required.length-missing.length}/${required.length} bộ phận sẵn sàng.`;
     $('corpIdeaReadiness').hidden=!$('corpIdeaReadiness').textContent;
     const signature=JSON.stringify([isNew,project?.id,required,members,project?.chats]);
     if($('corpIdeaTeam').dataset.signature!==signature){

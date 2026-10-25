@@ -69,7 +69,7 @@ async function bootstrap(command){
     }
   }
   result||={kind:'blocked',reason:'bootstrap_unconfirmed'};
-  if(result.kind==='blocked'&&['project_create_ui_missing','project_name_too_long','project_dialog_busy','composer_busy','bootstrap_stopped'].includes(result.reason)){record.began=false;await chrome.storage.local.set({bootstrapTabs});}
+    if(result.kind==='blocked'&&['project_create_ui_missing','project_name_too_long','project_dialog_busy','composer_busy','bootstrap_stopped','model_picker_missing','model_selection_unconfirmed','model_not_available','reasoning_picker_missing','reasoning_picker_unknown','reasoning_selection_unconfirmed','reasoning_not_available','chat_mode_unconfirmed'].includes(result.reason)){record.began=false;await chrome.storage.local.set({bootstrapTabs});}
   await report({bootstrap:true,jobId:command.jobId,attempt:command.attempt,...result,channel});
   if(result.kind==='chat'&&(channel==='arena'||command.roleId==='docs')){
     const projectTab=bootstrapTabs[channel+':'+command.jobId+':project'];if(projectTab)await chrome.tabs.reload(projectTab.tabId).catch(()=>{});

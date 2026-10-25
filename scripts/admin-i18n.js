@@ -5,6 +5,19 @@
 (() => {
   'use strict';
   const VI_TO_EN = {
+  "Số đội": "Teams",
+  "Phân tích sâu": "Deep analysis",
+  "Token / lượt": "Tokens / request",
+  "Input / output": "Input / output",
+  "Lượt có số đếm": "Measured requests",
+  "Lượt lỗi": "Failed requests",
+  "Đóng góp theo nguồn": "Contribution by source",
+  "Nhóm có token nhiều nhất": "Top token groups",
+  "Nhóm mất nhiều thời gian / lượt": "Slowest groups per request",
+  "Nhóm cần kiểm tra lỗi": "Groups with errors",
+  "Chưa có dữ liệu trong bộ lọc.": "No data in this filter.",
+  "Chưa có hoạt động trong kỳ.": "No activity in this period.",
+  "Số liệu theo bộ lọc và văn bản đã quan sát. Thời gian nhóm là trung bình; token ước tính, không phải hóa đơn hoặc hiệu năng model.": "Metrics follow filters and observed text. Group duration is an average; token estimates are not billing or model performance.",
   "Bộ công cụ": "Tools",
   "Tệp & thư mục": "Files",
   "Lệnh": "Commands",
@@ -648,7 +661,7 @@
   const apply = () => {
     document.documentElement.lang = language;
     const input=document.getElementById('languageSelect');
-    if(input) { input.value=language; input.setAttribute('aria-label', language==='en'?'Interface language':'Ngôn ngữ giao diện'); }
+    if(input) { input.textContent=language==='vi'?'EN':'VI';input.title=language==='vi'?'Switch to English':'Chuyển sang tiếng Việt';input.value=language; input.setAttribute('aria-label', language==='en'?'Interface language':'Ngôn ngữ giao diện'); }
     traverse(document.body);
   };
   const observer=new MutationObserver(records => {
@@ -659,6 +672,8 @@
   });
   observer.observe(document.body,{subtree:true,childList:true,characterData:true});
   const input=document.getElementById('languageSelect');
+  if(input)input.addEventListener('click',()=>{input.value=language==='vi'?'en':'vi';input.dispatchEvent(new Event('change'));});
+  const settings=document.getElementById('settingsLanguage');if(settings)settings.addEventListener('click',()=>input.click());
   if(input) input.addEventListener('change',()=>{
     language = input.value==='vi'?'vi':'en';
     try{localStorage.setItem('umibridge.admin.language', language);}catch{}
