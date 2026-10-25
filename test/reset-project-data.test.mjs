@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, symlink, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:net';
@@ -14,7 +14,7 @@ const privateText = 'OLD_PRIVATE_PROJECT_CHAT_PAYLOAD';
 const usage = { estimated: true, method: 'o200k_base', inputTokens: 19, outputTokens: 31, totalTokens: 50, inputBytes: 67, outputBytes: 101 };
 
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'umi-reset-'));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'umi-reset-')));
   t.after(() => rm(root, { recursive: true, force: true }));
   const state = join(root, '.local-data');
   await mkdir(state); await mkdir(join(root, 'scripts'));
