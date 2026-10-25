@@ -45,6 +45,15 @@ test('Corp sends ordered steps once, preserves acknowledgement and hands off rea
   assert.ok(!(await readFile(f.file,'utf8')).includes(f.token));
 });
 
+test('provider load-error placeholders block instead of handing off even with an older adapter',async t=>{
+  const f=await fixture(t),run=await f.create();await f.corp.settings({enabled:true});await f.corp.action(run.id,'start');
+  const command=(await f.poll()).command;await f.corp.report(f.token,{...command,kind:'sent'});
+  await f.corp.report(f.token,{...command,kind:'done',sent:true,result:'Không thể tải phản hồi này'});
+  const saved=f.corp.snapshot();assert.equal(saved.runs[0].steps[0].status,'blocked');assert.equal(saved.runs[0].steps[0].reason,'response_unavailable');
+  assert.equal(saved.runs[0].steps[0].result,null);assert.equal(saved.events.some(e=>e.type==='handoff'),false);assert.equal((await f.poll()).command,null);
+  assert.equal(f.corp.usage()[0].status,'error');assert.equal(f.corp.usage()[0].usage.outputTokens,null);
+});
+
 test('limit anchors reset once, survives restart, resumes same task after deadline with continuation',async t=>{
   const f=await fixture(t),run=await f.create();await f.corp.settings({enabled:true});await f.corp.action(run.id,'start');
   const command=(await f.poll()).command;await f.corp.report(f.token,{...command,kind:'sent'});

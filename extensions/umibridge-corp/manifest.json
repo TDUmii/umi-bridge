@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "UmiBridge Corp - Chat Coordinator",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Connect selected ChatGPT tabs to the local UmiBridge Corp queue. No cookies or account credentials are read.",
   "permissions": ["storage", "alarms"],
   "host_permissions": ["http://127.0.0.1/*", "https://chatgpt.com/*", "https://chat.openai.com/*"],

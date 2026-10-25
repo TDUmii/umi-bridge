@@ -19,8 +19,15 @@ test('Corp local API protects writes and browser credentials; dispatch is contro
   assert.equal((await fetch(base+'/admin/api/usage')).status,404);
   const usage=await (await request('/admin/api/usage?period=all')).json();assert.equal(usage.totals.requests,0);assert.equal(usage.providerReported,null);
   assert.equal((await request('/admin/api/corp/pair',{}, {'x-dc-admin-action':'0'})).status,403);
+  for(const path of ['/admin/api/corp/ideas','/admin/api/corp/projects','/admin/api/corp/projects/unknown/start','/admin/api/corp/arenas','/admin/api/corp/arenas/unknown/start','/admin/api/corp/arenas/unknown/retry']){
+    assert.equal((await request(path,{}, {'x-dc-admin-action':'0'})).status,403,path+' requires an admin write action');
+    assert.equal((await fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:'{}'})).status,404,path+' is local only');
+  }
+  for(const path of ['/admin/corp/bridge/bootstrap-authorize','/admin/corp/bridge/bootstrap-report'])assert.equal((await request(path,{})).status,401,path+' requires a paired adapter');
   assert.equal((await request('/admin/corp/bridge/poll',{})).status,401);
   const snapshot=await (await request('/admin/api/corp')).json();assert.equal(snapshot.enabled,false);assert.equal(snapshot.office,true);
+  assert.equal(snapshot.companyRoles.length,8);
+  assert.equal((await request('/admin/api/corp/team',{workspaceId:'missing',members:[]},{'x-dc-admin-action':'0'})).status,403);
   const {token}=await (await request('/admin/api/corp/pair',{})).json();
   assert.equal((await request('/admin/corp/bridge/sync',{})).status,401);
   const projectId='g-p-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', projectUrl=`https://chatgpt.com/g/${projectId}/project`;
@@ -31,6 +38,8 @@ test('Corp local API protects writes and browser credentials; dispatch is contro
   assert.equal(scope.projectId,projectId);
   const sync={workspaceId:project.id,projectUrl,requested:scope.requested,status:'complete',chats:[{name:'Member',chatUrl:`https://chatgpt.com/g/${projectId}/c/member-chat`}]};
   assert.equal((await request('/admin/corp/bridge/sync',sync,projectHeaders)).status,200);
+  assert.equal((await request('/admin/api/corp/team',{workspaceId:project.id,members:[{chatId:'member-chat',roleId:'design'}]})).status,200);
+  assert.equal((await request('/admin/api/corp/team',{workspaceId:project.id,members:[{chatId:'outside-chat',roleId:'qa'}]})).status,400);
   assert.equal((await request('/admin/corp/bridge/sync',{...sync,chats:[{chatUrl:'https://chatgpt.com/c/outside-chat'}]},projectHeaders)).status,400);
   assert.equal((await (await request('/admin/api/corp')).text()).includes(token),false);
   const headers={authorization:'Bearer '+token};

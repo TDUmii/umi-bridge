@@ -55,7 +55,7 @@ const deviceToolSpecs = deviceToolDefinitions.map(spec => {
 const deviceToolsByName = new Map(deviceToolDefinitions.map(tool => [tool.name, tool]));
 
 /** One local process shared by authorized MCP clients through an authenticated endpoint. */
-export async function startGateway({ port = 8767, publicUrl, connectionSecret, configDir, privilegeControl, workflowEnabled, corpClock } = {}) {
+export async function startGateway({ port = 8767, publicUrl, connectionSecret, configDir, privilegeControl, workflowEnabled, corpClock, corpProjectsRoot } = {}) {
   if (typeof connectionSecret !== 'string' || connectionSecret.length < 24) {
     throw new Error('connectionSecret must contain at least 24 characters.');
   }
@@ -70,7 +70,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
   const secretHash = digest(connectionSecret);
   const requestHistory = await createRequestHistory(resolve(configDir, '..', 'request-history.jsonl'), { secretValues: [connectionSecret] });
   const chatLinks = await createChatLinksStore(resolve(configDir, '..', 'chat-links.json'));
-  const corp = await createCorpRuntime(resolve(configDir, '..', 'corp-state.json'), { workspaces: () => chatLinks.workspaces(), ...(corpClock ? { clock: corpClock } : {}) });
+  const corp = await createCorpRuntime(resolve(configDir, '..', 'corp-state.json'), { workspaces: () => chatLinks.workspaces(), createWorkspace:item=>chatLinks.addWorkspace(item), syncProject:input=>chatLinks.syncProject(input), ...(corpClock ? { clock: corpClock } : {}),...(corpProjectsRoot?{projectsRoot:corpProjectsRoot}:{}) });
   const deviceRegistry = await createDeviceRegistry({ stateDir: resolve(configDir, '..') });
   const workflowsEnabled = workflowEnabled === undefined ? process.env.UMIBRIDGE_WORKFLOWS === '1' || existsSync(resolve(configDir, 'workflows-enabled')) : workflowEnabled === true || workflowEnabled === '1';
   const workflowLedger = await createWorkflowLedger(resolve(configDir, '..', 'workflows.jsonl'), { enabled: workflowsEnabled });
@@ -379,15 +379,23 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     };
     app.get('/admin/api/corp', localAdmin, (_req, res) => res.json({ ...corp.snapshot(), workspaces: chatLinks.workspaces() }));
     app.post('/admin/api/corp/settings', localAdmin, adminWrite, corpJson, corpHandler(req => corp.settings(req.body ?? {})));
+    app.post('/admin/api/corp/team', localAdmin, adminWrite, corpJson, corpHandler(req => corp.team(req.body ?? {})));
     app.post('/admin/api/corp/pair', localAdmin, adminWrite, corpHandler(() => corp.pair()));
     app.post('/admin/api/corp/revoke', localAdmin, adminWrite, corpHandler(() => corp.revoke()));
     app.post('/admin/api/corp/runs', localAdmin, adminWrite, corpJson, corpHandler(req => corp.create(req.body ?? {})));
+    app.post('/admin/api/corp/ideas', localAdmin, adminWrite, corpJson, corpHandler(req => corp.idea(req.body ?? {})));
+    app.post('/admin/api/corp/arenas', localAdmin, adminWrite, corpJson, corpHandler(req => corp.arena(req.body ?? {})));
+    app.post('/admin/api/corp/arenas/:id/:action', localAdmin, adminWrite, corpHandler(req => corp.arenaAction(req.params.id, req.params.action)));
+    app.post('/admin/api/corp/projects', localAdmin, adminWrite, corpJson, corpHandler(req => corp.bootstrap(req.body ?? {})));
+    app.post('/admin/api/corp/projects/:id/:action', localAdmin, adminWrite, corpJson, corpHandler(req => corp.bootstrapAction(req.params.id,req.params.action)));
+    app.post('/admin/corp/bridge/bootstrap-authorize', localAdmin, corpJson, corpHandler(req=>corp.bootstrapAuthorize(String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{})));
+    app.post('/admin/corp/bridge/bootstrap-report', localAdmin, corpJson, corpHandler(req=>corp.bootstrapReport(String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{})));
     app.post('/admin/api/corp/runs/:id/:action', localAdmin, adminWrite, corpHandler(req => corp.action(req.params.id, req.params.action)));
     for (const action of ['poll', 'report', 'authorize']) {
       app.post(`/admin/corp/bridge/${action}`, localAdmin, corpJson, corpHandler(async req => {
         const token = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
         const result = await corp[action](token, req.body ?? {});
-        return action === 'poll' ? { ...result, projects: chatLinks.workspaces().filter(item => item.kind === 'project').map(({id, projectId, chatUrl, sync}) => ({id, projectId, chatUrl, requested: sync.requested})) } : result;
+        return action === 'poll' ? { ...result, projects: chatLinks.workspaces().filter(item => item.kind === 'project' && !corp.snapshot().bootstraps.some(job=>job.workspaceId===item.id&&!['done','cancelled'].includes(job.status))).map(({id, projectId, chatUrl, sync}) => ({id, projectId, chatUrl, requested: sync.requested})) } : result;
       }));
     }
     app.post('/admin/corp/bridge/sync', localAdmin, express.json({ limit: '1mb' }), corpHandler(req => {
@@ -610,7 +618,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.use('/mcp', requireBearerAuth({ verifier: provider, requiredScopes: ['desktop'], expectedResource: resource, resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resource) }));
     const handleMcp = async (req, res) => {
       const initialization = req.body?.method === 'initialize' ? (await readToolContext()).context : undefined;
-      const server = new Server({ name: 'umibridge-sakura-console', version: '0.1.0-beta.26' }, { capabilities: { tools: {}, ...(capabilities.resources ? { resources: {} } : {}) }, instructions: [baseInstructions, initialization?.prompt].filter(Boolean).join('\n\n') });
+      const server = new Server({ name: 'umibridge-sakura-console', version: '1.0.0' }, { capabilities: { tools: {}, ...(capabilities.resources ? { resources: {} } : {}) }, instructions: [baseInstructions, initialization?.prompt].filter(Boolean).join('\n\n') });
       const options = { timeout: 120_000 };
       server.setRequestHandler(ListToolsRequestSchema, async () => {
         const { catalog, context } = await readToolContext();

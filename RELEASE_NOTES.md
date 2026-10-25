@@ -1,4 +1,42 @@
-# UmiBridge Sakura Console - beta.26
+# UmiBridge Sakura Console - 1.0.0
+
+First stable release. Future releases track feature updates and fixes; historical beta releases remain available.
+
+## Arena tournaments and Corp tabs
+
+Corp adds Arena for 20, 50 or 100 product variants from one user idea. Setup creates one ChatGPT Project and eight department chats, then leaves the Arena paused for explicit review and start. That team develops products sequentially in separate local folders. Creating an Arena does not enable global coordination. Office, idea entry, Arena and queue have separate internal tabs; each Arena has Live, Groups, Bracket, History and Products views with keyboard navigation and remembered selection.
+
+The form defaults to groups plus knockout (`group_knockout`); knockout-only (`knockout`) remains available. Groups of five play each pair once, and the top two qualify. A win earns three match points; ranking then uses score difference, total score and original seed order. Group-plus-knockout uses 47/119/239 judged matches and 267/669/1339 baseline tasks for 20/50/100 products. Knockout-only uses 19/49/99 matches and 239/599/1199 tasks. Baselines include eleven stages per product plus match judging, before bounded repairs; they do not estimate provider price or quota. API input persists the selected format.
+
+Every comparison requires five scored criteria and reasons: requirements/function 35, UX 15, tests/evidence 20, security 15 and local delivery/docs 15. Totals must match; both products need checks and nonempty evidence files inside their candidate folders. Reports, standings, bracket rounds, lifecycle history and winner artifacts persist. Report/file validation does not independently certify command results or product quality. Live animation indicates recorded processing state, respects reduced motion and does not invent scores or outcomes.
+
+Validation: syntax build and all 119 Windows regression tests pass, with zero failures, cancellations or skips. Synthetic runtime tests complete both tournament formats with 20/50/100 products, including full history retention, standings, tie breaks, evidence validation and restart recovery. Edge dashboard QA verifies five Arena views, complete five-criterion reports, keyboard navigation, filters and selection across polling/reload, error recovery, active/paused/reduced motion, and desktop/laptop plus narrow-screen reflow. See `docs/ACCEPTANCE-1.0.vi.md` for scope and evidence. Real-account verification covers Project/eight-chat bootstrap and a paused workflow. Complete real-LLM product generation and tournament delivery remain unverified. Desktop/laptop are the supported scope; supplementary narrow-screen reflow does not certify a physical mobile device.
+
+## Idea-to-project workflow
+
+Corp adds Từ ý tưởng: enter an initial idea, create a ChatGPT Project and eight department chats through extension 0.3.0, then run a predefined planning, implementation, QA, repair and local delivery chain. Users may choose planning-only, keep the created workflow paused, or reuse an existing Project. New project files are separated under Documents/UmiBridge Projects, with per-run Markdown reports.
+
+Setup persists each confirmed step and stops on uncertain creation instead of recreating Projects/chats after a lost acknowledgement. Role assignments stay Project-scoped. Reports require a structured outcome, artifacts and checks; plan/final QA/local run/delivery gates stop on incomplete or negative evidence. A fixed additional engineering/QA round is allowed once, for at most two repair rounds. Model replies cannot route arbitrary work. No provider API key or additional AI service is introduced. Reload the installed extension after updating its source.
+
+## Readable Corp workspace
+
+Employee names now appear on hover, keyboard focus or tap in a crisp DOM tooltip, with a colored status dot and textual state. Persistent name cards no longer cover desks. The office signs UMIBRIDGE / CORP and Khu chờ are clear DOM text, and the Corp navigation icon is a company building. The team list and recent handoffs share a side column; an empty filtered queue becomes a compact lower toolbar.
+
+Map zoom supports 75-200%. Fit calculates 75-150% at the moment it is pressed. Expanding or resizing preserves zoom while the room grows sideways and reflows desk columns. Expansion stays within the working page, with its button or Escape restoring the queue. Larger teams add rows and scroll independently. Canvas backing storage is reused between unchanged snapshots.
+
+Desks now balance between rows and use spare floor height, with centered shorter rows and no empty slots after staff removal. A clear corridor separates the lounge from the first row. Status dots sit inside the upper-right corner of each seat area, with stronger colors on the light rugs. Compact title/status lines preserve more floor height on laptops.
+
+Project and form selects use the browser's customizable select surface where supported, retaining native keyboard/form behavior and an older-browser fallback. Neutral 2px focus outlines replace the bright green rings. Operational labels and the roster have larger text; office chrome follows the dashboard graphite palette.
+
+README now covers first install, daily launch, MCP versus extension pairing, complete Project grouping, task controls, reset/recovery, zoom and larger teams, token estimates/budgets, tool permissions/skills, devices, optional workflows, private backups and the Normal/Admin update lifecycle.
+
+## Provider response failure guard
+
+Live supervision found ChatGPT's “Không thể tải phản hồi này” placeholder could be marked complete by the previous adapter and handed to the next chat. Extension 0.2.2 and gateway 1.0.0 now block recognized load-error placeholders rather than recording successful answers. The gateway guard also protects against older adapters. It does not replay commands already executed. Reload the installed extension and ChatGPT tabs after updating; actual files/tool results must be reconciled before a retry.
+
+Earlier validation for the response guard and office passed Windows regressions and real Edge-extension QA against disposable synthetic provider pages: dispatch, handoff, simulated reset/resume, draft preservation, Project scope, response-load failure handling, analytics and desktop/laptop layout. Office checks cover hover/focus tooltips, status dots, zoom/fit, expansion with unchanged zoom, Escape, the themed Project menu and a 24-employee fixture. Local live-page checks confirmed desk reflow at unchanged 100% zoom, no excess page scroll at 1366x768 or 1600x1000, and a tooltip that survives normal state refresh. These earlier checks do not replace final release validation above. Physical scope remains one Windows PC. Real provider quota reset and every ChatGPT UI variation remain unverified. The optional typography detector ran in degraded regex mode; it does not certify accessibility.
+
+## Previous beta.26
 
 ## ChatGPT Project groups in Corp
 

@@ -12,6 +12,62 @@
   const sameDraft = (element, prompt) => element instanceof HTMLTextAreaElement ? value(element).trim() === prompt.trim() : value(element).replace(/\n+/g, '\n').trim() === prompt.replace(/\n+/g, '\n').trim();
   const messageSelector = '[data-message-author-role], [data-chatgpt-search-unit-key$=":user"], [data-chatgpt-search-unit-key$=":assistant"]';
   const author = element => element.dataset.messageAuthorRole || element.getAttribute('data-chatgpt-search-unit-key')?.split(':').at(-1);
+  const waitForValue=async(fn,timeout=45000)=>{const started=Date.now();while(Date.now()-started<timeout){const value=fn();if(value)return value;await new Promise(resolve=>setTimeout(resolve,300));}throw Error('bootstrap_ui_timeout');};
+  const buttonText=element=>(element.getAttribute('aria-label')||element.innerText||'').trim();
+  function fillInput(element,content){
+    element.focus();
+    if(element instanceof HTMLTextAreaElement||element instanceof HTMLInputElement){
+      const prototype=element instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(prototype,'value').set.call(element,content);element.dispatchEvent(new Event('input',{bubbles:true}));
+    }else{document.execCommand('insertText',false,content);element.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:content}));}
+  }
+  function bootstrapInspect(command){
+    if(command.type==='bootstrap-project'){
+      const heading=[...document.querySelectorAll('h1')].find(el=>visible(el)&&el.textContent.trim()===command.projectName);
+      if(projectId()&&/\/project\/?$/.test(location.pathname)&&heading)return {kind:'project',projectUrl:`https://chatgpt.com/g/${projectId()}/project`};
+    }else if(projectId()===command.projectId&&chatId()){
+      const marker=`[UmiBridge setup ${command.jobId}:${command.roleId}]`;
+      if([...document.querySelectorAll(messageSelector)].some(el=>author(el)==='user'&&el.textContent.includes(marker)))return {kind:'chat',roleId:command.roleId,chatUrl:`https://chatgpt.com/g/${command.projectId}/c/${chatId()}`};
+    }
+    return null;
+  }
+  async function bootstrapAuthorized(command){
+    const result=await chrome.runtime.sendMessage({type:'bootstrap-authorize',jobId:command.jobId,attempt:command.attempt});
+    if(!result?.allowed)throw Error('bootstrap_stopped');
+  }
+  async function setupProject(command){
+    const prior=bootstrapInspect(command);if(prior)return prior;
+    const existing=[...document.querySelectorAll('nav button,nav a')].find(el=>visible(el)&&el.textContent.trim()===command.projectName);
+    if(existing){existing.click();return waitForValue(()=>bootstrapInspect(command));}
+    if(command.reconcileOnly)throw Error('bootstrap_recovery_required');
+    let input=document.querySelector('#chatgpt-project-name');
+    if(!input||!visible(input)){
+      let create;try{create=await waitForValue(()=>[...document.querySelectorAll('button')].find(el=>visible(el)&&(el.hasAttribute('data-app-action-sidebar-project-create')||/^(new project|create project|thêm dự án mới|tạo dự án)$/i.test(buttonText(el)))));}catch{throw Error('project_create_ui_missing');}
+      await bootstrapAuthorized(command);create.click();
+      input=await waitForValue(()=>{const el=document.querySelector('#chatgpt-project-name')||document.querySelector('[role="dialog"] input[type="text"]');return visible(el)?el:null;});
+    }
+    if(value(input).trim()&&value(input).trim()!==command.projectName)throw Error('project_dialog_busy');
+    if(input.maxLength>0&&command.projectName.length>input.maxLength)throw Error('project_name_too_long');
+    fillInput(input,command.projectName);
+    const dialog=input.closest('[role="dialog"]')||document;
+    const submit=await waitForValue(()=>[...dialog.querySelectorAll('button')].find(el=>visible(el)&&!el.disabled&&/^(create project|tạo dự án)$/i.test(buttonText(el))));
+    await bootstrapAuthorized(command);
+    if(value(input).trim()!==command.projectName)throw Error('project_dialog_busy');submit.click();
+    return waitForValue(()=>bootstrapInspect(command));
+  }
+  async function setupChat(command){
+    const prior=bootstrapInspect(command);if(prior)return prior;
+    if(command.reconcileOnly)throw Error('bootstrap_recovery_required');
+    if(projectId()!==command.projectId||!/\/project\/?$/.test(location.pathname))throw Error('bootstrap_project_changed');
+    const input=await waitForValue(()=>composer());
+    if(sending()||value(input).trim())throw Error('composer_busy');await bootstrapAuthorized(command);
+    if(sending()||value(input).trim()||projectId()!==command.projectId)throw Error('composer_busy');
+    fillInput(input,command.seed);
+    const send=await waitForValue(()=>[...document.querySelectorAll('button')].find(el=>visible(el)&&!el.disabled&&(el.dataset.testid==='send-button'||el.id==='composer-submit-button'||/^(send|send message|send prompt|gửi|gửi tin nhắn|gửi lời nhắc)$/i.test(buttonText(el)))));
+    await bootstrapAuthorized(command);
+    if(!sameDraft(input,command.seed)||projectId()!==command.projectId)throw Error('composer_busy');send.click();
+    return waitForValue(()=>bootstrapInspect(command));
+  }
   async function discover(command) {
     if (projectId() !== command.projectId || !/\/project\/?$/.test(location.pathname)) return null;
     const home = [...document.querySelectorAll('[data-chatgpt-project-conversation-drop-target]')].find(element => visible(element) && element.querySelector('h1')) || [...document.querySelectorAll('main')].find(element => visible(element) && element.querySelector('h1'));
@@ -81,8 +137,11 @@
     const turn = answer?.closest('[data-talvt-turn-state], article, [data-testid^="conversation-turn-"]') ?? answer?.parentElement;
     const turnState = turn?.getAttribute('data-talvt-turn-state');
     const finished = turnState ? turnState === 'complete' : turn?.querySelector('[data-testid="copy-turn-action-button"], button[aria-label="Copy"], button[aria-label="Sao chép"]');
+    const result = answer ? (answer.querySelector('[data-markdown-text-style="assistant-message"]') ?? answer).innerText.trim() : '';
+    if (/^(?:không thể tải phản hồi này|unable to load this response|couldn['’]t load this response)[.!]?$/iu.test(result)) {
+      memory.delete(command.attempt);return {...base,kind:'blocked',sent:true,reason:'response_unavailable'};
+    }
     if (answer && finished && !sending()) {
-      const result = (answer.querySelector('[data-markdown-text-style="assistant-message"]') ?? answer).innerText.trim();
       if (result.length > 48_000) return { ...base, kind: 'blocked', reason: 'response_too_large' };
       const prior = memory.get(command.attempt);
       if (prior?.result === result && result && Date.now() - prior.since >= 6000) return { ...base, kind: 'done', sent: true, result };
@@ -131,6 +190,10 @@
   }
   chrome.runtime.onMessage.addListener((command, sender, respond) => {
     if (sender.id !== chrome.runtime.id) return;
+    if(command.type==='bootstrap-inspect'){respond(bootstrapInspect(command.command));return;}
+    if(command.type==='bootstrap-project'||command.type==='bootstrap-chat'){
+      (command.type==='bootstrap-project'?setupProject(command):setupChat(command)).then(respond,error=>respond({kind:'blocked',reason:String(error.message||'bootstrap_unconfirmed').slice(0,150)}));return true;
+    }
     if (command.type === 'project-chats') { discover(command).then(respond, () => respond(null)); return true; }
     if (command.type === 'ready') { respond({ ready: matches(command) && Boolean(composer()) }); return; }
     if (command.type === 'observe') { respond({ report: inspect(command) }); return; }

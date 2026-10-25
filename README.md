@@ -1,154 +1,310 @@
 # UmiBridge Sakura Console
 
-Cho phép ChatGPT đọc, sửa file, chạy lệnh và điều khiển giao diện Windows qua MCP, kèm dashboard local và điều khiển nhiều máy.
+UmiBridge kết nối ChatGPT với máy Windows của bạn: đọc và sửa tệp, chạy PowerShell, quan sát và điều khiển cửa sổ. Dashboard local quản lý quyền công cụ, lịch sử, thiết bị, thống kê token và điều phối nhiều chat trong một ChatGPT Project.
 
-[Tải bản mới nhất](https://github.com/TDUmii/umi-bridge/releases/latest)
+**Bản chính thức 1.0.0.** Các bản tiếp theo bổ sung tính năng và sửa lỗi theo phiên bản. Giao diện dành cho máy tính để bàn và laptop.
+
+[Tải bản chính thức mới nhất](https://github.com/TDUmii/umi-bridge/releases/latest) · [Thay đổi từng bản](RELEASE_NOTES.md) · [Hướng dẫn Corp](docs/CORP.vi.md)
 
 ![UmiBridge Sakura Console](assets/umibridge-banner.svg)
 
-## Cài và chạy
+## Bạn cần chuẩn bị gì?
 
-1. Giải nén bản phát hành vào một thư mục riêng.
-2. Mở **UmiBridge.cmd**. Lần đầu launcher tự chuẩn bị Node.js, Python và bộ Windows tools, cài dependency đã khóa, kiểm tra source và tạo tunnel HTTPS cố định.
-3. Nếu Microsoft Dev Tunnels yêu cầu đăng nhập, chọn GitHub một lần. Những lần sau launcher dùng lại URL, OAuth và mã kết nối đã lưu.
-4. Mở `http://127.0.0.1:43127/` để vào dashboard xem trạng thái, endpoint, lịch sử lệnh, token tham chiếu, thiết bị và cài đặt. Đường dẫn `/admin` vẫn truy cập trực tiếp được.
+- Windows với phiên desktop đang mở khóa để dùng chuột, bàn phím và chụp màn hình.
+- Internet cho lần cài đầu, Microsoft Dev Tunnels và ChatGPT. Xử lý tệp/lệnh vẫn chạy trên máy được chọn.
+- Tài khoản ChatGPT có khả năng thêm MCP connector tùy gói và chính sách tài khoản. Corp dùng Chrome hoặc Edge với extension UmiBridge Corp.
+- Một thư mục cài riêng, ví dụ `D:\Apps\UmiBridge`. Không giải nén trực tiếp vào thư mục Windows.
 
-Chỉ cần mở **UmiBridge.cmd** mỗi khi bật máy. Cửa sổ này theo dõi request; gateway và PowerShell worker chạy nền, không mở thêm terminal cho từng lệnh.
+Launcher tự chuẩn bị Node.js, Python và Windows tools. Không cần cài Node/Python thủ công để sử dụng bản ZIP. Không cần Administrator cho công việc tệp/lệnh thông thường.
 
-## Kết nối ChatGPT
+## Cài lần đầu
 
-Trong ChatGPT, thêm MCP connector bằng endpoint hiển thị ở **Dashboard → Settings**:
+1. Mở trang [Releases](https://github.com/TDUmii/umi-bridge/releases/latest), tải ZIP và tệp checksum của cùng phiên bản.
+2. Có thể kiểm tra ZIP trước khi dùng: chạy `Get-FileHash .\ten-ban-phat-hanh.zip -Algorithm SHA256` trong PowerShell, đối chiếu chuỗi SHA-256 với tệp checksum.
+3. Giải nén toàn bộ ZIP vào thư mục riêng. Giữ nguyên cấu trúc `scripts`, `extensions` và các tệp đi kèm.
+4. Bấm đúp **UmiBridge.cmd**. Lần đầu cần thời gian tải runtime, dependency đã khóa và tạo tunnel HTTPS cố định. Chờ thông báo **UmiBridge is ready**.
+5. Nếu Microsoft Dev Tunnels yêu cầu đăng nhập, hoàn thành đăng nhập GitHub trong trình duyệt. Những lần sau launcher dùng lại URL và OAuth đã lưu.
+6. Dashboard mở tại [http://127.0.0.1:43127/admin](http://127.0.0.1:43127/admin). Địa chỉ gốc `http://127.0.0.1:43127/` cũng mở dashboard.
 
-- Authentication: **OAuth**
-- Client registration: **Dynamic (DCR)**
-- Client ID và Client secret: để trống
-- Khi UmiBridge hỏi mã: dùng **Connection code** trong Settings
+Dashboard quản trị chỉ phục vụ trên loopback của máy. Endpoint HTTPS cho ChatGPT được hiển thị riêng trong **Settings / Cài đặt**. Không dùng địa chỉ `127.0.0.1` làm endpoint cho ChatGPT web.
 
-Tunnel cố định giữ nguyên URL và quyền OAuth sau khi khởi động lại. Không gửi endpoint, connection code, token hoặc file trong `.local-data` cho người khác.
+## Mỗi ngày mở và dừng thế nào?
 
-## Dashboard
+Bấm đúp **UmiBridge.cmd** sau khi bật máy. Gateway và PowerShell worker chạy nền; cửa sổ launcher theo dõi request. Dùng lệnh sau trong thư mục cài khi cần dừng:
 
-- **Overview**: trạng thái gateway và tổng request.
-- **Analytics**: độ trễ, tỷ lệ thành công và token tham chiếu của payload công cụ.
-- **Projects & chats**: khai báo một thư mục và link ChatGPT để tự nhóm request.
-- **Devices**: ghép thêm máy Windows và nhận kết quả theo `device_id`.
-- **Tools**: bật/tắt công cụ, lệnh và xem hướng dẫn MCP tự động.
-- **Skills**: chọn skill và xem nội dung trước khi dùng.
-- **Workflows**: theo dõi task, handoff, trạng thái và liên kết request/job bằng thao tác thủ công.
-- **Corp**: điều phối các chat đã chọn, chuyển kết quả giữa các bước, chờ reset hạn mức và hiển thị văn phòng Pixel Agents có nút bật/tắt.
-- **Requests**: tham số, stdout, stderr, exit code và thời gian chạy.
-- **Settings**: endpoint, mã kết nối ban đầu, giao diện và chu kỳ làm mới.
+```powershell
+.\UmiBridge.cmd -Action stop
+```
 
-## Chọn công cụ và skill
+Dừng gateway không xóa dữ liệu, mã ghép hoặc lựa chọn đã lưu. Mở lại launcher để chạy tiếp. Không chạy hai bản UmiBridge cùng cổng.
 
-Mở **Tools**, chọn nhóm hoặc tìm công cụ rồi bật/tắt từng mục. Lựa chọn được lưu riêng trên máy và có hiệu lực cho lệnh mới, kể cả khi ChatGPT còn giữ danh sách công cụ cũ. Nhóm File, PowerShell và Windows áp dụng cho cả thao tác tương ứng trên máy phụ.
+| Việc cần làm | Lệnh trong thư mục cài |
+| --- | --- |
+| Chạy và mở dashboard | `.\UmiBridge.cmd` |
+| Dừng gateway hiện tại | `.\UmiBridge.cmd -Action stop` |
+| Kiểm tra/sửa tunnel | `.\UmiBridge.cmd -Action repair` |
+| Chuyển sang Administrator | `.\UmiBridge.cmd -Action admin` |
+| Chuyển về quyền thường | `.\UmiBridge.cmd -Action normal` |
+| Ghép máy phụ | `.\UmiBridge.cmd -Action pair` |
+| Chạy Agent trên máy phụ | `.\UmiBridge.cmd -Action agent` |
 
-Trong **Skills**, bật những skill bạn muốn dùng, chẳng hạn `impeccable` hoặc `ui-ux-pro-max` cho thiết kế giao diện. Bật **hướng dẫn MCP tự động** trong Tools để UmiBridge gửi danh sách quyền hiện tại và các skill đã chọn khi kết nối; sau thay đổi, kết quả công cụ tiếp theo sẽ bổ sung hướng dẫn mới. Các kết quả sau đó kèm lời nhắc ngắn để chat mới dùng chung kết nối vẫn nhận được gợi ý skill. Xem trước nội dung ngay tại Tools. Model được hướng dẫn đọc skill phù hợp trước khi áp dụng; nội dung đầy đủ và script của skill không tự chạy.
+## Kết nối ChatGPT với máy Windows
 
-Đây là hướng dẫn qua MCP, không sửa system prompt hoặc thay quyền xác nhận của ChatGPT. Công tắc kiểm soát từng tên công cụ, không tạo sandbox hệ điều hành: khi PowerShell được bật, lệnh shell vẫn có thể thao tác file và hệ thống. Tắt hướng dẫn tự động chỉ ngừng bổ sung prompt; các công cụ đã tắt vẫn bị từ chối. Mỗi mục lưu ngay, không cần nhập lại URL hoặc mã kết nối. Sau cập nhật bản phát hành, dùng **Làm mới công cụ** trong cài đặt plugin ChatGPT để cập nhật mô tả công cụ.
+Kết nối MCP cấp công cụ thao tác máy. Đây là bước riêng với ghép extension Corp.
+
+1. Mở **Settings / Cài đặt** trên dashboard, tìm **MCP endpoint** và **Connection code**.
+2. Trong phần cài đặt ứng dụng/connector của ChatGPT, tạo kết nối MCP với endpoint đó. Tên và vị trí menu phụ thuộc giao diện ChatGPT hiện tại.
+3. Chọn **OAuth**, đăng ký client **Dynamic / DCR**, để trống Client ID và Client secret.
+4. Trang UmiBridge hiện yêu cầu kết nối. Kiểm tra đúng ứng dụng bạn vừa thêm, nhập **Connection code** rồi cho phép.
+5. Trong chat cần làm việc, chọn hoặc nhắc tên connector UmiBridge. Thử yêu cầu chỉ đọc, chẳng hạn: “Dùng UmiBridge liệt kê thư mục dự án của tôi, chưa sửa tệp.”
+6. Kiểm tra **Requests / Yêu cầu** trên dashboard để thấy công cụ, kết quả và exit code thực.
+
+Giữ kín connection code, mã ghép, token và dữ liệu OAuth. Không gửi chúng vào chat hoặc issue. Tunnel cố định giúp giữ endpoint sau khi khởi động lại. Nếu ChatGPT có công cụ cũ sau cập nhật, dùng **Làm mới công cụ** trong phần cài đặt connector.
+
+## Các trang dashboard dùng để làm gì?
+
+| Trang | Công việc chính |
+| --- | --- |
+| **Overview / Tổng quan** | Xem gateway, trạng thái kết nối và tổng request. |
+| **Analytics / Phân tích** | Xem token tham chiếu, độ trễ, tỷ lệ thành công, bảng chi tiết và ngân sách. |
+| **Projects & chats / Dự án và chat** | Gắn thư mục máy với link Project hoặc chat; nhóm lịch sử và chọn nhóm điều phối. |
+| **Corp** | Giao việc theo chuỗi chat, bàn giao kết quả và xem văn phòng hoạt ảnh. |
+| **Requests / Yêu cầu** | Đọc tham số được lưu, stdout, stderr, exit code, thời gian và trạng thái công cụ. |
+| **Devices / Thiết bị** | Ghép/thu hồi máy Windows phụ và xem job của Agent. |
+| **Tools / Công cụ** | Bật/tắt từng công cụ, từng nhóm và hướng dẫn MCP tự động. |
+| **Skills** | Chọn tài liệu hướng dẫn cho model, xem trước nội dung. |
+| **Settings / Cài đặt** | Endpoint, mã kết nối, quyền chạy, giao diện và chu kỳ làm mới. |
+| **Workflows** | Sổ nhiệm vụ thủ công, hiện khi được bật trong profile. |
+
+Đổi ngôn ngữ và giao diện sáng/tối bằng điều khiển trên thanh trên cùng. Corp có các tab **Văn phòng**, **Từ ý tưởng**, **Arena**, **Hàng đợi**; form **Giao việc** nằm trong Hàng đợi và chỉ mở lúc cần. Danh sách nhân viên và nội dung dài cuộn trong vùng tương ứng.
+
+## Thêm toàn bộ ChatGPT Project
+
+Nếu muốn mọi chat nhân viên nằm trong cùng Project, hãy thêm **link Project**, thay vì thêm từng link chat riêng lẻ.
+
+1. Trong ChatGPT, tạo hoặc mở Project của bạn. Sao chép link dạng `https://chatgpt.com/g/g-p-.../project`.
+2. Mở **Projects & chats**, nhập tên dễ nhớ, thư mục mã trên Windows và link Project. Lưu lại.
+3. Trong Chrome/Edge đã ghép Corp, mở trang Project và tab **Trò chuyện** của Project.
+4. Tại **Corp**, chọn đúng Project rồi bấm **Đồng bộ chat**. Các chat con trở thành nhân viên trong nhóm đó.
+5. Kiểm tra số chat và thông báo đã quét hết. Nếu mới nhận một phần, giữ trang Project mở rồi đồng bộ lại.
+
+Corp lọc văn phòng, người nhận việc và hàng đợi theo Project đang chọn. Với Project có sẵn, tạo hoặc chuyển chat bằng giao diện ChatGPT rồi đồng bộ lại. **Từ ý tưởng** và **Arena** có thể tự tạo Project mới cùng 8 chat bộ phận qua extension; Corp không tự chuyển chat giữa các Project. Thư mục dự án dùng để liên kết công việc, không tạo sandbox quyền tệp cho từng chat.
+
+Vẫn có thể thêm link từng cuộc trò chuyện rồi chọn **Chat riêng lẻ** trong Corp. Không trộn chat riêng vào chuỗi thuộc một Project.
+
+## Cài và ghép extension Corp
+
+Extension gửi/quan sát trong các tab ChatGPT được giao việc. Connector MCP cung cấp công cụ đọc tệp/chạy lệnh. Một chat muốn lập trình trên máy cần cả kết nối công cụ phù hợp và khả năng nhận việc từ Corp.
+
+1. Mở `chrome://extensions/` hoặc `edge://extensions/` bằng thanh địa chỉ của trình duyệt.
+2. Bật **Developer mode / Chế độ nhà phát triển** ở góc trên.
+3. Chọn **Load unpacked / Tải tiện ích đã giải nén**. Chọn thư mục `extensions\umibridge-corp` bên trong thư mục cài UmiBridge. Chọn thư mục có `manifest.json`, không chọn tệp ZIP.
+4. Mở **Corp → Kết nối**, bấm **Tạo mã ghép extension**, rồi chép mã.
+5. Bấm biểu tượng UmiBridge Corp trên thanh extension để mở cài đặt. Nhập địa chỉ local `http://127.0.0.1:43127` cùng mã Corp, chọn **Lưu và kết nối**.
+6. Tải lại các tab ChatGPT đã mở. Corp phải hiện **Đã nối** và số chat đang mở.
+
+**Mã Corp khác Connection code của MCP.** Không dán nhầm hai mã. Tạo mã Corp mới làm mã trước mất hiệu lực; chọn **Thu hồi kết nối** để ngắt extension và tắt điều phối.
+
+Khi cập nhật extension đã cài: trở lại trang extensions, tìm thẻ **UmiBridge Corp**, bấm nút **mũi tên tròn Reload** trên chính thẻ đó, gần phần dưới của thẻ. Đây là nút nạp lại extension, khác nút tải lại trang trên thanh địa chỉ. Sau đó tải lại tab ChatGPT. Nếu nút chưa hiện, kiểm tra Developer mode đang bật. Extension hiện tại là **0.3.0**; phiên bản extension độc lập với phiên bản UmiBridge **1.0.0**.
+
+## Tạo dự án từ một ý tưởng
+
+Sau khi extension đã kết nối, vào **Corp → Từ ý tưởng**. Mặc định **Tạo Project ChatGPT và 8 chat bộ phận mới**; bạn không cần tạo từng chat hoặc nhập từng bước giao việc.
+
+1. Nhập ý tưởng. Có thể chỉ mô tả sản phẩm và vấn đề bạn muốn giải quyết; các bộ phận sẽ làm rõ chi tiết.
+2. Chọn **Lập kế hoạch rồi triển khai đầy đủ**, hoặc **Chỉ làm rõ ý tưởng và lập kế hoạch**.
+3. Giữ **Tự bắt đầu các chặng sau khi tạo đội ngũ** bật để chạy tiếp ngay khi khởi tạo xong. Bỏ chọn nếu muốn kiểm tra Project và đội ngũ trước.
+4. Bật **Điều phối**, bấm **Tạo Project** và giữ Chrome/Edge cùng UmiBridge đang chạy.
+
+Extension tạo Project, lần lượt tạo 8 chat cho Điều hành, Sản phẩm, Thiết kế, Kỹ thuật, QA, Bảo mật, DevOps và Tài liệu, rồi tự phân công vai trò. Dashboard ghi tiến độ `0/8` đến `8/8` và chuyển sang Project mới. Tên Project có hậu tố UMI để nhận diện lần khởi tạo và tránh tạo trùng. Thư mục local mới nằm trong `Documents\UmiBridge Projects`; ý tưởng gốc được lưu tại `UMI-IDEA.md`.
+
+Luồng đầy đủ gồm 11 chặng: làm rõ ý tưởng, thiết kế giải pháp, chốt kế hoạch, triển khai MVP, kiểm thử độc lập, rà soát bảo mật, sửa lỗi, nghiệm thu sau sửa, chạy thử local, viết hướng dẫn và bàn giao. Khi nghiệm thu sau sửa còn lỗi, hệ thống thêm một vòng kỹ thuật sửa và QA kiểm lại, tối đa 13 chặng/2 vòng sửa. Kế hoạch, nghiệm thu cuối, chạy local và bàn giao phải có báo cáo đạt cùng bằng chứng; phản hồi thiếu báo cáo, thiếu công cụ hoặc bị chặn sẽ dừng thay vì ghi hoàn tất.
+
+Các báo cáo chi tiết nằm dưới `.umibridge-projects/<mã quy trình>/` trong thư mục dự án. Chat cần sử dụng connector UmiBridge đã kết nối để đọc/sửa tệp và chạy kiểm thử. Chất lượng và bằng chứng do các bộ phận báo cáo; việc nhận được phản hồi không tự chứng minh sản phẩm đã đạt. Quy trình chạy và bàn giao local, không tự publish/deploy hoặc mua dịch vụ.
+
+Muốn dùng Project cũ, đổi **Project làm việc** thành **Dùng Project đang chọn**. Phân công đã lưu được ưu tiên; tên chat rõ ràng có thể được gợi ý theo bộ phận. Chat thiếu hoặc tên mơ hồ cần được phân công trước. **Chỉ lập kế hoạch** chạy 3 chặng và không giao phần lập trình.
+
+Khởi tạo được lưu cùng hàng đợi Corp. Nếu thao tác tạo chưa được xác nhận, hệ thống dừng ở **Cần kiểm tra**. Kiểm tra tab đã tạo trước khi bấm **Kiểm tra và tiếp tục**; không tự tạo lại sau khi mất tab hoặc khởi động lại. Hủy khởi tạo giữ lại Project/chat và tệp đã tạo để bạn đối chiếu, không tự xóa chúng.
+
+Tính năng tạo Project cần extension **0.3.0**. Sau khi cập nhật source, bấm Reload ở thẻ UmiBridge Corp trong trang quản lý extension. Gateway giữ mã ghép hiện có. Adapter chỉ thao tác giao diện đang hiển thị, không dùng cookie hoặc API nội bộ ChatGPT. Giao diện hoặc đăng nhập thay đổi có thể làm khởi tạo dừng để kiểm tra.
+
+## Arena từ một ý tưởng
+
+Trong **Corp → Arena**, nhập ý tưởng, chọn **20**, **50** hoặc **100** sản phẩm và thể thức. Mặc định **Vòng bảng + loại trực tiếp**; có thể chọn **Loại trực tiếp**. Arena luôn chuẩn bị **một Project ChatGPT mới với 8 chat bộ phận bên trong**; các sản phẩm dùng lại đội ngũ này theo thứ tự, không tạo chat riêng cho từng sản phẩm. Mỗi sản phẩm có thư mục local riêng trong `.umibridge-arenas` của thư mục Project.
+
+1. Bấm **Tạo Project Arena**. Điều phối đang tắt thì yêu cầu khởi tạo được lưu tạm dừng; bật Điều phối rồi bấm **Bắt đầu** trên thanh khởi tạo khi sẵn sàng.
+2. Extension tạo Project trước, sau đó lần lượt tạo 8 chat bên trong Project và phân công bộ phận. Dashboard ghi đúng tiến độ và dừng nếu chưa xác nhận được thao tác.
+3. Khi khởi tạo xong, dashboard chọn Project mới và mở Arena ở trạng thái **Tạm dừng**. Kiểm tra chat, connector UmiBridge và thư mục, rồi bấm **Bắt đầu** trên Arena để phát triển sản phẩm.
+4. Sau khi tất cả sản phẩm hoàn tất và có bằng chứng bàn giao, giám khảo so sánh từng cặp, ghi điểm, lý do và kiểm tra thực. Thể thức mặc định chia bảng 5 sản phẩm, đấu vòng tròn một lượt rồi lấy 2 sản phẩm đầu mỗi bảng vào loại trực tiếp. Thể thức **Loại trực tiếp** vào sơ đồ đấu ngay; số lẻ được miễn đấu một lượt.
+5. Phần **Sản phẩm thắng** hiện tên, kết luận và đường dẫn bàn giao khi giải đấu hoàn tất. Không có báo cáo đạt thì không tự ghi nhận thành công.
+
+Mỗi Arena có 5 tab: **Trực tiếp** theo dõi sản phẩm hoặc trận đang xử lý; **Vòng bảng** xem xếp hạng và các trận; **Sơ đồ đấu** xem đủ vòng loại trực tiếp; **Lịch sử** lọc các trận đã chấm; **Sản phẩm** xem từng phương án, trạng thái và thư mục. Kết quả trận, điểm, lý do, bằng chứng và lịch sử điều phối được lưu qua khởi động lại. Hoạt ảnh chỉ biểu thị trạng thái xử lý được ghi nhận, không tạo điểm hoặc đoán kết quả; chế độ giảm chuyển động giữ thông tin tĩnh.
+
+Mỗi trận dùng cùng thang 100 điểm: **Yêu cầu / chức năng 35**, **Trải nghiệm sử dụng 15**, **Kiểm thử / bằng chứng 20**, **Bảo mật 15**, **Chạy local / tài liệu 15**. Báo cáo phải có điểm và lý do cho đủ 5 tiêu chí, tổng điểm khớp, kiểm tra cho cả hai sản phẩm và tệp bằng chứng thật không rỗng trong thư mục tương ứng. Điểm bằng nhau cần lý do phân thắng. Các cổng này kiểm tra báo cáo và tệp bằng chứng; không tự chứng nhận chất lượng nội dung hay kết quả lệnh.
+
+Vòng bảng tính **3 điểm mỗi trận thắng**. Xếp hạng lần lượt theo điểm trận, hiệu số điểm chấm, tổng điểm chấm, rồi thứ tự hạt giống ban đầu. Chỉ xác nhận 2 suất đi tiếp khi bảng đã chấm xong.
+
+Arena dùng 11 chặng xây dựng đầy đủ cho mỗi sản phẩm, không có chế độ chỉ lập kế hoạch. Khối lượng cơ bản gồm `11 × số sản phẩm + số trận chấm`:
+
+| Sản phẩm | Vòng bảng + loại trực tiếp: trận / lượt giao việc | Loại trực tiếp: trận / lượt giao việc |
+| --- | --- | --- |
+| 20 | 47 / 267 | 19 / 239 |
+| 50 | 119 / 669 | 49 / 599 |
+| 100 | 239 / 1.339 | 99 / 1.199 |
+
+Các vòng sửa lỗi có thể tăng số lượt; đây không phải ước tính giá hoặc hạn mức tài khoản. Lựa chọn thể thức được lưu khi tạo Arena và không đổi giữa giải.
+
+**Tạm dừng** ngăn lượt gửi tiếp theo; kết quả của lượt đang chạy vẫn được ghi nhận. **Đã kiểm tra - chuẩn bị thử lại** yêu cầu đối chiếu chat/tệp trước, đưa Arena về tạm dừng, rồi mới bấm Bắt đầu. **Hủy Arena** giữ lại Project, chat và tệp; không dừng thay lệnh hệ điều hành đã được gửi. Quy trình sản phẩm/giám khảo được gom trong tab Arena, không trải thành hàng trăm nhiệm vụ trong hàng đợi thường.
+
+Các tab **Văn phòng**, **Từ ý tưởng**, **Arena**, **Hàng đợi** chiếm cùng vùng làm việc, nhớ tab đã chọn và hỗ trợ phím mũi tên, Home/End. Các tab trong mỗi Arena cũng hỗ trợ bàn phím và nhớ lựa chọn. Danh sách Arena lọc theo Project đang chọn; form tạo mới luôn tạo Project riêng. Phạm vi chính là desktop/laptop. Kiểm tra reflow màn hình hẹp bổ sung không chứng nhận sản phẩm trên điện thoại. Chưa xác minh giải đấu tạo sản phẩm trọn vẹn bằng tài khoản ChatGPT thật.
+
+## Giao việc cho các chat
+
+1. Mở sẵn các chat con cần dùng trong Project. Trong mỗi chat cần thao tác máy, gắn connector UmiBridge và thử một lệnh chỉ đọc trước.
+2. Chọn Project trong Corp và bật **Điều phối**.
+3. Bấm **Giao việc**, đặt tên nhiệm vụ. Chọn chat, vai trò và yêu cầu cụ thể cho bước đầu.
+4. Bấm **Thêm bước bàn giao** để thêm người nhận tiếp theo. Tối đa 12 bước cho một nhiệm vụ. Ví dụ: lập yêu cầu, lập trình, kiểm thử.
+5. Bấm **Lưu nhiệm vụ**. Nhiệm vụ được lưu ở trạng thái tạm dừng để kiểm tra lại.
+6. Bấm **Bắt đầu** trên thẻ nhiệm vụ. Corp gửi bước đầu, chờ phản hồi hoàn tất rồi đính kèm kết quả vào `previous_result` cho bước tiếp theo.
+7. Theo dõi hàng đợi; mở **Kết quả bàn giao** để đọc phản hồi đã nhận, hoặc **Mở chat** để đối chiếu công cụ và kết quả gốc.
+
+Viết yêu cầu kèm thư mục, phạm vi được sửa, đầu ra và tiêu chí nghiệm thu. Nếu muốn chỉ giám sát, giao viết mã cho một chat và kiểm thử cho chat khác. Corp chạy chuỗi do bạn đặt; nội dung model trả lời không tự tạo thêm bước hoặc tự chọn người nhận.
+
+| Điều khiển | Hiệu lực |
+| --- | --- |
+| **Tạm dừng** trên nhiệm vụ | Ngăn bước gửi tiếp theo; vẫn ghi nhận kết quả của bước đã gửi. |
+| **Điều phối: Tắt** | Ngăn lượt gửi mới trong toàn bộ hàng đợi. |
+| **Văn phòng: Tắt** | Ẩn hoạt ảnh; không dừng điều phối. |
+| **Hủy** | Kết thúc theo dõi nhiệm vụ trong Corp. Lệnh/câu trả lời đã gửi có thể vẫn đang chạy. |
+| **Đã kiểm tra chat - chuẩn bị thử lại** | Chuẩn bị lần thử sau khi bạn đã đối chiếu tình trạng gửi; vẫn cần bấm Bắt đầu. |
+| **Xóa khỏi hàng đợi** | Bỏ nhiệm vụ đã kết thúc khỏi danh sách; không xóa chat hoặc số liệu usage đã ghi. |
+
+Corp giữ bản nháp hiện có, không chen vào chat đang phản hồi, không tự đổi tài khoản/model. Nếu không xác nhận được lần gửi, Corp chặn để kiểm tra trước khi thử lại. Mỗi chat nhận tối đa một bước đang thực hiện; những chat khác có thể nhận nhiệm vụ riêng.
+
+## Hết limit thì chuyện gì xảy ra?
+
+Corp đọc thông báo hạn mức thực trên giao diện ChatGPT, chẳng hạn `in 2h 11m`, `in 2h 29min`, `2h 37m`. Corp lưu giờ reset tuyệt đối kèm 15 giây dự phòng và hiển thị đếm ngược trong hàng đợi.
+
+Nếu bật **Tự tiếp tục sau reset**, đến mốc Corp kiểm tra lại đúng chat. Hạn mức vẫn còn thì lưu mốc mới và chờ tiếp. Nếu lần trước đã gửi, lời nhắc tiếp tục yêu cầu kiểm tra tiến độ đã có để tránh lặp thao tác. Nếu chưa gửi thì gửi việc đang chờ.
+
+Không đọc được giờ reset, gửi không rõ kết quả, chat rời Project, phản hồi vượt 48.000 ký tự hoặc chờ phản hồi quá 45 phút: nhiệm vụ cần kiểm tra. Không dùng số token ước tính để đoán tài khoản đã hồi limit. Đếm ngược về 0 chưa chứng minh nhà cung cấp đã mở lại.
+
+Gateway và trình duyệt phải đang hoạt động. Corp giữ hàng đợi qua khởi động lại nhưng không đánh thức Windows; tab nền có thể cập nhật chậm hơn. Chi tiết cách phục hồi: [Hướng dẫn Corp](docs/CORP.vi.md).
+
+## Văn phòng: zoom và nhiều nhân viên
+
+- **− / +**: thu/phóng bản đồ từ 75% đến 200%. Tên/trạng thái trong tooltip giữ nguyên cỡ chữ.
+- **Vừa khung**: chọn tỷ lệ theo khung hiện tại khi bấm, tối thiểu 75%. Sau đó đổi kích thước hoặc mở rộng không tự đổi zoom.
+- **Mở rộng**: mở thêm diện tích ngang, tạm ẩn hàng đợi. Phòng giãn ngang và sắp thêm bàn mỗi hàng, giữ nguyên tỷ lệ nhân vật/nội thất. Bấm **Thu gọn** hoặc **Esc** để trở lại.
+- Trỏ chuột hoặc dùng **Tab** đến nhân viên để hiện tên, chấm màu trạng thái và bộ phận. **Esc** đóng tooltip. Tên không che bản đồ thường trực; chọn nhân viên tại bàn hoặc trong **Đội ngũ** để xem nhiệm vụ và mở chat.
+- Bàn dàn đều theo chiều rộng và chiều cao còn trống, chia số nhân viên cân giữa các hàng và căn giữa hàng chưa đủ bàn. Khu chờ cách hàng bàn đầu bằng một lối đi; chấm trạng thái nằm trong góc trên bên phải từng ô chỗ ngồi. Đội đông thêm hàng và cuộn trong bản đồ; danh sách **Đội ngũ**, chi tiết và **Bàn giao gần đây** ở cột bên. Chữ **UMIBRIDGE / CORP**, **Khu chờ** dùng HTML rõ nét.
+- Khi hàng đợi của bộ lọc đang chọn trống, nó thu thành thanh gọn bên dưới để dành chiều ngang cho văn phòng. Chọn **Tất cả** hoặc **Đã xong** để xem nhiệm vụ cũ.
+- **Giảm chuyển động** giữ trạng thái tĩnh. Tùy chọn giảm chuyển động của hệ điều hành cũng được tôn trọng.
+
+Nhân viên gõ phím lúc gửi, chờ lúc đợi phản hồi/reset, đọc lúc có kết quả, đi giao hồ sơ khi sổ nhiệm vụ ghi nhận bàn giao thật. “Chờ phản hồi” không xác nhận model đang suy nghĩ. Mở lại văn phòng không phát lại các bàn giao cũ.
+
+## Quản lý token và ngân sách
+
+Mở **Analytics / Phân tích**. Chọn **Công cụ MCP**, **Chat Corp** hoặc cả hai; lọc theo ngày, ứng dụng, công cụ, trạng thái và nội dung tìm kiếm.
+
+| Mục | Có thể xem/làm |
+| --- | --- |
+| **Tổng quan** | Input, output, tổng token tham chiếu, số lượt, thành công, độ trễ, biểu đồ và nhóm thống kê. |
+| **Chi tiết** | 50 lượt mỗi trang, trạng thái, nguồn, thời điểm và số liệu từng lượt. **Xuất trang CSV** xuất đúng trang, không kèm prompt/kết quả/tham số. |
+| **Hạn mức & ngân sách** | Thông báo reset Corp đã quan sát; tự nhập giá USD/1 triệu input-output và ngân sách cho kỳ đang lọc. |
+
+Đây là **ước tính văn bản UmiBridge quan sát bằng tokenizer offline `o200k_base`**, không phải hóa đơn hay số dư tài khoản. Không có dữ liệu đầy đủ về model, reasoning, cache, ảnh hoặc toàn bộ lịch sử ChatGPT. Tổng MCP và Corp có thể trùng nội dung.
+
+MCP đọc toàn bộ nhật ký còn lưu. Corp giữ tối đa 5.000 attempt gần nhất, chỉ tính lần đã xác nhận gửi; lượt thiếu output được đánh dấu một phần. Không dựng lại số liệu những chat cũ chưa từng được theo dõi. Giá/ngân sách bạn nhập lưu trong trình duyệt; cảnh báo chỉ tham khảo, không tự chặn nhiệm vụ hoặc thay đổi gói dịch vụ.
+
+## Công cụ, skill và quyền truy cập
+
+Trong **Tools**, tìm tên hoặc chọn nhóm để bật/tắt. Lựa chọn có hiệu lực cho lệnh mới dù ChatGPT còn cache danh sách cũ. Nhóm File, PowerShell và Windows cũng áp dụng cho thao tác tương ứng trên Agent.
+
+Trong **Skills**, bật tài liệu muốn model tham khảo và xem trước nội dung. **Hướng dẫn MCP tự động** gửi lựa chọn công cụ/skill khi khởi tạo và bổ sung sau thay đổi. Model được hướng dẫn đọc skill phù hợp; script của skill không tự chạy. Tắt hướng dẫn không bật lại công cụ đã khóa.
+
+Các lựa chọn này không thay system prompt hoặc quyền xác nhận của ChatGPT. Chúng cũng không tạo sandbox hệ điều hành: cho phép PowerShell đồng nghĩa cho phép lệnh shell thao tác với quyền Windows hiện tại. Chỉ bật nhóm phù hợp công việc.
+
+| Nhóm Windows | Ví dụ công cụ |
+| --- | --- |
+| Quan sát | `windows_snapshot`, `windows_screenshot`, `windows_display_inventory`, `windows_control_status` |
+| Chuột/phím | `windows_click`, `windows_type`, `windows_scroll`, `windows_move`, `windows_shortcut`, `windows_multi_select`, `windows_multi_edit` |
+| Ứng dụng/hệ thống | `windows_app`, `windows_process`, `windows_clipboard`, `windows_notification`, `windows_registry` |
+| Tệp/nội dung/chờ | `windows_scrape`, `windows_file_system`, `windows_wait`, `windows_wait_for` |
+| Máy phụ | `windows_status`, `windows_on_device` |
+
+Dùng `windows_snapshot` trước thao tác để lấy giao diện hiện tại. Dùng `run_command` cho PowerShell ẩn. **Settings → Windows tools → Pause** ngăn lệnh desktop mới, vẫn cho phép tệp/shell. Windows tools không điều khiển UAC/secure desktop hoặc Session 0.
+
+Bộ Windows-MCP của [CursorTouch](https://github.com/CursorTouch/Windows-MCP) được ghim tại `e28abb5c6934cb3427190bdb970e02644c915ae3`, chạy stdio nền; telemetry và watchdog tùy chọn tắt. Ảnh MCP không lưu vào request journal; nội dung nhập/clipboard/giá trị registry được che. Token ảnh không được ước tính. Xem [nguồn và giấy phép](THIRD_PARTY_NOTICES.md).
 
 ## Quyền thường và Administrator
 
-Trong **Settings → Quyền chạy UmiBridge**, xem riêng **Quyền hiện tại** và **Lần mở sau**. Quyền thường là mặc định. Chọn **Bật Administrator** để Windows xác nhận và lưu chế độ chạy cho tài khoản đang đăng nhập. Windows có thể hỏi đồng ý hoặc thông tin đăng nhập theo chính sách UAC của máy; dashboard không nhận hay lưu mật khẩu.
+**Settings → Quyền chạy UmiBridge** hiển thị riêng quyền hiện tại và chế độ lần mở sau. Bắt đầu bằng quyền thường. Chỉ bật Administrator khi nhiệm vụ cần quyền đó.
 
-Nếu Windows đã được cấu hình tự cấp quyền cho tài khoản admin, UAC có thể không hiện hộp thoại. UmiBridge giữ nguyên chính sách đó; thao tác đổi chế độ vẫn được kiểm tra bằng token admin thật.
+Chọn **Bật Administrator** hoặc chạy `UmiBridge.cmd -Action admin`. Windows có thể hỏi UAC; tự xác nhận trên cửa sổ Windows. UmiBridge không nhận/lưu mật khẩu và không thay chính sách UAC. Chế độ ghi nhớ yêu cầu cùng tài khoản thuộc nhóm Administrators.
 
-Sau khi bật thành công, vẫn chỉ mở **UmiBridge.cmd** mỗi ngày. Launcher chạy bộ mã và runtime đã được bảo vệ trong `%ProgramData%\UmiBridge`, giữ URL, OAuth và các lựa chọn công cụ/skill đã lưu. PowerShell tiếp tục chạy ẩn; cửa sổ CMD hiện có chỉ theo dõi request. Chọn **Dùng quyền thường** để tắt chế độ; thao tác này cần xác nhận Windows bằng quyền admin và chuyển dữ liệu riêng về bản thường.
+Bản Administrator dùng mã/runtime được bảo vệ trong `%ProgramData%\UmiBridge`; không tự chạy source vừa sửa trong thư mục giải nén. Vẫn mở **UmiBridge.cmd** mỗi ngày. Chọn **Dùng quyền thường** hoặc `-Action normal` để chuyển lại; dữ liệu được di chuyển qua lifecycle có kiểm tra digest. Các lựa chọn công cụ vẫn áp dụng ở cả hai chế độ.
 
-Chế độ được ghi nhớ yêu cầu cùng một tài khoản Windows thuộc nhóm Administrators. UmiBridge không lưu mật khẩu của tài khoản khác để cấp quyền cho tài khoản thường. Nếu Windows hiện màn hình UAC hoặc hỏi mật khẩu, chính người dùng thao tác tại cửa sổ Windows.
+## Ghép thêm máy Windows
 
-Lệnh nâng cao vẫn dùng một launcher: `UmiBridge.cmd -Action admin` hoặc `UmiBridge.cmd -Action normal`. `-Action stop` dừng phiên hiện tại mà không xóa chế độ đã lưu. Nếu source đã cập nhật, chuyển về quyền thường rồi bật lại Administrator để cấp quyền cho bản sao mã mới; bản admin không tự chạy mã vừa sửa ở thư mục source.
+Máy chính chạy gateway. Tại **Devices**, tạo mã ghép. Trên máy phụ có cùng bản UmiBridge, chạy `UmiBridge.cmd -Action pair`, nhập Hub URL và mã. Sau đó chạy `UmiBridge.cmd -Action agent`.
 
-Đối với công việc thường ngày, bật đọc/sửa/tìm file, `run_command`, quan sát cửa sổ và những thao tác chuột/phím cần dùng. Các lệnh sửa Registry, kết thúc tiến trình và clipboard chỉ nên bật khi nhiệm vụ cần đến chúng. Các công tắc công cụ vẫn áp dụng trong cả hai chế độ; lệnh được phép chạy admin có quyền tương ứng của Windows.
+Agent kết nối outbound, nhận job qua `device_id`, trả stdout/stderr/exit code hoặc kết quả tệp. Thu hồi thiết bị tại **Devices** khi không dùng. Desktop trên Agent cần runtime và phiên Windows mở khóa. Ảnh máy phụ giữ tạm tối đa tám kết quả trong bộ nhớ; sau restart cần chụp lại. Nghiệm thu vật lý hiện giới hạn một máy Windows; xem [giới hạn kiểm thử](docs/ACCEPTANCE.vi.md).
 
-## Corp - điều phối chat và văn phòng hoạt ảnh
+## Workflows: sổ nhiệm vụ tùy chọn
 
-Từ beta.26, **Projects & chats** nhận cả link Project ChatGPT (`https://chatgpt.com/g/g-p-.../project`). Thêm Project một lần, mở trang Project trong Chrome, chọn Project trong Corp rồi **Đồng bộ chat**. Chat con trở thành nhân viên; văn phòng và hàng đợi chỉ hiển thị nhóm đang chọn. Các bước trong một nhiệm vụ Project phải thuộc cùng nhóm. Sau khi cập nhật, Reload extension UmiBridge Corp để nhận adapter 0.2.1.
+Workflows ghi nhiệm vụ người dùng, trạng thái và liên kết request/job bằng thao tác rõ ràng. Nó không tự gửi chat hoặc tự chạy lại lệnh. Dùng Corp cho chuỗi chat tự bàn giao.
 
-Từ beta.24, **Phân tích** có bộ lọc thời gian/nguồn/ứng dụng/công cụ, biểu đồ input-output, bảng chi tiết phân trang, xuất CSV và ngân sách tham khảo. Token MCP đọc toàn bộ nhật ký; token Corp tính các lượt đã xác nhận từ bản này. Số đếm là ước tính payload, không phải hóa đơn hoặc hạn mức tài khoản. Model, cache, reasoning và số dư nhà cung cấp chưa có dữ liệu.
-
-Corp dùng bố cục văn phòng và hàng đợi cùng màn hình; **Giao việc** và **Kết nối** mở khi cần. Chỉ phát triển desktop/laptop.
-
-Từ beta.23, mở **Corp** ngay trong dashboard UmiBridge. Thêm các chat tại **Projects & chats**, nạp extension trong `extensions/umibridge-corp` vào Chrome/Edge, ghép bằng mã Corp rồi chọn chuỗi giao việc. Bật điều phối và bấm **Bắt đầu** trên nhiệm vụ để gửi thật vào các tab chat đang mở.
-
-Corp đọc thông báo như `in 2h 11m`, `in 2h 29min`, `2h 37m`, lưu mốc reset và tiếp tục cùng nhiệm vụ khi đến giờ nếu bật tự tiếp tục. Không đọc được giờ hoặc không xác nhận đã gửi thì dừng để kiểm tra, không tự gửi trùng. **Văn phòng: Bật/Tắt** chỉ đổi hiển thị; nhân viên và hoạt ảnh bàn giao phản ánh hàng đợi thật.
-
-Chỉ hỗ trợ desktop/laptop. Xem [hướng dẫn Corp và giới hạn nghiệm thu](docs/CORP.vi.md). Prompt và kết quả bàn giao lưu riêng trong `.local-data/corp-state.json`, không đưa vào Git hoặc ZIP. Bản Administrator cần cập nhật qua cơ chế Windows đã có để nhận runtime mới.
-
-## Workflows
-
-Workflows là sổ theo dõi cục bộ cho một yêu cầu công việc cấp người dùng. Một workflow có thể gắn nhiều `request_id` và tối đa một `job_id` đang hoạt động; nó không tạo thêm MCP tool-call và không tự gửi lại lệnh. Trạng thái đi qua `queued`, `running`, `waiting`, `paused`, `review`, `blocked`, `done`, `archived` hoặc `cancelled`. Pause, resume và link job cần thao tác rõ ràng trong dashboard. Job thực thi qua MCP/device relay hiện có; `dispatch_key` chỉ chống gắn job trùng vào workflow, không chống chạy lại lệnh khi gọi MCP lần nữa.
-
-Tính năng tắt mặc định. Bật tạm bằng biến môi trường `UMIBRIDGE_WORKFLOWS=1`, hoặc bật bền vững bằng file rỗng `.local-data/profile/workflows-enabled`, rồi khởi động lại gateway. Marker chỉ áp dụng cho profile đó; khi không có marker và biến môi trường không bằng `1`, dashboard ẩn Workflows và gateway không tạo journal mới.
-
-Để dùng trong Administrator, trước tiên chuyển về Normal bằng `UmiBridge.cmd -Action normal`. Trong thư mục source gốc, tạo marker rồi khởi động lại gateway Normal:
+Mặc định Workflows tắt. Để bật bền vững, về Normal, dừng gateway rồi tạo marker trong thư mục cài:
 
 ```powershell
 New-Item -ItemType Directory -Path .local-data\profile -Force | Out-Null
 New-Item -ItemType File -Path .local-data\profile\workflows-enabled -Force | Out-Null
+.\UmiBridge.cmd
 ```
 
-Sau khi gateway Normal hoạt động, chạy `UmiBridge.cmd -Action admin` để Windows cấp quyền cho bản sao hiện tại. Profile và marker được chuyển qua lifecycle chuẩn với ACL bảo vệ; không cần đổi biến môi trường Windows hoặc sửa trực tiếp thư mục `%ProgramData%`. Muốn tắt bền vững, trở về Normal, xóa marker, bỏ biến môi trường bật tạm và khởi động lại; nếu tiếp tục dùng Admin, bật lại bằng launcher.
+Cũng có thể bật tạm bằng `UMIBRIDGE_WORKFLOWS=1` trong môi trường khởi chạy. Muốn tắt, về Normal, dừng, xóa đúng marker và bỏ biến bật tạm rồi mở lại. Nếu dùng Administrator, bật lại sau khi Normal đã nhận cấu hình. Không sửa trực tiếp `%ProgramData%`.
 
-Dữ liệu nằm trong `.local-data/workflows.jsonl`, được giữ cùng production state và kiểm tra digest khi chuyển Normal/Admin. Ledger tự phục hồi dòng cuối bị cắt và chuyển workflow `running` mất job sau restart về `waiting` với lý do `gateway_restart`. Khi import, workflow đang `running` cũng chuyển về `waiting` với lý do `import_requires_resume` để luôn cần thao tác resume rõ ràng. Export dùng dữ liệu đã lọc, chỉ nhận baseline hash là SHA-256 metadata, loại URL, token, secret và khóa dispatch; import/export và mọi thay đổi đều cần header thao tác local-admin hiện tại.
+Ledger ở `.local-data/workflows.jsonl`; có trạng thái queued/running/waiting/paused/review/blocked/done/archived/cancelled, liên kết request và một job hoạt động. Sau restart/import, nhiệm vụ đang chạy chuyển chờ để người dùng đối chiếu. Export loại URL/token/secret/khóa dispatch; không dùng export làm bản sao đầy đủ dữ liệu runtime.
 
-## Công cụ Windows
+## Cập nhật và sao lưu
 
-Bộ [Windows-MCP của CursorTouch](https://github.com/CursorTouch/Windows-MCP) được ghim tại commit `e28abb5c6934cb3427190bdb970e02644c915ae3`, chạy bằng stdio riêng dưới nền. Không mở thêm cổng, tạo scheduled task riêng hay thay OAuth của UmiBridge. Telemetry và watchdog tùy chọn được tắt.
+1. Dừng giao việc mới, đối chiếu các chat/lệnh đang chạy. Đợi chúng kết thúc trước khi thay runtime.
+2. Nếu đang Administrator, chạy `UmiBridge.cmd -Action normal` để đưa dữ liệu về bản thường qua lifecycle chuẩn.
+3. Dừng gateway bằng `UmiBridge.cmd -Action stop`.
+4. Sao lưu riêng thư mục `.local-data` vào nơi bạn kiểm soát. Đây là dữ liệu riêng, có OAuth/mã ghép/prompt/kết quả; không tải lên GitHub hoặc gửi vào chat. Giữ `.runtime` để tránh tải lại runtime.
+5. Tải ZIP mới và kiểm tra checksum. Giải nén đè các **tệp phát hành** vào đúng thư mục cài; giữ `.local-data` và `.runtime` hiện có. Không trộn mã từ nhiều phiên bản.
+6. Mở **UmiBridge.cmd**, kiểm tra dashboard và quyền hiện tại. Nếu cần Administrator, bật lại để Windows cấp quyền cho bản sao mới.
+7. Nếu extension thay đổi, Reload thẻ UmiBridge Corp và tải lại các tab ChatGPT. Nếu MCP thay đổi, làm mới công cụ trong connector.
 
-| Nhóm | Công cụ |
+Không chỉ chạy `Admin-Mode.ps1 -Action update` để cập nhật ứng dụng: thao tác đó cập nhật helper, không thay toàn bộ app payload. Dùng quy trình Normal rồi Admin nêu trên. Không chép tay vào thư mục được bảo vệ.
+
+Muốn phục hồi: dừng Normal, giữ bản dữ liệu hiện tại riêng, khôi phục bản `.local-data` đã sao lưu cùng source tương thích rồi mở lại. Không khôi phục đè khi gateway đang ghi dữ liệu. Lệnh đã chạy trên máy không được hoàn tác bằng phục hồi nhật ký.
+
+## Lỗi thường gặp
+
+| Hiện tượng | Cách kiểm tra và xử lý |
 | --- | --- |
-| Quan sát | `windows_snapshot`, `windows_screenshot`, `windows_display_inventory`, `windows_control_status` |
-| Chuột và phím | `windows_click`, `windows_type`, `windows_scroll`, `windows_move`, `windows_shortcut`, `windows_multi_select`, `windows_multi_edit` |
-| Ứng dụng và hệ thống | `windows_app`, `windows_process`, `windows_clipboard`, `windows_notification`, `windows_registry` |
-| Nội dung và chờ | `windows_scrape`, `windows_file_system`, `windows_wait`, `windows_wait_for` |
-| Trạng thái và máy phụ | `windows_status`, `windows_on_device` |
+| Dashboard chưa mở | Chờ `UmiBridge is ready`, mở `http://127.0.0.1:43127/admin`; xem `.local-data/server-error.log` trên máy. |
+| Cổng đã có phiên / `EADDRINUSE` | Dừng bằng launcher của bản đang chạy, rồi mở một bản duy nhất. |
+| ChatGPT không gọi được tool | Xem Settings, Requests, trạng thái tunnel; thử `-Action repair` và kiểm tra OAuth của connector. |
+| Corp offline | Mở đúng Chrome/Edge có extension, kiểm tra local endpoint/mã Corp, tải lại tab. Không nhập Connection code MCP vào extension. |
+| Project chưa có nhân viên | Mở Project → Trò chuyện trong trình duyệt đã ghép; bấm Đồng bộ chat. Tạo/chuyển chat bằng ChatGPT trước. |
+| Đồng bộ chỉ một phần | Giữ Project mở, chờ danh sách tải xong rồi đồng bộ lại. Mỗi lượt tối đa 60 vòng/1.000 chat. |
+| Corp báo bản nháp/chat bận | Mở chat, xử lý bản nháp hoặc đợi phản hồi; đối chiếu lần gửi rồi mới dùng nút chuẩn bị thử lại. |
+| Chat nằm ngoài Project | Mở bằng nút Mở chat trong Corp, đồng bộ lại sau khi chuyển chat. Tab `/c/...` riêng không thay cho URL có Project. |
+| Đếm ngược limit đã hết nhưng chưa gửi | Kiểm tra gateway, trình duyệt, tự tiếp tục và thông báo hạn mức thật. Mốc 0 vẫn cần extension xác minh lại. |
+| Chat chỉ viết kế hoạch | Gắn connector UmiBridge trong chat, kiểm tra công cụ bằng yêu cầu chỉ đọc; ghi rõ cần thực thi và tiêu chí bàn giao. |
+| ChatGPT báo không tải được phản hồi | Corp chặn bàn giao placeholder lỗi. Đối chiếu công cụ và tệp đã tạo, rồi yêu cầu báo cáo ngắn khi đã kiểm tra; tránh chạy lại lệnh đã thành công. |
+| Windows click/screenshot lỗi | Kiểm tra desktop đang mở khóa, Windows tools không Pause, quyền công cụ và cửa sổ hiện tại. |
+| Sửa source nhưng Admin vẫn chạy bản cũ | Về Normal rồi bật Admin lại; đối chiếu phiên bản runtime, không chép đè `%ProgramData%`. |
+| Token không khớp tài khoản | Số liệu chỉ đo payload quan sát, không có billing hoặc toàn bộ context/provider quota. |
 
-Dùng `windows_snapshot` trước khi bấm/gõ để lấy nhãn phần tử và tọa độ hiện tại. `windows_screenshot` trả ảnh thật; tham số `region` giới hạn vùng chụp. `windows_app` mở ứng dụng hoặc chuyển cửa sổ. Tiếp tục dùng `run_command` cho shell để giữ phiên PowerShell ẩn có sẵn.
+Khi báo lỗi, gửi phiên bản, bước tái hiện và log ngắn đã che dữ liệu riêng. Không gửi nguyên `.local-data`, mã kết nối, cookie hoặc token.
 
-**Settings → Windows tools → Pause** chặn các lệnh desktop mới, vẫn cho phép dùng file và PowerShell. Bộ điều phối quyền điều khiển của Windows-MCP giữ nguyên để người dùng giành lại chuột/phím. Máy cần có phiên desktop đang mở khóa; công cụ không điều khiển được UAC/secure desktop hay Session 0.
+## Phát triển và kiểm thử
 
-Ảnh trả trực tiếp qua MCP, không vào request journal. Nội dung gõ, clipboard và giá trị registry được che khỏi lịch sử. Token analytics chỉ đo text, không quy đổi ảnh thành token model. Công cụ desktop trên Agent cần cài cùng runtime; `windows_on_device` dùng nhãn/tọa độ của máy đích. Kết quả ảnh máy phụ chỉ giữ tạm trong bộ nhớ, tối đa tám kết quả; sau restart chỉ còn metadata job, cần chụp lại nếu muốn ảnh mới.
-
-Dependency tải trong lần setup đầu, sau đó dùng cache local và lock SHA-256. Giữ `.runtime` khi cập nhật để tránh tải lại. License và nguồn tham khảo: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-Token dùng tokenizer offline `o200k_base` trên nội dung công cụ mà UmiBridge nhìn thấy. Đây là số tham chiếu, không phải billing hay toàn bộ context của ChatGPT.
-
-## Nhiều máy
-
-Máy chính chạy gateway và dashboard. Trên máy phụ, chép cùng project rồi chạy:
-
-```powershell
-.\UmiBridge.cmd -Action pair
-```
-
-Nhập URL Hub và mã ghép một lần từ trang **Devices**. Sau đó dùng `UmiBridge.cmd -Action agent` trên máy phụ. Agent chỉ kết nối outbound và trả về `job_id`, stdout, stderr, exit code hoặc kết quả file. Thu hồi máy tại Devices khi không còn dùng.
-
-## Các thao tác
-
-| Thao tác | Lệnh |
-| --- | --- |
-| Chạy hằng ngày | `UmiBridge.cmd` |
-| Dừng gateway | `UmiBridge.cmd -Action stop` |
-| Sửa tunnel | `UmiBridge.cmd -Action repair` |
-| Ghép máy | `UmiBridge.cmd -Action pair` |
-| Chạy Agent | `UmiBridge.cmd -Action agent` |
-
-## Khi gặp lỗi
-
-| Hiện tượng | Xử lý |
-| --- | --- |
-| Tool failed | Kiểm tra Requests và endpoint trong Settings; chạy `UmiBridge.cmd -Action repair` nếu tunnel lỗi |
-| Link tạm hết DNS | Dùng tunnel cố định và endpoint trong Settings |
-| Cổng đã có phiên | Chạy `UmiBridge.cmd -Action stop`, rồi mở lại |
-| Dashboard chưa mở | Chờ dòng `UmiBridge is ready`; xem `.local-data/server-error.log` trên máy |
-| Chi tiết đang xem không cập nhật | Đóng chi tiết; tổng số vẫn được làm mới ở nền |
-
-## Quyền riêng tư và phát triển
-
-Kết quả kiểm thử ChatGPT web/Administrator, hai phiên dùng chung connector, hai Agent cục bộ và giới hạn kiểm thử: [Nghiệm thu beta.22](docs/ACCEPTANCE.vi.md).
-
-`.local-data`, `.runtime`, `node_modules`, `local-bin`, log, token và cấu hình tài khoản không vào Git hoặc source ZIP. Lịch sử giới hạn tham số/output và che các secret đã biết. Đừng dùng request history để lưu dữ liệu nhạy cảm.
+Biên bản bản chính thức: [Nghiệm thu 1.0.0](docs/ACCEPTANCE-1.0.vi.md). Source dùng Node.js >=22.12.0. Từ thư mục repo:
 
 ```powershell
 npm ci
@@ -156,14 +312,17 @@ npm run build
 npm run local:test
 ```
 
-## English
+Browser QA dùng Playwright đã cài ngoài dependency chạy ứng dụng:
 
-Extract the latest release and open **UmiBridge.cmd**. The first launch prepares local Node/Python runtimes, hash-locked Windows-MCP dependencies and a reusable HTTPS tunnel. Later launches reuse the installed tools, URL and OAuth grants. Connect ChatGPT with the MCP endpoint and initial connection code shown under **Dashboard → Settings**. Keep ignored `.local-data` and `.runtime` when updating. Settings includes a pause/resume control for desktop tools; `windows_on_device` routes them to a linked Agent with the same runtime installed.
+```powershell
+$env:PLAYWRIGHT_MODULE = 'duong-dan-tuyet-doi-toi-module-playwright'
+npm run corp:qa
+```
 
-Optional actions use the same launcher: `-Action stop|repair|pair|agent`. Token analytics count observed tool text with an offline reference tokenizer; they are not provider billing or complete chat usage.
+QA trình duyệt dùng extension thật, state tạm và trang nhà cung cấp giả lập để kiểm tra bàn giao, reset, bản nháp, thống kê và bố cục desktop/laptop. Kiểm thử giả lập không chứng minh hạn mức tài khoản thật đã reset. Lịch sử nghiệm thu và giới hạn nằm trong [ACCEPTANCE.vi.md](docs/ACCEPTANCE.vi.md) và [CORP.vi.md](docs/CORP.vi.md).
 
-**Tools** persists per-tool access choices and rejects disabled tools even when a client has cached an old list. **Skills** controls which instruction documents can be read. Automatic MCP guidance includes the enabled tool and skill selection during initialization and after configuration changes; it never replaces ChatGPT system instructions or automatically runs skill scripts. Shell access remains broad OS access rather than a filesystem sandbox. All access settings stay in ignored local data and survive restart.
+`.local-data`, `.runtime`, `node_modules`, `local-bin`, log, browser profile và dữ liệu tài khoản không được đưa vào Git hoặc ZIP. Source release đóng gói từ tệp được theo dõi. Bản cũ được giữ trong Releases để đối chiếu.
 
 ## License
 
-MIT. Independent personal project; upstream DesktopCommanderMCP is not modified. See [LICENSE](LICENSE).
+MIT. Dự án độc lập; không sửa upstream DesktopCommanderMCP. Xem [LICENSE](LICENSE) và [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

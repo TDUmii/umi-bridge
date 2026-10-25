@@ -1,4 +1,4 @@
-name: UmiBridge Sakura Console - Beta CI
+name: UmiBridge Sakura Console - CI
 
 on:
   push:
