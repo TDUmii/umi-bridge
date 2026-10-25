@@ -16,7 +16,7 @@ Extension có quyền truy cập loopback và ChatGPT, không đọc cookie, m�
 
 ## Chỉ có ý tưởng ban đầu
 
-Mở **Corp → Từ ý tưởng**. Chọn **Tạo Project mới và 8 chat bộ phận**, nhập ý tưởng, chọn **Thư mục lưu** và bấm **Tạo Project** khi Điều phối đang bật. Extension 0.3.0 tạo Project, chuẩn bị 8 chat rồi tự phân công và chạy các chặng. Không cần thêm Project hoặc tạo chat thủ công trước. UmiBridge tạo thư mục con riêng trong vị trí đã chọn, với ý tưởng gốc trong `UMI-IDEA.md`.
+Mở **Corp → Từ ý tưởng**. Chọn **Tạo Project mới và 8 chat bộ phận**, nhập ý tưởng, chọn **Thư mục lưu** và bấm **Tạo Project** khi Điều phối đang bật. Extension 0.4.0 tạo Project, chuẩn bị 8 chat rồi tự phân công và chạy các chặng. Không cần thêm Project hoặc tạo chat thủ công trước. UmiBridge tạo thư mục con riêng trong vị trí đã chọn, với ý tưởng gốc trong `UMI-IDEA.md`.
 
 **Thư mục lưu** cho phép nhập đường dẫn tuyệt đối hoặc bấm **Chọn thư mục** để duyệt ổ đĩa và thư mục ngay trong dashboard. Chọn ổ, mở thư mục con hoặc nhập đường dẫn rồi bấm **Mở**; bấm **Dùng thư mục này** để xác nhận. Thư mục tự chọn phải tồn tại và có quyền ghi; vị trí mặc định `Documents\UmiBridge Projects` được tạo tự động khi cần. **Hủy** hoặc Escape không đổi đường dẫn đang nhập. Lựa chọn được nhớ trên trình duyệt và cố định trong yêu cầu đã tạo, kể cả khi tạm dừng hoặc khởi động lại. Không di chuyển dự án cũ. Hộp chọn chỉ đọc tên thư mục, không mở nội dung tệp; mỗi lượt tối đa 500 mục, có thể nhập đường dẫn để đi tới vị trí khác.
 
@@ -28,31 +28,11 @@ Các chat cần sử dụng công cụ UmiBridge để tạo tệp hoặc chạy
 
 Tiến độ tạo Project/chat được lưu sau từng bước. Khi không xác nhận được thao tác, kiểm tra tab ChatGPT rồi mới bấm **Kiểm tra và tiếp tục**. Nếu mất tab cũ, hệ thống giữ trạng thái và báo cần đối chiếu để tránh tạo trùng. Hủy không tự xóa Project, chat hoặc tệp đã tạo. Tắt Điều phối ngăn lượt tạo/gửi mới; sau khi bật lại, kiểm tra trạng thái và bấm Bắt đầu nếu đang tạm dừng.
 
-## Arena - nhiều sản phẩm từ một ý tưởng
+## Arena nằm ở mục riêng
 
-Mở **Corp → Arena**, nhập ý tưởng, chọn **Thư mục lưu** và **20**, **50** hoặc **100** sản phẩm. Form mặc định **Vòng bảng + loại trực tiếp**; có thể đổi sang **Loại trực tiếp** trước khi tạo. Mỗi Arena tạo một Project ChatGPT mới và 8 chat bộ phận, sau đó dùng lại đội ngũ theo thứ tự. Mỗi sản phẩm có thư mục riêng dưới `.umibridge-arenas` trong thư mục Project, giữ cùng yêu cầu gốc và tiêu chí nghiệm thu.
+Từ UmiBridge 1.1.0, mở **Arena** trên thanh điều hướng chính. Arena có Project riêng gồm 20 chat thí sinh và 1 giám khảo, state/API/công tắc điều phối riêng; không dùng đội ngũ, Project đang chọn hay hàng đợi Corp. Corp vẫn giữ quy trình Từ ý tưởng với 8 bộ phận và các chặng hiện có. Xem [hướng dẫn Arena](ARENA.vi.md).
 
-1. Bấm **Tạo Project Arena**. Nếu Điều phối đang tắt, yêu cầu được lưu tạm dừng; form không tự bật Điều phối.
-2. Khi sẵn sàng, bật Điều phối và bấm **Bắt đầu** ở thanh khởi tạo. Extension tạo Project trước rồi tạo 8 chat, lưu từng xác nhận. Thao tác không chắc chắn dừng để đối chiếu.
-3. Khởi tạo xong, dashboard chọn Project mới. Arena vẫn **Tạm dừng**. Kiểm tra chat, công cụ UmiBridge và thư mục rồi bấm **Bắt đầu** trên Arena.
-4. Từng sản phẩm qua đủ 11 chặng xây dựng, kiểm thử, sửa và bàn giao. Chỉ sau khi tất cả sản phẩm hoàn tất, Arena mới chấm các cặp.
-5. Theo dõi **Trực tiếp**, **Vòng bảng**, **Sơ đồ đấu**, **Lịch sử** hoặc **Sản phẩm** trong chính Arena. Tab nhớ lựa chọn và hỗ trợ phím mũi tên, Home/End. Lịch sử trận có bộ lọc vòng bảng/loại trực tiếp; điểm, báo cáo, bằng chứng, kết quả và sự kiện điều phối được lưu qua khởi động lại.
-
-Thể thức mặc định chia bảng 5 sản phẩm, mỗi cặp đấu một lần, lấy 2 sản phẩm đầu bảng vào loại trực tiếp. Thắng được **3 điểm trận**; xếp hạng lần lượt theo điểm trận, hiệu số điểm chấm, tổng điểm chấm và thứ tự hạt giống ban đầu. Bảng chưa chấm xong chưa có suất đi tiếp chính thức. Thể thức **Loại trực tiếp** vào sơ đồ đấu ngay; số lẻ được miễn đấu một lượt.
-
-| Số sản phẩm | Vòng bảng + loại trực tiếp | Loại trực tiếp |
-| --- | --- | --- |
-| 20 | 47 trận, 267 lượt giao việc cơ bản | 19 trận, 239 lượt giao việc cơ bản |
-| 50 | 119 trận, 669 lượt giao việc cơ bản | 49 trận, 599 lượt giao việc cơ bản |
-| 100 | 239 trận, 1.339 lượt giao việc cơ bản | 99 trận, 1.199 lượt giao việc cơ bản |
-
-Số lượt cơ bản bằng `11 × số sản phẩm + số trận chấm`; vòng sửa lỗi có thể tăng số lượt. Arena không có chế độ chỉ lập kế hoạch. Các số này không phải dự toán giá hay hạn mức. API tạo Arena nhận `format: "group_knockout"` hoặc `format: "knockout"`; thể thức lưu theo Arena và không đổi giữa giải.
-
-Mỗi trận chấm đủ 5 tiêu chí, tổng 100: **Yêu cầu / chức năng 35**, **Trải nghiệm sử dụng 15**, **Kiểm thử / bằng chứng 20**, **Bảo mật 15**, **Chạy local / tài liệu 15**. Báo cáo cần điểm và lý do cho mỗi tiêu chí, tổng khớp, kiểm tra cho cả hai sản phẩm và tệp bằng chứng thật không rỗng trong đúng thư mục. Điểm bằng nhau cần lý do phân thắng. Thiếu báo cáo hoặc bằng chứng hợp lệ thì dừng để kiểm tra. Gateway kiểm tra cấu trúc, tổng điểm và tệp; không tự chứng nhận nội dung báo cáo hoặc thực thi lại lệnh giám khảo.
-
-**Tạm dừng** ngăn lượt gửi tiếp theo nhưng vẫn nhận kết quả đang chạy. **Đã kiểm tra - chuẩn bị thử lại** yêu cầu đối chiếu chat và tệp trước, rồi giữ Arena tạm dừng để bấm Bắt đầu. **Hủy Arena** giữ Project, chat và tệp, không thay thế thao tác dừng lệnh hệ điều hành. Công việc sản phẩm/giám khảo nằm trong Arena, không tràn thành hàng trăm thẻ ở hàng đợi thường.
-
-Hoạt ảnh Trực tiếp biểu thị trạng thái xử lý được ghi nhận, không khẳng định model đang suy nghĩ và không mô phỏng điểm hoặc người thắng. Chế độ giảm chuyển động giữ thông tin tĩnh. Bằng chứng tài khoản thật hiện xác nhận tạo Project + 8 chat và quy trình tạm dừng; chưa chạy trọn giải đấu xây sản phẩm bằng LLM thật. Không tự khởi chạy Project minh họa khi cập nhật hoặc kiểm thử.
+Corp và Arena dùng chung browser transport cùng mã ghép extension; ghép lại hoặc thu hồi kết nối ảnh hưởng kết nối trình duyệt chung. Cài extension **0.4.0**, Reload thẻ extension rồi tải lại các tab ChatGPT sau cập nhật. Bật/tắt điều phối từng module riêng.
 
 ## Giao việc và bàn giao
 
@@ -86,13 +66,13 @@ Không đọc được thời gian reset, giao diện nhà cung cấp đổi, m�
 
 ## Đồng bộ Project
 
-Project là nhóm cha; từng chat là nhân viên. Extension 0.3.0 đọc tên và URL chat từ vùng danh sách của Project đang mở, không đọc nội dung toàn bộ chat. Link chat ở thanh bên tài khoản chỉ được nhận khi URL chứa đúng mã Project; link trần và link Project khác bị loại. Không dùng cookie hoặc API nội bộ ChatGPT.
+Project là nhóm cha; từng chat là nhân viên. Extension 0.4.0 đọc tên và URL chat từ vùng danh sách của Project đang mở, không đọc nội dung toàn bộ chat. Link chat ở thanh bên tài khoản chỉ được nhận khi URL chứa đúng mã Project; link trần và link Project khác bị loại. Không dùng cookie hoặc API nội bộ ChatGPT.
 
 **Đồng bộ chat** yêu cầu quét danh sách: cuộn trong vùng Project, bấm **Load more / Show more / Xem thêm / Tải thêm** nếu có, rồi trả lại vị trí cuộn. Giới hạn một lượt: 60 vòng, tối đa 1.000 chat. Danh sách còn tải hoặc quét chưa hết được đánh dấu **Đã nhận một phần**; có thể đồng bộ lại. Giao diện lạ không được xác nhận là Project trống. ChatGPT có thể cập nhật danh sách chậm sau khi tạo chat; tải lại trang Project trước khi đồng bộ nếu cần.
 
-Quan sát một phần được gộp với danh sách đã có. Chỉ lượt quét hoàn tất mới loại chat đã rời Project; nhiệm vụ trỏ tới chat đó bị chặn, kể cả lệnh đang chờ xác nhận gửi. Đồng bộ lại sau khi chuyển/xóa chat trong ChatGPT. Mở tab **Trò chuyện** của trang Project trong Chrome để extension đọc danh sách. Từ ý tưởng và Arena có luồng tạo Project mới cùng 8 chat; đồng bộ Project có sẵn không tự thêm hoặc chuyển chat giữa các Project.
+Quan sát một phần được gộp với danh sách đã có. Chỉ lượt quét hoàn tất mới loại chat đã rời Project; nhiệm vụ trỏ tới chat đó bị chặn, kể cả lệnh đang chờ xác nhận gửi. Đồng bộ lại sau khi chuyển/xóa chat trong ChatGPT. Mở tab **Trò chuyện** của trang Project trong Chrome để extension đọc danh sách. Từ ý tưởng có luồng tạo Project mới cùng 8 chat; đồng bộ Project có sẵn không tự thêm hoặc chuyển chat giữa các Project.
 
-Sau khi cập nhật extension, mở trang quản lý extensions của Chrome, bấm **Reload** ở UmiBridge Corp rồi tải lại các tab ChatGPT. Bản 0.3.0 thêm tạo Project/chat và giữ kiểm tra placeholder “Không thể tải phản hồi này” cùng tương đương tiếng Anh, không bàn giao chúng như kết quả. Gateway 1.0.0 cũng kiểm tra để bảo vệ khi adapter cũ vẫn đang hoạt động. Giữ mã ghép cũ nếu còn kết nối; không cần nạp lại từ đầu hoặc tạo connector MCP mới.
+Sau khi cập nhật extension, mở trang quản lý extensions của Chrome, bấm **Reload** ở UmiBridge Corp rồi tải lại các tab ChatGPT. Bản 0.4.0 hỗ trợ Arena độc lập và giữ kiểm tra placeholder “Không thể tải phản hồi này” cùng tương đương tiếng Anh, không bàn giao chúng như kết quả. Gateway 1.1.0 cũng kiểm tra để bảo vệ khi adapter cũ vẫn đang hoạt động. Giữ mã ghép cũ nếu còn kết nối; không cần nạp lại từ đầu hoặc tạo connector MCP mới.
 
 ## Đóng trình duyệt, ngủ máy và khởi động lại
 
@@ -133,12 +113,12 @@ Browser QA chỉ dùng state tạm và dữ liệu minh họa. Không gửi yêu
 
 ## Token và hạn mức
 
-Mở **Phân tích**. Chọn nguồn **Công cụ MCP**, **Chat Corp** hoặc cả hai; lọc Hôm nay, 24h, 7/30/60 ngày hoặc Tất cả. Hôm nay dùng độ lệch UTC hiện tại của trình duyệt. Mục Chi tiết có tìm kiếm, lọc trạng thái/công cụ/ứng dụng và 50 lượt mỗi trang. **Xuất trang CSV** xuất đúng trang đang xem, không xuất prompt, kết quả hoặc tham số công cụ.
+Mở **Phân tích**. Chọn nguồn **Công cụ MCP**, **Chat Corp**, **Chat Arena** hoặc tổng ba nguồn; lọc Hôm nay, 24h, 7/30/60 ngày hoặc Tất cả. Hôm nay dùng độ lệch UTC hiện tại của trình duyệt. Mục Chi tiết có tìm kiếm, lọc trạng thái/công cụ/ứng dụng và 50 lượt mỗi trang. **Xuất trang CSV** xuất đúng trang đang xem, không xuất prompt, kết quả hoặc tham số công cụ.
 
-MCP thống kê toàn bộ nhật ký còn lưu, không giới hạn 500 lượt của màn hình lịch sử cũ. Corp chỉ có dữ liệu từ beta.24, tối đa 5.000 attempt gần nhất. Lượt chưa xác nhận gửi không được tính. Một attempt chỉ ghi một lần, qua restart vẫn giữ nguyên. Xóa nhiệm vụ đã xong không xóa số liệu; thông tin số đếm, tên nhiệm vụ và chat ID tiếp tục nằm trong state riêng. Lượt chỉ có input hoặc thiếu kết quả đánh dấu một phần. Hủy theo dõi hoặc timeout hiển thị lỗi/đã dừng, không khẳng định nhà cung cấp đã hủy xử lý.
+MCP thống kê nhật ký hiện tại và numeric archive nếu đã làm mới dữ liệu, không giới hạn 500 lượt của màn hình lịch sử cũ. Corp chỉ có dữ liệu từ beta.24, tối đa 5.000 attempt gần nhất. Lượt chưa xác nhận gửi không được tính. Một attempt chỉ ghi một lần, qua restart vẫn giữ nguyên. Xóa nhiệm vụ đã xong không xóa số liệu; thông tin số đếm tiếp tục nằm trong state riêng. Reset dự án có chủ đích sẽ trung tính hóa tên nhiệm vụ/chat ID và chuyển số liệu MCP vào token-history.jsonl; Requests rỗng nhưng Analytics giữ lịch sử số liệu. Lượt chỉ có input hoặc thiếu kết quả đánh dấu một phần. Hủy theo dõi hoặc timeout hiển thị lỗi/đã dừng, không khẳng định nhà cung cấp đã hủy xử lý.
 
-Bộ đếm offline `o200k_base` áp dụng lên văn bản quan sát được. Không có toàn bộ lịch sử chat, reasoning, cache, hình ảnh hoặc model thực. Tổng MCP + Corp có thể trùng nội dung, không phải số token tính phí. Lượt payload quá lớn được đánh dấu không đếm; không chuyển dữ liệu nhạy cảm ra ngoài để đếm.
+Bộ đếm offline `o200k_base` áp dụng lên văn bản quan sát được. Không có toàn bộ lịch sử chat, reasoning, cache, hình ảnh hoặc model thực. Tổng MCP + Corp + Arena có thể trùng nội dung, không phải số token tính phí. Lượt payload quá lớn được đánh dấu không đếm; không chuyển dữ liệu nhạy cảm ra ngoài để đếm.
 
 Tab **Hạn mức & ngân sách** hiển thị thông báo reset thực mà Corp đã ghi nhận. Không có thông báo không đồng nghĩa còn hạn mức. Giá USD/1M input-output và ngân sách cho kỳ đang lọc do bạn nhập, lưu tại trình duyệt. Cảnh báo ngân sách chỉ tham khảo, không tự dừng nhiệm vụ hoặc thay đổi gói tài khoản.
 
-Bố cục Corp tách Văn phòng, Từ ý tưởng, Arena và Hàng đợi thành các tab cùng vùng làm việc. Bộ lọc Đang mở/Tất cả/Đã xong giảm danh sách hàng đợi. Form Giao việc nằm trong tab Hàng đợi, không phải cửa sổ chặn toàn trang. Nút Văn phòng vẫn nhớ lựa chọn độc lập với Điều phối.
+Bố cục Corp tách Văn phòng, Từ ý tưởng và Hàng đợi thành các tab cùng vùng làm việc. Bộ lọc Đang mở/Tất cả/Đã xong giảm danh sách hàng đợi. Form Giao việc nằm trong tab Hàng đợi, không phải cửa sổ chặn toàn trang. Nút Văn phòng vẫn nhớ lựa chọn độc lập với Điều phối.

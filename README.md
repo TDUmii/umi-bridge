@@ -2,9 +2,9 @@
 
 UmiBridge kết nối ChatGPT với máy Windows của bạn: đọc và sửa tệp, chạy PowerShell, quan sát và điều khiển cửa sổ. Dashboard local quản lý quyền công cụ, lịch sử, thiết bị, thống kê token và điều phối nhiều chat trong một ChatGPT Project.
 
-**Bản chính thức 1.0.1.** Giao diện dành cho máy tính để bàn và laptop.
+**Bản chính thức 1.1.0.** Giao diện dành cho máy tính để bàn và laptop.
 
-[Tải bản chính thức mới nhất](https://github.com/TDUmii/umi-bridge/releases/latest) · [Thay đổi từng bản](RELEASE_NOTES.md) · [Hướng dẫn Corp](docs/CORP.vi.md)
+[Tải bản chính thức mới nhất](https://github.com/TDUmii/umi-bridge/releases/latest) · [Thay đổi từng bản](RELEASE_NOTES.md) · [Hướng dẫn Corp](docs/CORP.vi.md) · [Hướng dẫn Arena](docs/ARENA.vi.md)
 
 ![UmiBridge Sakura Console](assets/umibridge-banner.svg)
 
@@ -69,6 +69,7 @@ Giữ kín connection code, mã ghép, token và dữ liệu OAuth. Không gửi
 | **Analytics / Phân tích** | Xem token tham chiếu, độ trễ, tỷ lệ thành công, bảng chi tiết và ngân sách. |
 | **Projects & chats / Dự án và chat** | Gắn thư mục máy với link Project hoặc chat; nhóm lịch sử và chọn nhóm điều phối. |
 | **Corp** | Giao việc theo chuỗi chat, bàn giao kết quả và xem văn phòng hoạt ảnh. |
+| **Arena** | Tạo Project riêng với 20 thí sinh và 1 giám khảo, cải tiến sản phẩm qua 5 vòng chấm. |
 | **Requests / Yêu cầu** | Đọc tham số được lưu, stdout, stderr, exit code, thời gian và trạng thái công cụ. |
 | **Devices / Thiết bị** | Ghép/thu hồi máy Windows phụ và xem job của Agent. |
 | **Tools / Công cụ** | Bật/tắt từng công cụ, từng nhóm và hướng dẫn MCP tự động. |
@@ -76,7 +77,7 @@ Giữ kín connection code, mã ghép, token và dữ liệu OAuth. Không gửi
 | **Settings / Cài đặt** | Endpoint, mã kết nối, quyền chạy, giao diện và chu kỳ làm mới. |
 | **Workflows** | Sổ nhiệm vụ thủ công, hiện khi được bật trong profile. |
 
-Đổi ngôn ngữ và giao diện sáng/tối bằng điều khiển trên thanh trên cùng. Corp có các tab **Văn phòng**, **Từ ý tưởng**, **Arena**, **Hàng đợi**; form **Giao việc** nằm trong Hàng đợi và chỉ mở lúc cần. Danh sách nhân viên và nội dung dài cuộn trong vùng tương ứng.
+Đổi ngôn ngữ và giao diện sáng/tối bằng điều khiển trên thanh trên cùng. Corp có các tab **Văn phòng**, **Từ ý tưởng**, **Hàng đợi**; Arena có mục riêng trên thanh điều hướng. Trong Corp, form **Giao việc** nằm trong Hàng đợi và chỉ mở lúc cần. Danh sách nhân viên và nội dung dài cuộn trong vùng tương ứng.
 
 ## Thêm toàn bộ ChatGPT Project
 
@@ -88,7 +89,7 @@ Nếu muốn mọi chat nhân viên nằm trong cùng Project, hãy thêm **link
 4. Tại **Corp**, chọn đúng Project rồi bấm **Đồng bộ chat**. Các chat con trở thành nhân viên trong nhóm đó.
 5. Kiểm tra số chat và thông báo đã quét hết. Nếu mới nhận một phần, giữ trang Project mở rồi đồng bộ lại.
 
-Corp lọc văn phòng, người nhận việc và hàng đợi theo Project đang chọn. Với Project có sẵn, tạo hoặc chuyển chat bằng giao diện ChatGPT rồi đồng bộ lại. **Từ ý tưởng** và **Arena** có thể tự tạo Project mới cùng 8 chat bộ phận qua extension; Corp không tự chuyển chat giữa các Project. Thư mục dự án dùng để liên kết công việc, không tạo sandbox quyền tệp cho từng chat.
+Corp lọc văn phòng, người nhận việc và hàng đợi theo Project đang chọn. Với Project có sẵn, tạo hoặc chuyển chat bằng giao diện ChatGPT rồi đồng bộ lại. **Từ ý tưởng** có thể tự tạo Project mới cùng 8 chat bộ phận qua extension; Corp không tự chuyển chat giữa các Project. Thư mục dự án dùng để liên kết công việc, không tạo sandbox quyền tệp cho từng chat.
 
 Vẫn có thể thêm link từng cuộc trò chuyện rồi chọn **Chat riêng lẻ** trong Corp. Không trộn chat riêng vào chuỗi thuộc một Project.
 
@@ -105,7 +106,7 @@ Extension gửi/quan sát trong các tab ChatGPT được giao việc. Connector
 
 **Mã Corp khác Connection code của MCP.** Không dán nhầm hai mã. Tạo mã Corp mới làm mã trước mất hiệu lực; chọn **Thu hồi kết nối** để ngắt extension và tắt điều phối.
 
-Khi cập nhật extension đã cài: trở lại trang extensions, tìm thẻ **UmiBridge Corp**, bấm nút **mũi tên tròn Reload** trên chính thẻ đó, gần phần dưới của thẻ. Đây là nút nạp lại extension, khác nút tải lại trang trên thanh địa chỉ. Sau đó tải lại tab ChatGPT. Nếu nút chưa hiện, kiểm tra Developer mode đang bật. Extension hiện tại là **0.3.0**; phiên bản extension độc lập với phiên bản UmiBridge **1.0.0**.
+Khi cập nhật extension đã cài: trở lại trang extensions, tìm thẻ **UmiBridge Corp**, bấm nút **mũi tên tròn Reload** trên chính thẻ đó, gần phần dưới của thẻ. Đây là nút nạp lại extension, khác nút tải lại trang trên thanh địa chỉ. Sau đó tải lại tab ChatGPT. Nếu nút chưa hiện, kiểm tra Developer mode đang bật. Extension hiện tại là **0.4.0**; phiên bản extension độc lập với phiên bản UmiBridge **1.1.0**. Corp và Arena dùng chung kết nối trình duyệt, nhưng có state và công tắc điều phối riêng.
 
 ## Tạo dự án từ một ý tưởng
 
@@ -126,37 +127,21 @@ Muốn dùng Project cũ, đổi **Project làm việc** thành **Dùng Project 
 
 Khởi tạo được lưu cùng hàng đợi Corp. Nếu thao tác tạo chưa được xác nhận, hệ thống dừng ở **Cần kiểm tra**. Kiểm tra tab đã tạo trước khi bấm **Kiểm tra và tiếp tục**; không tự tạo lại sau khi mất tab hoặc khởi động lại. Hủy khởi tạo giữ lại Project/chat và tệp đã tạo để bạn đối chiếu, không tự xóa chúng.
 
-Tính năng tạo Project cần extension **0.3.0**. Sau khi cập nhật source, bấm Reload ở thẻ UmiBridge Corp trong trang quản lý extension. Gateway giữ mã ghép hiện có. Adapter chỉ thao tác giao diện đang hiển thị, không dùng cookie hoặc API nội bộ ChatGPT. Giao diện hoặc đăng nhập thay đổi có thể làm khởi tạo dừng để kiểm tra.
+Tính năng tạo Project có từ extension **0.3.0**; bản hiện tại **0.4.0** tiếp tục hỗ trợ. Sau khi cập nhật source, bấm Reload ở thẻ UmiBridge Corp trong trang quản lý extension. Gateway giữ mã ghép hiện có. Adapter chỉ thao tác giao diện đang hiển thị, không dùng cookie hoặc API nội bộ ChatGPT. Giao diện hoặc đăng nhập thay đổi có thể làm khởi tạo dừng để kiểm tra.
 
-## Arena từ một ý tưởng
+## Arena độc lập từ một ý tưởng
 
-Trong **Corp → Arena**, nhập ý tưởng, chọn **Thư mục lưu**, số sản phẩm **20**, **50** hoặc **100** và thể thức. Mặc định **Vòng bảng + loại trực tiếp**; có thể chọn **Loại trực tiếp**. Arena luôn chuẩn bị **một Project ChatGPT mới với 8 chat bộ phận bên trong**; các sản phẩm dùng lại đội ngũ này theo thứ tự, không tạo chat riêng cho từng sản phẩm. Mỗi sản phẩm có thư mục local riêng trong `.umibridge-arenas` của thư mục Project. Đường dẫn đã chọn được giữ qua tạm dừng và khởi động lại; đổi lựa chọn không chuyển các dự án cũ.
+Mở **Arena** trên thanh điều hướng chính. Arena tạo **một Project ChatGPT riêng, 20 chat thí sinh và 1 chat giám khảo**. Mỗi thí sinh tự làm toàn bộ sản phẩm trong chat và thư mục riêng, gồm mã nguồn, README hướng dẫn cài/build/test/run cùng tệp bằng chứng thực tế. Không dùng đội ngũ hoặc hàng đợi Corp.
 
-1. Bấm **Tạo Project Arena**. Điều phối đang tắt thì yêu cầu khởi tạo được lưu tạm dừng; bật Điều phối rồi bấm **Bắt đầu** trên thanh khởi tạo khi sẵn sàng.
-2. Extension tạo Project trước, sau đó lần lượt tạo 8 chat bên trong Project và phân công bộ phận. Dashboard ghi đúng tiến độ và dừng nếu chưa xác nhận được thao tác.
-3. Khi khởi tạo xong, dashboard chọn Project mới và mở Arena ở trạng thái **Tạm dừng**. Kiểm tra chat, connector UmiBridge và thư mục, rồi bấm **Bắt đầu** trên Arena để phát triển sản phẩm.
-4. Sau khi tất cả sản phẩm hoàn tất và có bằng chứng bàn giao, giám khảo so sánh từng cặp, ghi điểm, lý do và kiểm tra thực. Thể thức mặc định chia bảng 5 sản phẩm, đấu vòng tròn một lượt rồi lấy 2 sản phẩm đầu mỗi bảng vào loại trực tiếp. Thể thức **Loại trực tiếp** vào sơ đồ đấu ngay; số lẻ được miễn đấu một lượt.
-5. Phần **Sản phẩm thắng** hiện tên, kết luận và đường dẫn bàn giao khi giải đấu hoàn tất. Không có báo cáo đạt thì không tự ghi nhận thành công.
+1. Cập nhật extension lên **0.4.0**, bấm Reload trên thẻ extension rồi tải lại các tab ChatGPT. Giữ kết nối đã ghép nếu còn hợp lệ.
+2. Nhập tên, ý tưởng và thư mục lưu tại Arena, rồi tạo Arena. Bật **Điều phối Arena** khi sẵn sàng; công tắc Corp độc lập.
+3. Bấm **Tạo Project và 21 chat**. Theo dõi số chat đã xác nhận; thao tác chưa rõ kết quả dừng để kiểm tra.
+4. Sau khi khởi tạo hoàn tất, kiểm tra Project, công cụ UmiBridge và các chat rồi bấm **Bắt đầu**.
+5. Theo dõi các tab **Trực tiếp**, **Ứng viên**, **Vòng đấu** và **Lịch sử**. Một giám khảo chấm tất cả sản phẩm còn lại theo cùng rubric, xếp hạng và phản hồi đầy đủ. Số sản phẩm đi tiếp cố định: **20 → 10 → 5 → 3 → 2 → 1**.
 
-Mỗi Arena có 5 tab: **Trực tiếp** theo dõi sản phẩm hoặc trận đang xử lý; **Vòng bảng** xem xếp hạng và các trận; **Sơ đồ đấu** xem đủ vòng loại trực tiếp; **Lịch sử** lọc các trận đã chấm; **Sản phẩm** xem từng phương án, trạng thái và thư mục. Kết quả trận, điểm, lý do, bằng chứng và lịch sử điều phối được lưu qua khởi động lại. Hoạt ảnh chỉ biểu thị trạng thái xử lý được ghi nhận, không tạo điểm hoặc đoán kết quả; chế độ giảm chuyển động giữ thông tin tĩnh.
+Trước mỗi vòng chấm tiếp theo, **mọi thí sinh đi tiếp phải sửa source theo phản hồi và chạy lại build/test/run**. Thiếu source, README, ba kiểm tra đạt hoặc tệp bằng chứng thì bị chặn. Phiên bản được chấp nhận lưu source, README và bằng chứng riêng với manifest cùng SHA-256; bản lịch sử không được ghi đè. Giám khảo dùng đủ năm tiêu chí tổng 100 điểm: chức năng 35, trải nghiệm 15, kiểm thử/bằng chứng 20, bảo mật 15, chạy local/tài liệu 15.
 
-Mỗi trận dùng cùng thang 100 điểm: **Yêu cầu / chức năng 35**, **Trải nghiệm sử dụng 15**, **Kiểm thử / bằng chứng 20**, **Bảo mật 15**, **Chạy local / tài liệu 15**. Báo cáo phải có điểm và lý do cho đủ 5 tiêu chí, tổng điểm khớp, kiểm tra cho cả hai sản phẩm và tệp bằng chứng thật không rỗng trong thư mục tương ứng. Điểm bằng nhau cần lý do phân thắng. Các cổng này kiểm tra báo cáo và tệp bằng chứng; không tự chứng nhận chất lượng nội dung hay kết quả lệnh.
-
-Vòng bảng tính **3 điểm mỗi trận thắng**. Xếp hạng lần lượt theo điểm trận, hiệu số điểm chấm, tổng điểm chấm, rồi thứ tự hạt giống ban đầu. Chỉ xác nhận 2 suất đi tiếp khi bảng đã chấm xong.
-
-Arena dùng 11 chặng xây dựng đầy đủ cho mỗi sản phẩm, không có chế độ chỉ lập kế hoạch. Khối lượng cơ bản gồm `11 × số sản phẩm + số trận chấm`:
-
-| Sản phẩm | Vòng bảng + loại trực tiếp: trận / lượt giao việc | Loại trực tiếp: trận / lượt giao việc |
-| --- | --- | --- |
-| 20 | 47 / 267 | 19 / 239 |
-| 50 | 119 / 669 | 49 / 599 |
-| 100 | 239 / 1.339 | 99 / 1.199 |
-
-Các vòng sửa lỗi có thể tăng số lượt; đây không phải ước tính giá hoặc hạn mức tài khoản. Lựa chọn thể thức được lưu khi tạo Arena và không đổi giữa giải.
-
-**Tạm dừng** ngăn lượt gửi tiếp theo; kết quả của lượt đang chạy vẫn được ghi nhận. **Đã kiểm tra - chuẩn bị thử lại** yêu cầu đối chiếu chat/tệp trước, đưa Arena về tạm dừng, rồi mới bấm Bắt đầu. **Hủy Arena** giữ lại Project, chat và tệp; không dừng thay lệnh hệ điều hành đã được gửi. Quy trình sản phẩm/giám khảo được gom trong tab Arena, không trải thành hàng trăm nhiệm vụ trong hàng đợi thường.
-
-Các tab **Văn phòng**, **Từ ý tưởng**, **Arena**, **Hàng đợi** chiếm cùng vùng làm việc, nhớ tab đã chọn và hỗ trợ phím mũi tên, Home/End. Các tab trong mỗi Arena cũng hỗ trợ bàn phím và nhớ lựa chọn. Danh sách Arena lọc theo Project đang chọn; form tạo mới luôn tạo Project riêng. Phạm vi chính là desktop/laptop. Kiểm tra reflow màn hình hẹp bổ sung không chứng nhận sản phẩm trên điện thoại. Chưa xác minh giải đấu tạo sản phẩm trọn vẹn bằng tài khoản ChatGPT thật.
+Prompt yêu cầu **GPT-6.1 Sol**; adapter không bảo đảm model thực tế đang được chọn trên giao diện ChatGPT. Kiểm tra model và quyền công cụ trong ChatGPT trước khi bắt đầu. Hủy hoặc xóa khỏi danh sách giữ Project/chat và tệp sản phẩm; không tự dừng lệnh hệ điều hành đã gửi. Chưa có xác nhận hoàn tất toàn bộ giải bằng tài khoản ChatGPT thật. Xem [hướng dẫn Arena](docs/ARENA.vi.md) để biết phục hồi, phiên bản và giới hạn.
 
 ## Giao việc cho các chat
 
@@ -213,9 +198,9 @@ Mở **Analytics / Phân tích**. Chọn **Công cụ MCP**, **Chat Corp** hoặ
 | **Chi tiết** | 50 lượt mỗi trang, trạng thái, nguồn, thời điểm và số liệu từng lượt. **Xuất trang CSV** xuất đúng trang, không kèm prompt/kết quả/tham số. |
 | **Hạn mức & ngân sách** | Thông báo reset Corp đã quan sát; tự nhập giá USD/1 triệu input-output và ngân sách cho kỳ đang lọc. |
 
-Đây là **ước tính văn bản UmiBridge quan sát bằng tokenizer offline `o200k_base`**, không phải hóa đơn hay số dư tài khoản. Không có dữ liệu đầy đủ về model, reasoning, cache, ảnh hoặc toàn bộ lịch sử ChatGPT. Tổng MCP và Corp có thể trùng nội dung.
+Đây là **ước tính văn bản UmiBridge quan sát bằng tokenizer offline `o200k_base`**, không phải hóa đơn hay số dư tài khoản. Không có dữ liệu đầy đủ về model, reasoning, cache, ảnh hoặc toàn bộ lịch sử ChatGPT. Tổng MCP, Corp và Arena có thể trùng nội dung.
 
-MCP đọc toàn bộ nhật ký còn lưu. Corp giữ tối đa 5.000 attempt gần nhất, chỉ tính lần đã xác nhận gửi; lượt thiếu output được đánh dấu một phần. Không dựng lại số liệu những chat cũ chưa từng được theo dõi. Giá/ngân sách bạn nhập lưu trong trình duyệt; cảnh báo chỉ tham khảo, không tự chặn nhiệm vụ hoặc thay đổi gói dịch vụ.
+MCP đọc nhật ký hiện tại và numeric archive nếu đã làm mới dữ liệu. Nguồn Chat Arena có số liệu riêng từ các lượt đã xác nhận gửi. Corp giữ tối đa 5.000 attempt gần nhất, chỉ tính lần đã xác nhận gửi; lượt thiếu output được đánh dấu một phần. Không dựng lại số liệu những chat cũ chưa từng được theo dõi. Giá/ngân sách bạn nhập lưu trong trình duyệt; cảnh báo chỉ tham khảo, không tự chặn nhiệm vụ hoặc thay đổi gói dịch vụ.
 
 ## Công cụ, skill và quyền truy cập
 
@@ -281,6 +266,18 @@ Không chỉ chạy `Admin-Mode.ps1 -Action update` để cập nhật ứng d�
 
 Muốn phục hồi: dừng Normal, giữ bản dữ liệu hiện tại riêng, khôi phục bản `.local-data` đã sao lưu cùng source tương thích rồi mở lại. Không khôi phục đè khi gateway đang ghi dữ liệu. Lệnh đã chạy trên máy không được hoàn tác bằng phục hồi nhật ký.
 
+## Làm mới dữ liệu dự án, giữ thống kê token
+
+Chỉ thực hiện khi muốn xóa lịch sử hoạt động cũ. Dừng gateway bằng launcher của đúng bản cài trước; nếu đang Administrator, về Normal qua lifecycle chuẩn trước khi thao tác source. Chạy dry-run với đường dẫn tuyệt đối của thư mục cài:
+
+```powershell
+node scripts/reset-project-data.mjs --root "D:\Apps\UmiBridge" --dry-run
+```
+
+Kiểm tra báo cáo rồi thay `--dry-run` bằng `--apply` khi đã quyết định xóa. Utility kiểm tra đúng ứng dụng, gateway đã dừng, khóa launcher và đối chiếu số liệu trước/sau. Nó chỉ cập nhật năm store: request-history.jsonl, token-history.jsonl, corp-state.json, chat-links.json và workflows.jsonl. Requests/Overview bắt đầu lịch sử mới; Analytics vẫn đọc số liệu cũ đã loại tham số, output, đường dẫn và liên kết chat. Corp bị tắt và mất nhiệm vụ/nhóm/khởi tạo cũ; OAuth, tunnel, mã ghép, quyền công cụ và tùy chọn được giữ. Utility không tạo backup dữ liệu chat cũ.
+
+Lệnh này **không xóa thư mục sản phẩm trên ổ đĩa hoặc Project/chat trong ChatGPT**. Xóa remote là thao tác riêng, chỉ thực hiện khi đã xác nhận rõ phạm vi. State Arena độc lập không nằm trong năm store này. Không dùng làm mới dữ liệu để giả định mọi thao tác ngoài ứng dụng đã được hoàn tác.
+
 ## Lỗi thường gặp
 
 | Hiện tượng | Cách kiểm tra và xử lý |
@@ -304,7 +301,7 @@ Khi báo lỗi, gửi phiên bản, bước tái hiện và log ngắn đã che 
 
 ## Phát triển và kiểm thử
 
-Biên bản bản chính thức: [Nghiệm thu 1.0.0](docs/ACCEPTANCE-1.0.vi.md). Source dùng Node.js >=22.12.0. Từ thư mục repo:
+Biên bản lịch sử: [Nghiệm thu 1.0.0](docs/ACCEPTANCE-1.0.vi.md). Biên bản này không chứng nhận Arena 1.1.0. Source dùng Node.js >=22.12.0. Từ thư mục repo:
 
 ```powershell
 npm ci
@@ -317,6 +314,8 @@ Browser QA dùng Playwright đã cài ngoài dependency chạy ứng dụng:
 ```powershell
 $env:PLAYWRIGHT_MODULE = 'duong-dan-tuyet-doi-toi-module-playwright'
 npm run corp:qa
+npm run arena:qa
+npm run arena:adapter:qa
 ```
 
 QA trình duyệt dùng extension thật, state tạm và trang nhà cung cấp giả lập để kiểm tra bàn giao, reset, bản nháp, thống kê và bố cục desktop/laptop. Kiểm thử giả lập không chứng minh hạn mức tài khoản thật đã reset. Lịch sử nghiệm thu và giới hạn nằm trong [ACCEPTANCE.vi.md](docs/ACCEPTANCE.vi.md) và [CORP.vi.md](docs/CORP.vi.md).

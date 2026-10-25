@@ -238,6 +238,8 @@ try {
   [IO.File]::WriteAllText((Join-Path $normal 'workflows.jsonl.lock'),'transient lock')
   $corp=Join-Path $normal 'corp-state.json'
   [IO.File]::WriteAllText($corp,'{"schema":1,"enabled":true,"runs":[{"status":"limit_wait","resetAt":1800000000000}]}',$utf8)
+  [IO.File]::WriteAllText((Join-Path $normal 'arena-state.json'),'{"schema":1,"enabled":false,"arenas":[]}',$utf8)
+  [IO.File]::WriteAllText((Join-Path $normal 'token-history.jsonl'),'{"id":"history","usage":{"inputTokens":10,"outputTokens":20}}',$utf8)
   $qa=Join-Path $normal 'qa'
   [void][IO.Directory]::CreateDirectory($qa)
   [IO.File]::WriteAllText((Join-Path $qa 'diagnostic.ps1'),'QA must not be migrated')
@@ -248,6 +250,7 @@ try {
   if([Convert]::ToBase64String([IO.File]::ReadAllBytes($adminJournal)) -ne $originalBytes){throw 'Migration changed journal bytes'}
   $adminCorp=Join-Path $admin 'corp-state.json'
   if([IO.File]::ReadAllText($adminCorp) -ne [IO.File]::ReadAllText($corp)){throw 'Migration changed Corp state'}
+  foreach($name in @('arena-state.json','token-history.jsonl')){if([IO.File]::ReadAllText((Join-Path $normal $name)) -ne [IO.File]::ReadAllText((Join-Path $admin $name))){throw 'Migration changed Arena or token archive state'}}
   if((Test-Path -LiteralPath (Join-Path $admin 'workflows.jsonl.lock')) -or (Test-Path -LiteralPath (Join-Path $admin 'qa'))){throw 'Migration copied transient lock or QA files'}
   $normalDigest=Get-UmiStateDigest $normal
   $adminDigest=Get-UmiStateDigest $admin

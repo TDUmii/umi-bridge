@@ -1,4 +1,24 @@
-# UmiBridge Sakura Console - 1.0.1
+# UmiBridge Sakura Console - 1.1.0
+
+## Independent Arena
+
+Arena moves to its own top-level dashboard page, independent state, enabled flag, setup jobs, API and event/usage records. Each Arena creates a separate ChatGPT Project containing twenty contestant chats and one judge chat. Every contestant delivers a complete product in its own chat and local folder. Corp retains Office, Idea and Queue; existing department workflows remain available. Browser transport and its revocable credential, folder selection, analytics and authorized tools are shared infrastructure.
+
+One judge ranks every remaining product with the same complete five-criterion rubric and individual feedback. Selection follows 20 -> 10 -> 5 -> 3 -> 2 -> 1. Before the next judging pass, every survivor changes source according to feedback and reruns build, test and run checks. Required source, README installation/build/test/run instructions, actual scoped evidence files and structured pass reports block incomplete delivery. Accepted versions retain source/README/evidence snapshots, manifests and SHA-256 hashes; historical versions cannot be silently replaced. Hashes and report validation establish artifact consistency, not independent semantic certification of reported command outcomes.
+
+The desktop/laptop UI separates Live, Candidates, Rounds and History, with confirmed 21-chat setup progress, per-product version evidence, round-wide scores and feedback, recovery reasons and winner delivery. Legacy Corp Arena creation returns 410 arena_moved, while legacy Arena setup input is rejected with 400; it cannot create new work through Corp.
+
+Extension 0.4.0 is required. Reload its installed extension card and open ChatGPT tabs manually after update; existing browser pairing remains reusable. Prompts request GPT-6.1 Sol, but the adapter does not guarantee the actual UI-selected model. No real-account full-tournament completion is claimed. Pause, restart reconciliation, cancellation and local artifact limits remain explicit; cancel/delete preserves product folders and ChatGPT Projects/chats.
+
+## Fresh operational history with retained token analytics
+
+The explicit project-data reset defaults to dry-run and requires an absolute verified app root. Apply requires a stopped gateway, acquires the launcher lock, stages sanitized replacements and verifies numeric totals/time series before and after writes, with in-memory rollback on handled failure. Five exact stores participate: request-history.jsonl, token-history.jsonl, corp-state.json, chat-links.json and workflows.jsonl. Operational request history clears; sanitized historical MCP measurements move to token-history.jsonl and continue contributing to Analytics alongside live requests. Corp usage totals remain while old task/chat labels are neutralized.
+
+OAuth, tunnel, pairing, tool permissions and preferences are preserved. The utility does not create a backup containing deleted chat content, delete product folders, reset independent Arena state or delete remote ChatGPT data. Remote deletion requires separate explicit authorization. Private account statistics and data are not part of release source.
+
+Validation commands include build/local tests, arena:qa and arena:adapter:qa. Final check results and their evidence belong in the release acceptance record; historical release results below do not certify this new Arena. See README.md, docs/CORP.vi.md and docs/ARENA.vi.md for setup and limits.
+
+## Previous 1.0.1
 
 ## Save location and desktop workspace
 

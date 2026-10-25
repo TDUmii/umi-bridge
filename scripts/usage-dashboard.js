@@ -32,7 +32,7 @@
   function twoLines(top, bottom) { const box = element('span', null, 'usage-two-lines'); box.append(element('strong', top), element('small', bottom)); return box; }
   function renderGroups() {
     if (!report) return;
-    const labels = {unassigned:'Chưa gắn chat', mcp:'Công cụ MCP', corp:'Chat Corp'};
+    const labels = {unassigned:'Chưa gắn chat', mcp:'Công cụ MCP', corp:'Chat Corp', arena:'Arena'};
     rowTable($('usageGroups'), report.groups[$('usageGroup').value], [r => labels[r.name] || r.name, r => fmt(r.requests), r => fmt(r.inputTokens), r => fmt(r.outputTokens), r => fmt(r.totalTokens), r => fmt(r.errors), r => ms(r.averageMs)]);
   }
   function renderChart() {

@@ -12,12 +12,13 @@ import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from '@modelconte
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js';
 import { InvalidClientMetadataError, InvalidGrantError, InvalidScopeError, InvalidTargetError, InvalidTokenError, TooManyRequestsError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, ListResourceTemplatesRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { createRequestHistory, createChatLinksStore, renderAdminPage } from './local-admin.mjs';
+import { createRequestHistory, createChatLinksStore, renderAdminPage, parseProjectLink, parseChatLink } from './local-admin.mjs';
 import { createSkillLibrary, RECOMMENDED_SKILLS } from './skill-library.mjs';
 import { createOAuthState } from './oauth-state.mjs';
 import { createDeviceRegistry } from './device-registry.mjs';
 import { createWorkflowLedger } from './workflow-ledger.mjs';
 import { createCorpRuntime } from './corp-runtime.mjs';
+import { createArenaRuntime } from './arena-runtime.mjs';
 import { createCorpFolderBrowser } from './corp-folder-browser.mjs';
 import { baseInstructions, CATALOG_META, createToolPolicy, WINDOWS_TOOL_NAMES, withContext, withoutContext } from './tool-policy.mjs';
 import { createPrivilegeControl } from './privilege-control.mjs';
@@ -56,7 +57,7 @@ const deviceToolSpecs = deviceToolDefinitions.map(spec => {
 const deviceToolsByName = new Map(deviceToolDefinitions.map(tool => [tool.name, tool]));
 
 /** One local process shared by authorized MCP clients through an authenticated endpoint. */
-export async function startGateway({ port = 8767, publicUrl, connectionSecret, configDir, privilegeControl, workflowEnabled, corpClock, corpProjectsRoot, corpFolderPicker = createCorpFolderBrowser() } = {}) {
+export async function startGateway({ port = 8767, publicUrl, connectionSecret, configDir, privilegeControl, workflowEnabled, corpClock, corpProjectsRoot, arenaProjectsRoot, corpFolderPicker = createCorpFolderBrowser() } = {}) {
   if (typeof connectionSecret !== 'string' || connectionSecret.length < 24) {
     throw new Error('connectionSecret must contain at least 24 characters.');
   }
@@ -71,7 +72,9 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
   const secretHash = digest(connectionSecret);
   const requestHistory = await createRequestHistory(resolve(configDir, '..', 'request-history.jsonl'), { secretValues: [connectionSecret] });
   const chatLinks = await createChatLinksStore(resolve(configDir, '..', 'chat-links.json'));
-  const corp = await createCorpRuntime(resolve(configDir, '..', 'corp-state.json'), { workspaces: () => chatLinks.workspaces(), createWorkspace:item=>chatLinks.addWorkspace(item), syncProject:input=>chatLinks.syncProject(input), ...(corpClock ? { clock: corpClock } : {}),...(corpProjectsRoot?{projectsRoot:corpProjectsRoot}:{}) });
+  const addCorpWorkspace=async item=>{let link;try{link=parseProjectLink(item.chatUrl);}catch{link=parseChatLink(item.chatUrl);}if(link.projectId&&arena.snapshot().arenas.some(row=>row.projectId===link.projectId))throw Error('arena_project_reserved');return chatLinks.addWorkspace(item);};
+  const corp = await createCorpRuntime(resolve(configDir, '..', 'corp-state.json'), { workspaces: () => chatLinks.workspaces(), createWorkspace:addCorpWorkspace, syncProject:input=>chatLinks.syncProject(input), ...(corpClock ? { clock: corpClock } : {}),...(corpProjectsRoot?{projectsRoot:corpProjectsRoot}:{}) });
+  const arena = await createArenaRuntime(resolve(configDir,'..','arena-state.json'),{authenticate:token=>corp.authenticate(token),isPaired:()=>corp.snapshot().paired,projectAllowed:id=>!chatLinks.workspaces().some(project=>project.projectId===id),...(corpClock?{clock:corpClock}:{}),...((arenaProjectsRoot||corpProjectsRoot)?{projectsRoot:arenaProjectsRoot||corpProjectsRoot}:{})});
   const deviceRegistry = await createDeviceRegistry({ stateDir: resolve(configDir, '..') });
   const workflowsEnabled = workflowEnabled === undefined ? process.env.UMIBRIDGE_WORKFLOWS === '1' || existsSync(resolve(configDir, 'workflows-enabled')) : workflowEnabled === true || workflowEnabled === '1';
   const workflowLedger = await createWorkflowLedger(resolve(configDir, '..', 'workflows.jsonl'), { enabled: workflowsEnabled });
@@ -202,6 +205,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     await deviceRegistry.close().catch(() => {});
     if (typeof workflowLedger.close === 'function') await workflowLedger.close().catch(() => {});
     await corp.close();
+    await arena.close();
     await backend.close().catch(() => {});
     resolveClosed();
   })();
@@ -353,7 +357,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.get('/admin/api/chats', localAdmin, (_req, res) => res.json({ links: chatLinks.resolve(requestHistory.list(500)), workspaces: chatLinks.workspaces() }));
     app.get('/admin/api/usage', localAdmin, async (req, res) => {
       const filters = Object.fromEntries(Object.entries(req.query).filter(([, value]) => typeof value === 'string'));
-      const report = await requestHistory.analytics(filters, corp.usage(), corpClock?.());
+      const report = await requestHistory.analytics(filters, corp.usage(), corpClock?.(), arena.usage());
       const snapshot = corp.snapshot();
       res.set('Cache-Control', 'no-store').json({ ...report, corpRetention: 5000,
         limits: snapshot.runs.flatMap(run => run.steps.filter(step => ['limit_wait', 'blocked'].includes(step.status) && step.limitText).map(step => ({
@@ -376,19 +380,32 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     const corpJson = express.json({ limit: '256kb' });
     const corpHandler = action => async (req, res) => {
       try { res.json(await action(req)); }
-      catch (error) { res.status(error.message === 'invalid_corp_key' ? 401 : error.message.endsWith('_not_found') ? 404 : 400).json({ error: error.message }); }
+      catch (error) { res.status(['invalid_corp_key','invalid_arena_key'].includes(error.message) ? 401 : error.message.endsWith('_not_found') ? 404 : 400).json({ error: error.message }); }
     };
+    const pairBrowser=async()=>{await arena.settings({enabled:false});return corp.pair();};
+    const revokeBrowser=async()=>{await arena.settings({enabled:false});return corp.revoke();};
     app.get('/admin/api/corp', localAdmin, (_req, res) => res.json({ ...corp.snapshot(), workspaces: chatLinks.workspaces() }));
     app.post('/admin/api/corp/folder', localAdmin, adminWrite, corpJson, corpHandler(req => corpFolderPicker(req.body ?? {})));
+    app.post('/admin/api/folders', localAdmin, adminWrite, corpJson, corpHandler(req => corpFolderPicker(req.body ?? {})));
+    app.get('/admin/api/arena', localAdmin, (_req,res)=>res.set('Cache-Control','no-store').json(arena.snapshot()));
+    app.post('/admin/api/arena/settings',localAdmin,adminWrite,corpJson,corpHandler(req=>arena.settings(req.body??{})));
+    app.post('/admin/api/arena/arenas',localAdmin,adminWrite,corpJson,corpHandler(req=>arena.create(req.body??{})));
+    app.post('/admin/api/arena/arenas/:id/:action',localAdmin,adminWrite,corpHandler(req=>arena.action(req.params.id,req.params.action)));
+    for(const action of ['poll','report','authorize','bootstrap-authorize','bootstrap-report']){
+      const method={'bootstrap-authorize':'bootstrapAuthorize','bootstrap-report':'bootstrapReport'}[action]||action;
+      app.post('/admin/arena/bridge/'+action,localAdmin,corpJson,corpHandler(async req=>{const result=await arena[method](String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{});return action==='poll'?{...result,resetGeneration:corp.snapshot().resetGeneration}:result;}));
+    }
+    app.post('/admin/api/browser/pair',localAdmin,adminWrite,corpHandler(pairBrowser));
+    app.post('/admin/api/browser/revoke',localAdmin,adminWrite,corpHandler(revokeBrowser));
     app.post('/admin/api/corp/settings', localAdmin, adminWrite, corpJson, corpHandler(req => corp.settings(req.body ?? {})));
     app.post('/admin/api/corp/team', localAdmin, adminWrite, corpJson, corpHandler(req => corp.team(req.body ?? {})));
-    app.post('/admin/api/corp/pair', localAdmin, adminWrite, corpHandler(() => corp.pair()));
-    app.post('/admin/api/corp/revoke', localAdmin, adminWrite, corpHandler(() => corp.revoke()));
+    app.post('/admin/api/corp/pair', localAdmin, adminWrite, corpHandler(pairBrowser));
+    app.post('/admin/api/corp/revoke', localAdmin, adminWrite, corpHandler(revokeBrowser));
     app.post('/admin/api/corp/runs', localAdmin, adminWrite, corpJson, corpHandler(req => corp.create(req.body ?? {})));
     app.post('/admin/api/corp/ideas', localAdmin, adminWrite, corpJson, corpHandler(req => corp.idea(req.body ?? {})));
-    app.post('/admin/api/corp/arenas', localAdmin, adminWrite, corpJson, corpHandler(req => corp.arena(req.body ?? {})));
-    app.post('/admin/api/corp/arenas/:id/:action', localAdmin, adminWrite, corpHandler(req => corp.arenaAction(req.params.id, req.params.action)));
-    app.post('/admin/api/corp/projects', localAdmin, adminWrite, corpJson, corpHandler(req => corp.bootstrap(req.body ?? {})));
+    app.post('/admin/api/corp/arenas', localAdmin, adminWrite, (_req,res)=>res.status(410).json({error:'arena_moved',path:'/admin/api/arena/arenas'}));
+    app.post('/admin/api/corp/arenas/:id/:action', localAdmin, adminWrite, (_req,res)=>res.status(410).json({error:'arena_moved',path:'/admin/api/arena/arenas'}));
+    app.post('/admin/api/corp/projects', localAdmin, adminWrite, corpJson, corpHandler(req => {if(req.body?.kind==='arena')throw Error('arena_moved');return corp.bootstrap(req.body ?? {});}));
     app.post('/admin/api/corp/projects/:id/:action', localAdmin, adminWrite, corpJson, corpHandler(req => corp.bootstrapAction(req.params.id,req.params.action)));
     app.post('/admin/corp/bridge/bootstrap-authorize', localAdmin, corpJson, corpHandler(req=>corp.bootstrapAuthorize(String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{})));
     app.post('/admin/corp/bridge/bootstrap-report', localAdmin, corpJson, corpHandler(req=>corp.bootstrapReport(String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{})));
@@ -397,7 +414,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       app.post(`/admin/corp/bridge/${action}`, localAdmin, corpJson, corpHandler(async req => {
         const token = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
         const result = await corp[action](token, req.body ?? {});
-        return action === 'poll' ? { ...result, projects: chatLinks.workspaces().filter(item => item.kind === 'project' && !corp.snapshot().bootstraps.some(job=>job.workspaceId===item.id&&!['done','cancelled'].includes(job.status))).map(({id, projectId, chatUrl, sync}) => ({id, projectId, chatUrl, requested: sync.requested})) } : result;
+        return action === 'poll' ? { ...result, resetGeneration:corp.snapshot().resetGeneration, projects: chatLinks.workspaces().filter(item => item.kind === 'project' && !corp.snapshot().bootstraps.some(job=>job.workspaceId===item.id&&!['done','cancelled'].includes(job.status))).map(({id, projectId, chatUrl, sync}) => ({id, projectId, chatUrl, requested: sync.requested})) } : result;
       }));
     }
     app.post('/admin/corp/bridge/sync', localAdmin, express.json({ limit: '1mb' }), corpHandler(req => {
@@ -409,7 +426,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       res.set('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'");
       next();
     }, express.static(resolve(ROOT, 'scripts/corp-office'), { dotfiles: 'deny', index: 'index.html' }));
-    for (const asset of ['corp-dashboard.js', 'corp-dashboard.css', 'usage-dashboard.js', 'console.css']) {
+    for (const asset of ['corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
       app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
     }
     const workflowAvailable = (_req, res, next) => {
@@ -538,7 +555,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       res.json({ enabled: req.body.enabled });
     });
     app.post('/admin/api/workspaces', localAdmin, adminWrite, express.json({ limit: '3kb' }), async (req, res) => {
-      try { res.json({ workspace: await chatLinks.addWorkspace(req.body ?? {}) }); }
+      try { res.json({ workspace: await addCorpWorkspace(req.body ?? {}) }); }
       catch (error) { res.status(400).json({ error: error.message }); }
     });
     app.post('/admin/api/workspaces/remove', localAdmin, adminWrite, express.json({ limit: '1kb' }), async (req, res) => {

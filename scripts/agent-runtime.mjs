@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const DEFAULT_INTERVAL_MS = 1_500;
-const VERSION = '1.0.1';
+const VERSION = '1.1.0';
 const commandSession = createCommandSession({ cwd: process.cwd() });
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const windowsTools = createWindowsTools({ root: ROOT });

@@ -1,0 +1,135 @@
+(() => {
+  const $=id=>document.getElementById(id),section=$('arena');
+  let data=null,loading=false,sending=false,request=null,signature='',selected=localStorage.getItem('umibridge.arena.selected')||'',folderOpen=false;
+  const pending=new Set(),opened=new Set();
+  const labels={setup:'Khởi tạo',paused:'Tạm dừng',running:'Đang thực hiện',done:'Hoàn thành',cancelled:'Đã hủy',blocked:'Cần kiểm tra',queued:'Chờ thực hiện',dispatching:'Đang gửi',complete:'Hoàn chỉnh',advancing:'Đi tiếp',eliminated:'Dừng thi',waiting:'Chưa thực hiện'};
+  const reasons={pair_arena_first:'Kết nối extension trước khi tạo Arena.',enable_arena_first:'Bật điều phối Arena trước khi bắt đầu.',arena_setup_required:'Tạo xong Project và 21 chat trước khi bắt đầu.',check_browser_before_retry:'Kiểm tra Project và chat đã tạo trước khi chuẩn bị thử lại.',check_chat_before_retry:'Kiểm tra chat và tệp trước khi chuẩn bị thử lại.',bootstrap_unconfirmed:'Chưa xác nhận thao tác tạo. Kiểm tra tab ChatGPT trước khi thử lại.',bootstrap_recovery_required:'Tab khởi tạo cũ không còn. Kiểm tra Project và chat đã tạo để tránh tạo trùng.',restart_reconcile:'UmiBridge đã khởi động lại. Đối chiếu chat và tệp trước khi tiếp tục.',send_unconfirmed:'Chưa xác nhận đã gửi. Kiểm tra chat trước khi thử lại.',composer_busy:'Chat đang trả lời hoặc có bản nháp. Hoàn tất bản nháp trước khi tiếp tục.',arena_evidence_invalid:'Bằng chứng chưa hợp lệ. Kiểm tra source và tệp build, test, run.',arena_report_invalid:'Báo cáo chưa hợp lệ. Mở chat để kiểm tra.',arena_decision_invalid:'Báo cáo giám khảo chưa hợp lệ. Kiểm tra điểm, thứ hạng và phản hồi.',provider_limit:'ChatGPT báo giới hạn. Kiểm tra hạn mức trước khi thử lại.',response_timeout:'Chưa có kết quả xác nhận sau thời gian chờ. Kiểm tra chat.',parent_folder_unavailable:'Thư mục không tồn tại hoặc không có quyền ghi.',invalid_parent_root:'Nhập đường dẫn thư mục tuyệt đối hợp lệ.',project_folder_exists:'Thư mục đã tồn tại. Thử tạo lại để dùng thư mục riêng.',invalid_idea:'Nhập ý tưởng từ 4 đến 8.000 ký tự.',arena_project_conflict:'Project này đã được dùng. Kiểm tra tab khởi tạo để giữ Arena riêng.',cancel_before_delete:'Hủy Arena trước khi xóa khỏi danh sách.'};
+  const node=(tag,text,className)=>{const element=document.createElement(tag);if(text!==undefined)element.textContent=text;if(className)element.className=className;return element;};
+  const button=(text,action)=>{const element=node('button',text,'btn small');element.type='button';element.onclick=action;return element;};
+  const current=()=>data?.arenas.find(arena=>arena.id===selected);
+  const capable=()=>{const [major,minor]=String(data?.extensionVersion||'').split('.').map(Number);return major>0||minor>=4;};
+  const message=(text='')=>{$('arenaError').textContent=text;$('arenaError').hidden=!text;};
+  async function api(path='',body,global=false){
+    const response=await fetch((global?'/admin/api':'/admin/api/arena')+path,body===undefined?{cache:'no-store'}:{method:'POST',headers:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},body:JSON.stringify(body)});
+    const result=await response.json();if(!response.ok){const cause=Error(reasons[result.error]||result.error||'Không cập nhật được Arena.');cause.code=result.error;throw cause;}return result;
+  }
+  const link=(label,url)=>{const element=node('a',label,'btn small');element.href=url;element.target='_blank';element.rel='noopener noreferrer';return element;};
+  function detail(key,label){const element=node('details');element.dataset.key=key;element.open=opened.has(key);const summary=node('summary',label);summary.dataset.focus=key;element.append(summary);element.addEventListener('toggle',()=>{if(element.open)opened.add(key);else opened.delete(key);});return element;}
+  function readiness(){
+    if(!data)return;
+    $('arenaEnabled').textContent='Điều phối Arena: '+(data.enabled?'Bật':'Tắt');$('arenaEnabled').setAttribute('aria-pressed',String(data.enabled));
+    $('arenaConnection').textContent=data.connected?'Extension '+(data.extensionVersion||'chưa rõ phiên bản'):data.paired?'Extension offline':'Chưa kết nối extension';
+    $('arenaReadiness').textContent=!data.paired?'Ghép extension để tạo Project và chat.':!capable()?'Nạp lại extension UmiBridge 0.4.0 và tải lại các tab ChatGPT. Arena chờ phiên bản mới.':!data.connected?'Mở trình duyệt có extension đã ghép.':'20 chat thí sinh độc lập · 1 chat giám khảo · 1 Project riêng';
+    $('arenaSubmit').disabled=sending||folderOpen||!data.paired||!capable();$('arenaSubmit').textContent=sending?'Đang lưu...':'Lưu Arena';
+    for(const id of ['arenaName','arenaIdea','arenaRoot'])$(id).readOnly=sending||(id==='arenaRoot'&&folderOpen);
+    $('arenaBrowse').disabled=sending||folderOpen;
+    $('arenaEnabled').disabled=pending.has('settings');
+    window.umiFolderDialog.initialize('arenaRoot',data.projectsRoot);
+  }
+  async function action(id,verb){
+    if(pending.has(id))return;
+    if(verb==='retry'&&!confirm('Chỉ thử lại sau khi đã đối chiếu chat và tệp đã tạo. Nếu lượt trước đã chạy, gửi lại có thể lặp thao tác. Chuẩn bị thử lại và giữ Arena tạm dừng?'))return;
+    if(verb==='delete'&&!confirm('Xóa Arena khỏi danh sách? Tệp sản phẩm và Project ChatGPT vẫn được giữ.'))return;
+    pending.add(id);message();signature='';render();
+    try{await api('/arenas/'+encodeURIComponent(id)+'/'+verb,{});await load(true);}
+    catch(cause){message(cause.message);}
+    finally{pending.delete(id);signature='';render();}
+  }
+  function controls(arena,job){
+    const root=$('arenaActions');root.replaceChildren();const busy=pending.has(arena.id),finished=['done','cancelled'].includes(arena.status),blocked=arena.reason||arena.steps?.some(step=>step.status==='blocked')||job?.status==='blocked';
+    const add=(label,verb,disabled=false)=>{const element=button(label,()=>action(arena.id,verb));element.dataset.action=verb;element.disabled=busy||disabled;root.append(element);};
+    if(!finished){
+      if(job?.status!=='done')add(job?.status==='running'?'Đang tạo Project và chat':'Tạo Project và 21 chat','setup',!data.enabled||!capable()||job?.status==='running'||!!job?.issuedAt);
+      else add(arena.status==='running'?'Đang thực hiện':'Bắt đầu','start',!data.enabled||!capable()||arena.status==='running'||!!blocked);
+      if(arena.status==='running'||job?.status==='running')add('Tạm dừng','pause');
+      if(blocked)add('Đã kiểm tra - thử lại','retry');
+      add('Hủy Arena','cancel');
+    }else add('Xóa khỏi danh sách','delete');
+    if(arena.projectUrl)root.append(link('Mở Project',arena.projectUrl));
+  }
+  function live(arena,job,root){
+    const steps=arena.steps||[],active=steps.find(step=>!['done','cancelled'].includes(step.status)),candidate=arena.candidates.find(row=>row.id===active?.candidateId),running=data.enabled&&arena.status==='running'&&['dispatching','running'].includes(active?.status)&&!document.hidden;
+    const stage=node('div',undefined,'arena-stage');stage.dataset.running=String(running);
+    stage.append(node('span',job?.status!=='done'?'Khởi tạo Project và chat':active?.kind==='judge'?`Giám khảo · Vòng ${active.round}`:active?`${active.kind==='revise'?'Cải tiến':'Phát triển'} · ${candidate?.label||'Thí sinh'} · Vòng ${active.round}`:arena.winnerId?'Đã chọn sản phẩm thắng':'Sẵn sàng thực hiện','arena-stage-title'));
+    const status=job?.status!=='done'?`${job?.chats?.length||0}/21 chat đã tạo · ${labels[job?.status]||'Chờ khởi tạo'}`:active?labels[active.status]||active.status:labels[arena.status]||arena.status;stage.append(node('p',status));
+    const progress=node('progress');progress.max=job?.status!=='done'?21:Math.max(1,steps.length);progress.value=job?.status!=='done'?(job?.chats?.length||0):steps.filter(step=>step.status==='done').length;progress.setAttribute('aria-label','Tiến độ Arena');stage.append(progress);
+    if(active?.chatUrl)stage.append(link(active.kind==='judge'?'Mở chat giám khảo':'Mở chat thí sinh',active.chatUrl));root.append(stage);
+    const path=node('ol',undefined,'arena-path');for(const count of [20,10,5,3,2,1]){const item=node('li',String(count));item.dataset.reached=String(count===20||(arena.rounds||[]).some(round=>round.outputIds?.length===count));item.setAttribute('aria-label',count+' sản phẩm');path.append(item);}root.append(path);
+    const completed=arena.candidates.filter(candidate=>candidate.versions?.length).length,versions=arena.candidates.reduce((sum,candidate)=>sum+(candidate.versions?.length||0),0),summary=node('dl',undefined,'arena-summary');
+    for(const [title,value] of [['Sản phẩm hoàn chỉnh',completed+'/20'],['Phiên bản đã lưu',versions],['Vòng đã chấm',(arena.rounds||[]).filter(round=>round.status==='done').length+'/5']]){const row=node('div');row.append(node('dt',title),node('dd',String(value)));summary.append(row);}root.append(summary);
+    if(arena.winnerId){const winner=arena.candidates.find(row=>row.id===arena.winnerId),result=node('div',undefined,'arena-winner');result.append(node('h3','Sản phẩm thắng: '+(winner?.label||arena.winnerId)),node('code',winner?.root||arena.root));if(winner?.versions?.at(-1)?.report?.summary)result.append(node('p',winner.versions.at(-1).report.summary));root.append(result);}
+    const info=detail('info-'+arena.id,'Ý tưởng và thư mục');info.append(node('p',arena.idea),node('code',arena.root));root.append(info);
+  }
+  function candidates(arena,root){
+    const list=node('div',undefined,'arena-candidates');
+    for(const candidate of arena.candidates){
+      const row=detail(arena.id+'-'+candidate.id,candidate.label+' · '+(labels[candidate.status]||candidate.status)+' · '+(candidate.versions?.length||0)+' phiên bản');row.dataset.candidate=candidate.id;
+      const head=node('div',undefined,'actions');if(candidate.chatUrl)head.append(link('Mở chat',candidate.chatUrl));row.append(head,node('code',candidate.root));
+      if(!candidate.versions?.length)row.append(node('p','Chưa có phiên bản hoàn chỉnh được xác nhận.','arena-muted'));
+      for(const version of [...(candidate.versions||[])].reverse()){
+        const entry=node('section',undefined,'arena-version');entry.append(node('h4','Phiên bản vòng '+version.round),node('p',version.report?.summary||''),node('code',version.snapshotRoot+'/manifest.json'));
+        if(version.manifestSha256)entry.append(node('code','Manifest SHA-256: '+version.manifestSha256));if(version.sourceHash)entry.append(node('code','Source SHA-256: '+version.sourceHash));
+        const files=node('ul');for(const file of version.files||[])files.append(node('li',`${file.path} · ${file.bytes} byte · SHA-256 ${file.sha256}`));entry.append(files);
+        for(const check of version.report?.checks||[]){entry.append(node('p',`${check.name}: ${check.status==='pass'?'Đạt':check.status} · ${check.evidence}`));if(check.command)entry.append(node('code',check.command));}
+        const artifacts=version.report?.artifacts||[];for(const path of artifacts)entry.append(node('code',path));row.append(entry);
+      }
+      const feedback=candidate.feedback?.at(-1);if(feedback)row.append(node('p',`Phản hồi vòng ${feedback.round}: ${feedback.feedback}`));list.append(row);
+    }
+    root.append(list);const judge=node('div',undefined,'arena-judge');judge.append(node('h3','Giám khảo'));if(arena.judge?.chatUrl)judge.append(link('Mở chat giám khảo',arena.judge.chatUrl));else judge.append(node('p','Chat giám khảo được tạo sau 20 chat thí sinh.'));root.append(judge);
+  }
+  function rounds(arena,root){
+    const all=arena.rounds||[];if(!all.length){root.append(node('p','Chưa bắt đầu vòng đấu.'));return;}
+    const picker=node('select');picker.setAttribute('aria-label','Chọn vòng đấu');picker.id='arenaRound';picker.dataset.focus='round';for(const round of all){const option=node('option',`Vòng ${round.number} · ${round.inputIds.length} sản phẩm${round.status==='done'?' · Đã chấm':''}`);option.value=round.number;picker.append(option);}const key='umibridge.arena.round.'+arena.id;picker.value=localStorage.getItem(key)||String(all.at(-1).number);if(!picker.value)picker.value=String(all.at(-1).number);root.append(picker);
+    const content=node('div');root.append(content);
+    const populate=()=>{
+      localStorage.setItem(key,picker.value);content.replaceChildren();const round=all.find(round=>round.number===Number(picker.value));
+      if(!round.decision){content.append(node('p',round.number>1?'Thí sinh đi tiếp cải tiến sản phẩm theo phản hồi trước khi giám khảo chấm lại.':'Mỗi thí sinh hoàn thiện sản phẩm trước khi giám khảo chấm.'));return;}
+      content.append(node('p',round.decision.summary));if(round.decision.tieBreak)content.append(node('p','Phân định bằng điểm: '+round.decision.tieBreak));
+      const wrap=node('div',undefined,'arena-table-wrap'),table=node('table',undefined,'arena-scores'),head=node('thead'),header=node('tr');
+      for(const title of ['Hạng','Sản phẩm',...(data.rubric||[]).map(row=>row.label+' / '+row.max),'Tổng / 100','Kết quả']){const th=node('th',title);th.scope='col';header.append(th);}head.append(header);table.append(head);const body=node('tbody');
+      round.decision.ranking.forEach((score,index)=>{const row=node('tr'),candidate=arena.candidates.find(candidate=>candidate.id===score.candidateId);row.append(node('td',String(index+1)),node('th',candidate?.label||score.candidateId));for(const rule of data.rubric||[])row.append(node('td',String(score.criteria?.find(item=>item.id===rule.id)?.score??'—')));row.append(node('td',String(score.score)),node('td',round.outputIds.includes(score.candidateId)?'Đi tiếp':'Dừng thi'));row.dataset.advance=String(round.outputIds.includes(score.candidateId));body.append(row);
+        const feedbackRow=node('tr'),cell=node('td');cell.colSpan=9;const feedback=detail(arena.id+'-round-'+round.number+'-'+score.candidateId,'Phản hồi · '+(candidate?.label||score.candidateId));feedback.append(node('p',score.feedback));for(const criterion of score.criteria||[]){const rule=data.rubric.find(item=>item.id===criterion.id);feedback.append(node('p',`${rule?.label||criterion.id}: ${criterion.reason}`));}for(const check of score.checks||[]){feedback.append(node('p',`${check.name} · ${check.status==='pass'?'Đạt':check.status}: ${check.evidence}`));for(const path of check.artifacts||[])feedback.append(node('code',path));}cell.append(feedback);feedbackRow.append(cell);body.append(feedbackRow);
+      });table.append(body);wrap.append(table);content.append(wrap);
+    };picker.onchange=populate;populate();
+  }
+  function history(arena,root){
+    const words={created:'Lưu Arena',setup:'Bắt đầu khởi tạo',setup_completed:'Đã tạo Project và 21 chat',bootstrap_blocked:'Khởi tạo cần kiểm tra',start:'Bắt đầu',pause:'Tạm dừng',retry:'Chuẩn bị thử lại',cancel:'Hủy Arena',dispatch:'Giao lượt thực hiện',product_completed:'Sản phẩm hoàn chỉnh',product_revised:'Đã lưu bản cải tiến',round_completed:'Hoàn tất chấm vòng',finished:'Hoàn tất Arena',blocked:'Cần kiểm tra'};
+    const list=node('ol',undefined,'arena-history');for(const item of [...(arena.history||[])].reverse()){const row=node('li'),candidate=arena.candidates.find(row=>row.id===item.candidateId);row.append(node('time',new Date(item.at).toLocaleString('vi-VN')),node('strong',words[item.type]||'Cập nhật Arena'));if(candidate)row.append(node('span',candidate.label));if(item.round)row.append(node('span','Vòng '+item.round));if(item.reason)row.append(node('p',reasons[item.reason]||item.reason));list.append(row);}if(!list.children.length)root.append(node('p','Chưa có lịch sử.'));root.append(list);
+  }
+  function render(){
+    if(!data)return;readiness();
+    const selector=$('arenaSelect'),choices=JSON.stringify(data.arenas.map(arena=>[arena.id,arena.title]));
+    if(selector.dataset.choices!==choices){selector.replaceChildren();for(const arena of data.arenas){const option=node('option',arena.title);option.value=arena.id;selector.append(option);}selector.dataset.choices=choices;}
+    if(!data.arenas.some(arena=>arena.id===selected))selected=data.arenas[0]?.id||'';selector.value=selected;selector.disabled=!data.arenas.length;$('arenaSelection').hidden=!data.arenas.length;
+    const arena=current();$('arenaEmpty').hidden=!!arena;$('arenaWorkspace').hidden=!arena;if(!arena){$('arenaCreate').open=true;return;}
+    const job=data.bootstraps.find(job=>job.arenaId===arena.id||job.id===arena.id);controls(arena,job);
+    const next=JSON.stringify([arena,job,data.enabled,data.connected,[...pending],document.hidden]);if(signature===next)return;signature=next;
+    const root=$('arenaContent'),scroll=root.scrollTop,focus=document.activeElement?.dataset.focus;for(const el of root.querySelectorAll('details[data-key]')){if(el.open)opened.add(el.dataset.key);else opened.delete(el.dataset.key);}
+    $('arenaCurrentTitle').textContent=arena.title;$('arenaState').textContent=labels[arena.status]||arena.status;$('arenaReason').textContent=reasons[arena.reason||job?.reason]||arena.reason||job?.reason||'';$('arenaReason').hidden=!$('arenaReason').textContent;
+    root.replaceChildren();const active=localStorage.getItem('umibridge.arena.tab.'+arena.id)||'live';
+    for(const tab of section.querySelectorAll('[data-arena-tab]')){const selected=tab.dataset.arenaTab===active;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;}
+    const activeTab=section.querySelector('[data-arena-tab][aria-selected="true"]');if(activeTab)root.setAttribute('aria-labelledby',activeTab.id);
+    ({live,candidates,rounds,history}[active]||live)(arena,...(active==='live'?[job,root]:[root]));root.scrollTop=scroll;if(focus)root.querySelector(`[data-focus="${CSS.escape(focus)}"]`)?.focus({preventScroll:true});
+  }
+  async function load(force=false){if(loading&&!force)return;loading=true;try{data=await api();render();}catch(cause){message(cause.message);}finally{loading=false;}}
+  $('arenaSelect').onchange=()=>{selected=$('arenaSelect').value;localStorage.setItem('umibridge.arena.selected',selected);signature='';render();};
+  $('arenaRefresh').onclick=()=>load();$('arenaNew').onclick=()=>{$('arenaCreate').open=!$('arenaCreate').open;if($('arenaCreate').open)$('arenaIdea').focus();};
+  $('arenaBrowse').onclick=()=>window.umiFolderDialog.open('arenaRoot','arenaBrowse','arenaFolderStatus');$('arenaRoot').oninput=()=>window.umiFolderDialog.remember($('arenaRoot'));
+  window.addEventListener('umibridge-folder-dialog',event=>{if(event.detail.inputId==='arenaRoot'){folderOpen=event.detail.open;readiness();}});
+  $('arenaEnabled').onclick=async()=>{if(!data||pending.has('settings'))return;pending.add('settings');readiness();try{await api('/settings',{enabled:!data.enabled});await load(true);}catch(cause){message(cause.message);}finally{pending.delete('settings');readiness();}};
+  $('arenaForm').onsubmit=async event=>{
+    event.preventDefault();if(sending||folderOpen||!data?.paired||!capable())return;
+    const body={name:$('arenaName').value.trim(),idea:$('arenaIdea').value.trim(),parentRoot:$('arenaRoot').value.trim(),count:20,start:false},key=JSON.stringify(body);if(request?.signature!==key)request={signature:key,key:crypto.randomUUID()};
+    sending=true;message();$('arenaForm').setAttribute('aria-busy','true');readiness();
+    try{const arena=await api('/arenas',{...body,requestKey:request.key});selected=arena.id;localStorage.setItem('umibridge.arena.selected',selected);await load(true);$('arenaIdea').value='';$('arenaName').value='';request=null;$('arenaCreate').open=false;}
+    catch(cause){if(cause.code==='project_folder_exists')request=null;message(cause.message);}
+    finally{sending=false;$('arenaForm').setAttribute('aria-busy','false');readiness();}
+  };
+  const tabs=[...section.querySelectorAll('[data-arena-tab]')];for(const tab of tabs)tab.onclick=()=>{const arena=current();if(!arena)return;localStorage.setItem('umibridge.arena.tab.'+arena.id,tab.dataset.arenaTab);signature='';render();};
+  $('arenaTabs').onkeydown=event=>{const index=tabs.indexOf(document.activeElement);if(index<0)return;const next=event.key==='ArrowRight'?(index+1)%tabs.length:event.key==='ArrowLeft'?(index+tabs.length-1)%tabs.length:event.key==='Home'?0:event.key==='End'?tabs.length-1:-1;if(next>=0){event.preventDefault();tabs[next].click();tabs[next].focus();}};
+  $('arenaConnect').onclick=()=>{$('arenaPairPanel').hidden=!$('arenaPairPanel').hidden;};
+  $('arenaPair').onclick=async()=>{try{const result=await api('/browser/pair',{},true);$('arenaPairToken').value=result.token;$('arenaPairBox').hidden=false;await load();}catch(cause){message(cause.message);}};
+  $('arenaCopyToken').onclick=()=>navigator.clipboard.writeText($('arenaPairToken').value).catch(()=>{$('arenaPairToken').select();message('Không chép được. Chọn ô mã rồi nhấn Ctrl+C.');});
+  window.addEventListener('umibridge-view',()=>{signature='';if(section.classList.contains('view-active'))void load();else render();});document.addEventListener('visibilitychange',()=>{signature='';render();});
+  setInterval(()=>{if(section.classList.contains('view-active')&&!document.hidden)void load();},2000);void load();
+})();

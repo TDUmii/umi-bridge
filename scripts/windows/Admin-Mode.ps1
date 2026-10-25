@@ -514,7 +514,7 @@ function Resolve-UmiPrincipalSid {
 function Get-UmiProductionStateNames {
     # Keep operational identity/settings; do not elevate QA scripts, screenshots,
     # diagnostic bundles, releases, or arbitrary executable files in .local-data.
-    return @('connection-secret.txt', 'oauth-state.json', 'oauth-profiles', 'tunnel-config.json', 'profile', 'tool-policy.json', 'windows-tools-disabled', 'windows-tools.toml', 'devices.json', 'skill-registry.json', 'chat-links.json', 'request-history.jsonl', 'agent-config.json', 'workflows.jsonl', 'corp-state.json')
+    return @('connection-secret.txt', 'oauth-state.json', 'oauth-profiles', 'tunnel-config.json', 'profile', 'tool-policy.json', 'windows-tools-disabled', 'windows-tools.toml', 'devices.json', 'skill-registry.json', 'chat-links.json', 'request-history.jsonl', 'token-history.jsonl', 'agent-config.json', 'workflows.jsonl', 'corp-state.json', 'arena-state.json')
 }
 
 function Copy-UmiPrivateState {

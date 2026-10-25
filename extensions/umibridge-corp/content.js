@@ -1,5 +1,8 @@
 (() => {
   const memory = new Map();
+  const channelOf = command => command?.channel === 'arena' ? 'arena' : 'corp';
+  const attemptKey = command => channelOf(command)+':'+command.attempt;
+  const setupMarker = command => `[UmiBridge ${channelOf(command)==='arena'?'arena ':''}setup ${command.jobId}:${command.roleId}]`;
   let dispatching = false;
   const chatId = () => location.pathname.match(/(?:^|\/)c\/([a-zA-Z0-9-]+)\/?$/)?.[1];
   const projectId = () => location.pathname.match(/^\/g\/(g-p-[a-f0-9]{32})(?:-[a-zA-Z0-9_-]+)?\//)?.[1];
@@ -26,19 +29,20 @@
       const heading=[...document.querySelectorAll('h1')].find(el=>visible(el)&&el.textContent.trim()===command.projectName);
       if(projectId()&&/\/project\/?$/.test(location.pathname)&&heading)return {kind:'project',projectUrl:`https://chatgpt.com/g/${projectId()}/project`};
     }else if(projectId()===command.projectId&&chatId()){
-      const marker=`[UmiBridge setup ${command.jobId}:${command.roleId}]`;
+      const marker=setupMarker(command);
       if([...document.querySelectorAll(messageSelector)].some(el=>author(el)==='user'&&el.textContent.includes(marker)))return {kind:'chat',roleId:command.roleId,chatUrl:`https://chatgpt.com/g/${command.projectId}/c/${chatId()}`};
     }
     return null;
   }
   async function bootstrapAuthorized(command){
-    const result=await chrome.runtime.sendMessage({type:'bootstrap-authorize',jobId:command.jobId,attempt:command.attempt});
+    const result=await chrome.runtime.sendMessage({type:'bootstrap-authorize',jobId:command.jobId,attempt:command.attempt,roleId:command.roleId,channel:channelOf(command)});
     if(!result?.allowed)throw Error('bootstrap_stopped');
   }
   async function setupProject(command){
     const prior=bootstrapInspect(command);if(prior)return prior;
     const existing=[...document.querySelectorAll('nav button,nav a')].find(el=>visible(el)&&el.textContent.trim()===command.projectName);
-    if(existing){existing.click();return waitForValue(()=>bootstrapInspect(command));}
+    // Arena owns a new Project; a matching title cannot prove ownership of another lane's Project.
+    if(existing&&channelOf(command)==='corp'){existing.click();return waitForValue(()=>bootstrapInspect(command));}
     if(command.reconcileOnly)throw Error('bootstrap_recovery_required');
     let input=document.querySelector('#chatgpt-project-name');
     if(!input||!visible(input)){
@@ -56,6 +60,7 @@
     return waitForValue(()=>bootstrapInspect(command));
   }
   async function setupChat(command){
+    if(typeof command.roleId!=='string'||!/^[a-zA-Z0-9_-]{1,100}$/.test(command.roleId)||typeof command.seed!=='string'||command.seed.length>48000||!command.seed.includes(setupMarker(command)))throw Error('bootstrap_invalid_descriptor');
     const prior=bootstrapInspect(command);if(prior)return prior;
     if(command.reconcileOnly)throw Error('bootstrap_recovery_required');
     if(projectId()!==command.projectId||!/\/project\/?$/.test(location.pathname))throw Error('bootstrap_project_changed');
@@ -123,7 +128,7 @@
     return null;
   }
   function inspect(command) {
-    const base = { runId: command.runId, stepId: command.stepId, attempt: command.attempt };
+    const base = { runId: command.runId, stepId: command.stepId, attempt: command.attempt,channel:channelOf(command) };
     if (!matches(command)) return { ...base, kind: 'blocked', reason: 'chat_changed' };
     const marker = `[UmiBridge task ${command.attempt}]`;
     const messages = [...document.querySelectorAll(messageSelector)].filter(node => !node.parentElement?.closest(messageSelector));
@@ -139,18 +144,18 @@
     const finished = turnState ? turnState === 'complete' : turn?.querySelector('[data-testid="copy-turn-action-button"], button[aria-label="Copy"], button[aria-label="Sao chép"]');
     const result = answer ? (answer.querySelector('[data-markdown-text-style="assistant-message"]') ?? answer).innerText.trim() : '';
     if (/^(?:không thể tải phản hồi này|unable to load this response|couldn['’]t load this response)[.!]?$/iu.test(result)) {
-      memory.delete(command.attempt);return {...base,kind:'blocked',sent:true,reason:'response_unavailable'};
+      memory.delete(attemptKey(command));return {...base,kind:'blocked',sent:true,reason:'response_unavailable'};
     }
     if (answer && finished && !sending()) {
       if (result.length > 48_000) return { ...base, kind: 'blocked', reason: 'response_too_large' };
-      const prior = memory.get(command.attempt);
+      const prior = memory.get(attemptKey(command));
       if (prior?.result === result && result && Date.now() - prior.since >= 6000) return { ...base, kind: 'done', sent: true, result };
-      if (prior?.result !== result) memory.set(command.attempt, { result, since: Date.now() });
-    } else memory.delete(command.attempt);
+      if (prior?.result !== result) memory.set(attemptKey(command), { result, since: Date.now() });
+    } else memory.delete(attemptKey(command));
     return { ...base, kind: 'sent' };
   }
   async function dispatch(command) {
-    const base = { runId: command.runId, stepId: command.stepId, attempt: command.attempt };
+    const base = { runId: command.runId, stepId: command.stepId, attempt: command.attempt,channel:channelOf(command) };
     const prior = inspect(command);
     if (prior) return prior;
     if (dispatching) return { ...base, kind: 'blocked', reason: 'composer_busy' };

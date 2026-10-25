@@ -99,7 +99,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     const arena = run.arenaId ? state.arenas.find(item => item.id === run.arenaId) : null;
     return Boolean(workspace && workspace.projectId === run.projectId && step.workspaceId === workspace.id && workspace.chats.some(chat => chat.chatId === step.chatId) && (!arena || arena.team.every(member => workspace.chats.some(chat => chat.chatId === member.chatId))));
   };
-  const summary = () => ({ enabled: state.enabled, office: state.office, autoResume: state.autoResume,
+  const summary = () => ({ enabled: state.enabled, office: state.office, autoResume: state.autoResume, resetGeneration:state.resetGeneration||null,
     paired: Boolean(state.tokenHash), connected: lastSeen > 0 && clock() - lastSeen < 45_000,
     lastSeen: lastSeen ? new Date(lastSeen).toISOString() : null, connectedChats: [...connectedChats],extensionVersion,
     runs: copy(state.runs), events: copy(state.events), teams:copy(state.teams), companyRoles:copy(companyRoles), deliveryOrder:[...deliveryOrder],

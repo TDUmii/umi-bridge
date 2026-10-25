@@ -2,7 +2,7 @@ import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createReadStream, readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { homedir } from 'node:os';
-import { dirname, win32 } from 'node:path';
+import { dirname, join, win32 } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Tiktoken } from 'js-tiktoken/lite';
 import o200k from 'js-tiktoken/ranks/o200k_base';
@@ -189,9 +189,9 @@ export async function createRequestHistory(filePath, { secretValues = [] } = {})
       return entries.slice(-safeLimit).reverse();
     },
     has(requestId) { return entries.some(entry => entry.id === requestId); },
-    async analytics(filters, corpUsage = [], now) {
+    async analytics(filters, corpUsage = [], now, arenaUsage = []) {
       await writes;
-      return readUsageReport(filePath, filters, corpUsage, now);
+      return readUsageReport(filePath, filters, corpUsage, now, arenaUsage, join(dirname(filePath),'token-history.jsonl'));
     },
     stats() {
       const tools = new Set(entries.map(entry => entry.toolName));

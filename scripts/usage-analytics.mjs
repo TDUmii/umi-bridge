@@ -15,7 +15,7 @@ function normalize(entry, source) {
   const inputTokens = token('inputTokens'), outputTokens = token('outputTokens');
   return { id: label(entry.id), timestamp: new Date(entry.timestamp).toISOString(), source, provider: label(entry.provider) || 'unknown',
     application: label(entry.clientName) || 'Unknown app', tool: label(entry.toolName) || 'unknown',
-    chat: source === 'corp' ? label(entry.chatId) : '', task: source === 'corp' ? label(entry.title) : '',
+    chat: source !== 'mcp' ? label(entry.chatId) : '', task: source !== 'mcp' ? label(entry.title) : '',
     status: entry.status === 'ok' ? 'ok' : entry.status === 'error' ? 'error' : 'pending',
     durationMs: nonnegative(entry.durationMs) ? entry.durationMs : null,
     inputTokens, outputTokens, totalTokens: inputTokens === null && outputTokens === null ? null : (inputTokens || 0) + (outputTokens || 0),
@@ -36,14 +36,14 @@ const finish = bucket => ({ ...bucket, unmeasured: bucket.requests - bucket.meas
   averageMs: bucket.timed ? Math.round(bucket.durationMs / bucket.timed) : null,
   successRate: bucket.success + bucket.errors ? Math.round(1000 * bucket.success / (bucket.success + bucket.errors)) / 10 : null });
 
-export async function readUsageReport(filePath, filters = {}, corpUsage = [], now = Date.now()) {
+export async function readUsageReport(filePath, filters = {}, corpUsage = [], now = Date.now(), arenaUsage = [], historicalFilePath) {
   const period = ['today', '24h', '7d', '30d', '60d', 'all'].includes(filters.period) ? filters.period : '7d';
   const offset = Math.max(-840, Math.min(840, Number(filters.offset) || 0)) * 60_000;
   const midnight = Math.floor((now - offset) / DAY) * DAY + offset;
   const since = period === 'all' ? 0 : period === 'today' ? midnight : now - ({ '24h': 1, '7d': 7, '30d': 30, '60d': 60 }[period] * DAY);
   const page = Math.max(0, Math.min(2000, Math.trunc(Number(filters.page) || 0)));
   const limit = 50, keep = (page + 1) * limit;
-  const source = ['mcp', 'corp'].includes(filters.source) ? filters.source : 'all';
+  const source = ['mcp', 'corp', 'arena'].includes(filters.source) ? filters.source : 'all';
   const search = label(filters.search).toLowerCase();
   const total = empty(), groups = { applications: new Map(), tools: new Map(), chats: new Map(), sources: new Map() };
   const options = { applications: new Set(), tools: new Set() }, timeline = new Map();
@@ -73,16 +73,17 @@ export async function readUsageReport(filePath, filters = {}, corpUsage = [], no
     // Keep pagination bounded while streaming the full journal for accurate totals.
     if (rows.length > keep + 1000) rows = rows.sort((a, b) => b.timestamp.localeCompare(a.timestamp) || b.id.localeCompare(a.id)).slice(0, keep);
   }
-  if (source !== 'corp') {
-    try {
-      const lines = createInterface({ input: createReadStream(filePath, { encoding: 'utf8' }), crlfDelay: Infinity });
+  if (source === 'all' || source === 'mcp') {
+    for(const sourcePath of [...new Set([historicalFilePath,filePath].filter(Boolean))])try {
+      const lines = createInterface({ input: createReadStream(sourcePath, { encoding: 'utf8' }), crlfDelay: Infinity });
       for await (const line of lines) {
         let entry; try { entry = JSON.parse(line); } catch { continue; }
         accept(entry, 'mcp');
       }
     } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
-  if (source !== 'mcp') for (const entry of corpUsage) accept(entry, 'corp');
+  if (source === 'all' || source === 'corp') for (const entry of corpUsage) accept(entry, 'corp');
+  if (source === 'all' || source === 'arena') for (const entry of arenaUsage) accept(entry, 'arena');
   return { period, source, since: new Date(since).toISOString(), until: new Date(now).toISOString(), offsetMinutes: offset / 60_000,
     method: 'o200k_base', estimated: true, providerReported: null, model: null,
     totals: finish(total), groups: Object.fromEntries(Object.entries(groups).map(([key, values]) => [key, [...values.values()].map(finish).sort((a, b) => b.totalTokens - a.totalTokens)])),

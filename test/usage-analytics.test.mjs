@@ -4,6 +4,20 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { readUsageReport } from '../scripts/usage-analytics.mjs';
+import { createRequestHistory } from '../scripts/local-admin.mjs';
+
+test('fresh request history stays empty while numeric archive and separate Arena totals remain available',async t=>{
+  const dir=await mkdtemp(join(tmpdir(),'umi-usage-reset-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+  const file=join(dir,'request-history.jsonl'),stamp=new Date().toISOString();
+  const measure=(id,input,output)=>({id,timestamp:stamp,toolName:'chat_turn',clientName:'History',provider:'chatgpt',status:'ok',usage:{estimated:true,method:'o200k_base',inputTokens:input,outputTokens:output,totalTokens:input+output}});
+  await writeFile(file,'');await writeFile(join(dir,'token-history.jsonl'),JSON.stringify(measure('old',10,20))+'\n');
+  const store=await createRequestHistory(file),corp=[measure('corp',3,4)],arena=[{...measure('arena',5,6),clientName:'ChatGPT Arena'}];
+  assert.equal(store.list().length,0);assert.equal(store.stats().total,0);
+  const all=await store.analytics({period:'all'},corp,undefined,arena);assert.equal(all.totals.totalTokens,48);
+  assert.deepEqual(all.groups.sources.map(row=>row.name).sort(),['arena','corp','mcp']);
+  const only=await store.analytics({period:'all',source:'arena'},corp,undefined,arena);assert.equal(only.totals.totalTokens,11);assert.equal(only.rows[0].application,'ChatGPT Arena');
+  assert.equal((await store.analytics({period:'all',source:'mcp'},corp,undefined,arena)).totals.totalTokens,30);
+});
 
 test('usage filters scan the full journal, respect local day, paginate and omit payloads', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'umi-usage-')); t.after(() => rm(dir, {recursive:true,force:true}));
