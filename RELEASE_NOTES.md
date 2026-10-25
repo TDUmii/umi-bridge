@@ -16,7 +16,7 @@ Contestant prompts and Corp Idea handoffs now state shared acceptance dimensions
 
 Validation: syntax build and all 151 Windows regression tests pass with zero failures, cancellations or skips (400,600 ms). Arena browser QA covers twenty seats and seven criteria; adapter QA passes. Corp browser QA passes eight direct-brief cases and hidden-state checks; Idea QA completes one Project, eight chats, thirteen turns and two repair rounds with a provider fixture. Split-view QA passes scoped selectors, focus/Escape, hidden/reduced motion, Office visibility, handoff baseline and initial Fit, with zero POSTs, remote requests or page errors. Filled direct-brief form captures cover desktop and laptop. Live local health and watch assets return successfully; the current Arena is cancelled/static and the real Corp roster has zero agents. Extension 0.4.0 is connected and paired.
 
-ZIP/privacy and remote release parity remain pending in docs/ACCEPTANCE-1.2.vi.md. Historical counts below remain evidence only for their own releases. Extension stays at 0.4.0, with no new provider/account capability or complete real-account tournament claim.
+Source ZIP preflight contains no private state, profile, credential, runtime or handoff files; the extracted source passes build. Final commit/tag/CI and public asset checksum evidence is recorded with release v1.2.0 and docs/ACCEPTANCE-1.2.vi.md. Historical counts below remain evidence only for their own releases. Extension stays at 0.4.0, with no new provider/account capability or complete real-account tournament claim.
 
 ## Previous 1.1.0
 
