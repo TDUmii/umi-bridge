@@ -1,4 +1,4 @@
-# Arena trong UmiBridge 1.1.0
+# Arena trong UmiBridge 1.2.0
 
 Arena có mục riêng trên thanh điều hướng dashboard. Một ý tưởng tạo một Project ChatGPT riêng với **20 chat thí sinh và 1 chat giám khảo**. Mỗi thí sinh tự xây toàn bộ sản phẩm trong chat và thư mục của mình. Corp giữ Project, đội ngũ và hàng đợi riêng; không chọn Project Corp để chạy Arena.
 
@@ -6,7 +6,7 @@ Phạm vi giao diện: desktop/laptop, 1600×1000 và 1366×768. Hướng dẫn 
 
 ## Chuẩn bị và kết nối
 
-1. Cập nhật UmiBridge 1.1.0 và extension trong thư mục extensions/umibridge-corp lên **0.4.0**.
+1. Cập nhật UmiBridge 1.2.0 và extension trong thư mục extensions/umibridge-corp lên **0.4.0**.
 2. Trong chrome://extensions/ hoặc edge://extensions/, bật Developer mode rồi bấm **Reload** trên thẻ UmiBridge Corp. Sau đó tải lại các tab ChatGPT. Thay source trên ổ đĩa chưa tự nạp lại extension đã cài.
 3. Mở dashboard local tại [http://127.0.0.1:43127/admin#arena](http://127.0.0.1:43127/admin#arena). Kiểm tra trạng thái extension. Corp và Arena dùng chung browser transport và mã ghép; giữ kết nối cũ nếu còn hợp lệ. Mã ghép extension khác Connection code OAuth của MCP.
 4. Nếu chưa ghép, mở **Kết nối** tại Arena, tạo mã ghép rồi nhập địa chỉ local và mã trong cài đặt extension. Không gửi mã vào chat hoặc issue. Tạo/thu hồi mã ảnh hưởng kết nối trình duyệt chung.
@@ -40,14 +40,20 @@ Số sản phẩm đi tiếp cố định: **20 → 10 → 5 → 3 → 2 → 1**
 
 | Tiêu chí | Điểm tối đa |
 | --- | ---: |
-| Yêu cầu / chức năng | 35 |
-| Trải nghiệm sử dụng | 15 |
+| Yêu cầu / chức năng | 30 |
+| Trải nghiệm / khả năng tiếp cận | 15 |
 | Kiểm thử / bằng chứng | 20 |
-| Bảo mật | 15 |
-| Chạy local / tài liệu | 15 |
+| Bảo mật | 10 |
+| Hiệu năng / độ ổn định | 10 |
+| Khả năng bảo trì | 5 |
+| Chạy local / tài liệu | 10 |
 | **Tổng** | **100** |
 
-Mỗi sản phẩm cần đủ năm điểm thành phần, lý do, tổng khớp, kiểm tra và phản hồi cụ thể. Thứ hạng giảm dần theo tổng; hòa ở ranh giới đi tiếp cần giải thích phân định. Phản hồi có điểm mạnh, lỗi và thay đổi cần làm cho từng thí sinh, kể cả bị loại.
+Arena mới từ 1.2.0 dùng rubric v2 ở bảng trên. Arena đã tạo trước cập nhật giữ rubric v1: chức năng 35, trải nghiệm 15, bằng chứng 20, bảo mật 15 và local/tài liệu 15. Điểm lịch sử và prompt giám khảo đã xếp hàng không bị đổi thang điểm; màn Vòng đấu hiển thị đúng rubric của Arena đang chọn.
+
+Công bằng là quy tắc chấm chung: cùng dữ liệu, tiêu chí và mức kiểm tra cho mọi thí sinh; không phạt tên, ngôn ngữ, framework, khuyết tật hoặc nguồn gốc. Khả năng tiếp cận nằm trong UX, gồm bàn phím, focus, nhãn, tương phản và giảm chuyển động khi phù hợp. Hiệu năng cần số đo hoặc hành vi quan sát; khả năng bảo trì dựa vào cấu trúc và hướng dẫn sửa.
+
+Mỗi sản phẩm cần đủ điểm thành phần theo rubric đã lưu, lý do, tổng khớp, kiểm tra và phản hồi cụ thể. Thứ hạng giảm dần theo tổng; hòa ở ranh giới đi tiếp cần giải thích phân định. Phản hồi có điểm mạnh, lỗi và thay đổi cần làm cho từng thí sinh, kể cả bị loại.
 
 **Mọi thí sinh đi tiếp phải cải tiến trước lần chấm sau.** Thí sinh đọc phản hồi giám khảo, sửa ít nhất một tệp source rồi chạy lại build/test/run và cung cấp bằng chứng mới. Gateway từ chối bản source không đổi hoặc phiên bản thiếu kiểm tra. Chỉ khi tất cả sản phẩm còn lại hoàn tất cải tiến mới gửi giám khảo chấm vòng tiếp. Thí sinh bị loại giữ sản phẩm và bằng chứng, không nhận vòng cải tiến mới.
 
@@ -57,12 +63,18 @@ Kết thúc vòng cuối còn một sản phẩm. Dashboard hiển thị ngườ
 
 | Tab | Nội dung |
 | --- | --- |
-| **Trực tiếp** | Khởi tạo hoặc lượt sản phẩm/giám khảo hiện tại, tiến độ, đường chọn và người thắng. |
+| **Trực tiếp** | Đấu trường La Mã với 20 vị trí thí sinh và giám khảo; trạng thái trống, khởi tạo hoặc lượt hiện tại, tiến độ và người thắng. |
 | **Ứng viên** | 20 chat/thư mục, các phiên bản source/bằng chứng, manifest/hashes, kiểm tra và phản hồi; chat giám khảo riêng. |
 | **Vòng đấu** | Chọn vòng, xếp hạng toàn bộ thí sinh còn lại, điểm từng tiêu chí, người đi tiếp, phản hồi và bằng chứng. |
 | **Lịch sử** | Sự kiện tạo, khởi tạo, giao việc, phiên bản, chấm, tạm dừng, phục hồi và hoàn tất đã ghi. |
 
-Các tab hỗ trợ Tab, phím mũi tên, Home/End; lựa chọn được giữ khi refresh. Hoạt ảnh chỉ phản ánh trạng thái đã ghi nhận, không chứng minh model đang suy nghĩ. Giảm chuyển động giữ thông tin tĩnh.
+Thanh trên đấu trường đặt tiến độ chat/lượt đã xác nhận, lộ trình chọn và link chat hiện tại trước phần trang trí. Chữ trạng thái thí sinh tối thiểu 11px ở bố cục desktop/laptop. Các tab hỗ trợ Tab, phím mũi tên, Home/End; lựa chọn được giữ khi refresh. Hoạt ảnh chỉ phản ánh trạng thái đã ghi nhận, không chứng minh model đang suy nghĩ. Giảm chuyển động giữ thông tin tĩnh.
+
+## Xem Corp và Arena cùng lúc
+
+Mở **Xem đôi** trên thanh điều hướng để thấy văn phòng Corp và đấu trường Arena bên nhau. Chọn Arena ở pane Arena; lựa chọn Project Corp nằm ở pane Corp và không trộn chat, nhiệm vụ hay công tắc điều phối. Dùng **Phóng lớn** để tập trung một pane; **Escape** trở lại hai pane. Pane bị che và tab trình duyệt bị ẩn dừng hoạt ảnh. Chế độ giảm chuyển động giữ trạng thái bằng chữ.
+
+Xem đôi đọc trạng thái đã có, không tạo Project/chat hoặc tự bắt đầu giải. Muốn tạo, bật/tắt hoặc phục hồi Arena, mở mục Arena. Văn phòng Corp tôn trọng lựa chọn Văn phòng: Bật/Tắt riêng.
 
 ## Tạm dừng và phục hồi
 
@@ -91,4 +103,4 @@ npm run arena:qa
 npm run arena:adapter:qa
 ```
 
-Runtime tests và browser fixtures không dùng tài khoản/provider thật. Kết quả cụ thể nằm trong biên bản nghiệm thu của release sau khi chạy; tài liệu này không khẳng định số lượng tests hoặc CI chưa kiểm tra. Chưa xác minh toàn bộ giải xây/sửa/chấm sản phẩm bằng tài khoản ChatGPT thật. Giao diện provider thay đổi, đăng nhập, quyền connector hoặc chọn model có thể cần người dùng đối chiếu.
+Runtime tests và browser fixtures không dùng tài khoản/provider thật. Kết quả cụ thể nằm trong [nghiệm thu 1.2.0](ACCEPTANCE-1.2.vi.md) sau khi chạy; tài liệu này không khẳng định số lượng tests hoặc CI chưa kiểm tra. Chưa xác minh toàn bộ giải xây/sửa/chấm sản phẩm bằng tài khoản ChatGPT thật. Giao diện provider thay đổi, đăng nhập, quyền connector hoặc chọn model có thể cần người dùng đối chiếu.

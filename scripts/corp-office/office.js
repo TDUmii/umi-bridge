@@ -13,6 +13,8 @@
   let pending = [], delivery = null, lastRoster = '', lastRoles = '';
   let zoom = 1, fit = false, sceneWidth = 640, columns = 3, tooltipAgent = null, viewScale = 1, tooltipTimer;
   let deskRows = 0, seatCount = 0, firstRow = 244, rowGap = 120;
+  const compact=new URLSearchParams(location.search).get('compact')==='1';let compactFitted=false;
+  document.body.classList.toggle('compact-office',compact);
   const statusTone = status => ({DISPATCHED:'sending',WAITING:'waiting',COMPLETED:'review',REVIEW:'review',LIMIT:'limit',BLOCKED:'blocked',DONE:'sending'}[status] || 'idle');
   function geometry(scale, fillHeight=true) {
     const width = Math.max(480, Math.floor(($('scene').clientWidth - 16) / scale));
@@ -144,6 +146,8 @@
     $('health').textContent=error?'Mất cập nhật. Trạng thái hiển thị đã cũ; đang thử lại.':
       `${data.coordinator?'Điều phối: Bật':'Điều phối: Tắt'} · ${data.agents.length} nhân viên`;
     $('connection').classList.toggle('error',error);
+    const active=data.agents.some(agent=>['DISPATCHED','WAITING','LIMIT','REVIEW','BLOCKED','QUEUED','PAUSED'].includes(agent.status));
+    $('connection').dataset.state=error?'error':active?'active':'idle';
     $('count').textContent=data.agents.length;
     $('empty').hidden=!!data.agents.length;
     const signature=JSON.stringify([data.agents,selected]);
@@ -250,6 +254,11 @@
     for(const p of people.values()) {
       const {x,y}=p.seat;
       if(!p.boss){rect(x-66,y-59,132,94,'#c2ccb0');rect(x-60,y-53,120,82,'#ced7be');}
+      if(!error&&p.status!=='IDLE'&&p.status!=='COMPLETED') {
+        const pulse=reduced?.78:.58+.18*(Math.sin(now*4.2+hash(p.id)%9)+1)/2;
+        ctx.save();ctx.globalAlpha=pulse;ctx.strokeStyle=colors[p.status]||colors.IDLE;ctx.lineWidth=2;
+        ctx.beginPath();ctx.arc(x,y-38,26+(reduced?0:Math.sin(now*3+hash(p.id)%7)*2),0,Math.PI*2);ctx.stroke();ctx.restore();
+      }
       sprite('WOODEN_CHAIR_FRONT',x-12,y-45,1.5);
       sprite('DESK_FRONT',x-36,y-51,1.5);
       const active=!error&&p.pose==='type';
@@ -300,8 +309,9 @@
       if(!reduced)pending.push(...events.slice(-12));
       pending=pending.slice(-12);
       renderUI();draw();schedule();
+      if(compact&&visible&&people.size&&!compactFitted){compactFitted=true;fitRoom();}
     },
-    setVisible(value){visible=value;if(!value){cancelAnimationFrame(raf);raf=0;last=0;clearMovement();}else schedule();},
+    setVisible(value){if(!value)compactFitted=false;visible=value;document.body.dataset.visible=String(value);if(!value){cancelAnimationFrame(raf);raf=0;last=0;clearMovement();}else{if(compact&&people.size&&!compactFitted){compactFitted=true;fitRoom();}schedule();}},
     setError(){error=true;clearMovement();renderUI();draw();},
     inspect(){return{agents:people.size,pending:pending.length,delivery:delivery?.event.id??null,visible,reduced,error,framesActive:!!raf,project:model.project,bridgeReady:!!bridge,zoom,fit,sceneWidth,columns,sceneHeight,deskRows,firstRow,rowGap,tooltipAgent};}
   };
@@ -309,6 +319,7 @@
   $('zoom-in').onclick=()=>{fit=false;zoom=Math.min(2,Math.round((zoom+.25)*100)/100);resizeView();};
   $('zoom-fit').onclick=fitRoom;
   $('expand').onclick=()=>parent.postMessage({type:'corp-office-expand'},location.origin);
+  $('toggle-roster').onclick=()=>{const open=document.body.classList.toggle('show-roster');$('toggle-roster').setAttribute('aria-expanded',String(open));};
   new ResizeObserver(resizeView).observe($('scene'));
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideTooltip();parent.postMessage({type:'corp-office-collapse'},location.origin);}});
   $('scene').addEventListener('scroll',()=>{
@@ -330,7 +341,7 @@
     if(event.data?.type!=='corp-office')return;
     window.office.setSnapshot(event.data.snapshot);window.office.setVisible(Boolean(event.data.visible));
   });
-  function updateMotion(){ $('motion').setAttribute('aria-pressed',String(reduced));if(reduced)clearMovement();schedule(); }
+  function updateMotion(){document.body.dataset.reducedMotion=String(reduced); $('motion').setAttribute('aria-pressed',String(reduced));if(reduced)clearMovement();schedule(); }
   $('motion').onclick=()=>{reduced=!reduced;updateMotion();};
   matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',e=>{reduced=e.matches;updateMotion();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(raf);raf=0;last=0;}else schedule();});

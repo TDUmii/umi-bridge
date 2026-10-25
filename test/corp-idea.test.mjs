@@ -27,6 +27,7 @@ test('idea template matches named departments, keeps explicit assignments, and s
   assert.equal(plan.steps.length,11);assert.equal(plan.steps[0].stage,'brief');assert.equal(plan.steps.at(-1).stage,'delivery');
   assert.ok(plan.steps.every(step=>step.workspaceId===p.id&&p.chats.some(chat=>chat.chatId===step.chatId)));
   assert.match(plan.steps[0].prompt,/tiêu chí nghiệm thu/);assert.match(plan.steps[3].prompt,/Triển khai mã hoạt động/);
+  for(const dimension of ['accessibility','performance','maintainability','delivery'])assert.ok(plan.steps.every(step=>step.prompt.includes(dimension)),dimension);
   assert.equal(plan.steps.filter(step=>step.requiresPass).length,4);
   const planning=buildIdeaWorkflow({project:{...p,chats:p.chats.filter(chat=>['ceo','product','design'].includes(chat.chatId))},idea:'Một công cụ ghi chú',mode:'plan',requestKey:randomUUID()});
   assert.equal(planning.steps.length,3);

@@ -426,7 +426,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       res.set('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'");
       next();
     }, express.static(resolve(ROOT, 'scripts/corp-office'), { dotfiles: 'deny', index: 'index.html' }));
-    for (const asset of ['corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
+    for (const asset of ['corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'watch-dashboard.js', 'watch-dashboard.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
       app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
     }
     const workflowAvailable = (_req, res, next) => {

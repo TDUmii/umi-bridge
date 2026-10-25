@@ -4,7 +4,7 @@ import {mkdtemp,mkdir,writeFile,readFile,rm,symlink,readdir} from 'node:fs/promi
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {randomUUID} from 'node:crypto';
-import {createArenaRuntime,arenaRubric} from '../scripts/arena-runtime.mjs';
+import {createArenaRuntime} from '../scripts/arena-runtime.mjs';
 
 async function fixture(t,extra={}) {
   const root=await mkdtemp(join(tmpdir(),'umibridge-arena-independent-'));t.after(()=>rm(root,{recursive:true,force:true}));
@@ -40,11 +40,41 @@ async function product(f,command,{unchanged=false,artifacts,source}={}) {
 function decision(f,command) {
   const arena=f.runtime.snapshot().arenas.find(row=>row.id===command.arenaId),round=arena.rounds.at(-1),ranking=round.inputIds.map((candidateId,index)=>{
     const score=95-index;
-    return {candidateId,score,feedback:`Product ${candidateId}: functionality passed; improve counter labels and test edge case at round ${command.round+1}.`,criteria:arenaRubric.map(row=>({id:row.id,score:row.max*score/100,reason:`Verified ${row.id}`})),checks:[{name:'Source and runtime review',status:'pass',evidence:'Build/test/run logs inspected and checks passed.',artifacts:['evidence.txt']}]};
+    return {candidateId,score,feedback:`Product ${candidateId}: functionality passed; improve counter labels and test edge case at round ${command.round+1}.`,criteria:arena.rubric.map(row=>({id:row.id,score:row.max*score/100,reason:`Verified ${row.id}`})),checks:[{name:'Source and runtime review',status:'pass',evidence:'Build/test/run logs inspected and checks passed.',artifacts:['evidence.txt']}]};
   });
   return {summary:`Reviewed every active product at round ${round.number}`,ranking,advance:ranking.slice(0,Math.ceil(ranking.length/2)).map(row=>row.candidateId)};
 }
 const numericUsage=rows=>rows.map(({id,chatId,title,...row})=>row);
+
+test('New Arena uses seven rubric criteria and gives contestants measurable acceptance standards',async t=>{
+  const f=await fixture(t),arena=await f.create();
+  assert.equal(arena.rubricVersion,2);
+  assert.deepEqual(arena.rubric.map(({id,max})=>[id,max]),[['requirements',30],['ux',15],['evidence',20],['security',10],['performance',10],['maintainability',5],['delivery',10]]);
+  assert.equal(arena.rubric.reduce((sum,row)=>sum+row.max,0),100);
+  await f.setup(arena);await f.runtime.action(arena.id,'start');
+  const {command}=await f.poll();
+  for(const dimension of ['accessibility','performance','maintainability','delivery'])assert.ok(command.prompt.includes(dimension));
+});
+
+test('Legacy Arena keeps five-criterion scores and queued judge prompt across restart',async t=>{
+  const f=await fixture(t),arena=await f.create();await f.setup(arena);await f.runtime.action(arena.id,'start');
+  for(let index=0;index<20;index++){const {command}=await f.poll(),data=await product(f,command);await f.runtime.report(f.token,{...command,kind:'done',sent:true,result:data.result});}
+  await f.runtime.action(arena.id,'pause');
+  const saved=JSON.parse(await readFile(f.file,'utf8')),legacy=saved.arenas[0];
+  delete legacy.rubric;delete legacy.rubricVersion;
+  const judge=legacy.steps.at(-1);judge.prompt='Legacy queued judge prompt: requirements35 ux15 evidence20 security15 delivery15';
+  const oldDecision={summary:'Historical decision must stay intact',ranking:[{criteria:[{id:'security',score:12}]}]};
+  legacy.history.push({type:'legacy_decision',decision:oldDecision});
+  await writeFile(f.file,JSON.stringify(saved));await f.restart();
+  const restored=f.runtime.snapshot().arenas[0];
+  assert.equal(restored.rubricVersion,1);
+  assert.equal(JSON.parse(await readFile(f.file,'utf8')).arenas[0].rubricVersion,1);
+  assert.deepEqual(restored.rubric.map(({id,max})=>[id,max]),[['requirements',35],['ux',15],['evidence',20],['security',15],['delivery',15]]);
+  assert.equal(restored.steps.at(-1).prompt,judge.prompt);assert.deepEqual(restored.history.at(-1).decision,oldDecision);
+  await f.runtime.action(arena.id,'start');const {command}=await f.poll();
+  const result=await f.runtime.report(f.token,{...command,kind:'done',sent:true,result:'UMI_ARENA_RESULT: '+JSON.stringify(decision(f,command))});
+  assert.equal(result.blocked,undefined);assert.equal(f.runtime.snapshot().arenas[0].rounds[0].decision.ranking[0].criteria.length,5);
+});
 
 test('Arena creates a separate Project, twenty independent chats/folders and one judge, paused after setup',async t=>{
   const f=await fixture(t),arena=await f.create();

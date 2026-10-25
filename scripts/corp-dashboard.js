@@ -1,7 +1,7 @@
 (() => {
   const $ = id => document.getElementById(id), section = $('corp'), scene = $('corpScene');
   let data = null, busy = false, signature = '', first = true, corpTab = localStorage.getItem('umibridge.corp.tab') || 'office';
-  let ideaSending=false,ideaRequest=null;
+  let ideaSending=false,ideaRequest=null,directSending=false,directRequest=null;
   let folderPicking=null;
   let focusBootstrap=localStorage.getItem('umibridge.corp.bootstrap');
   const labels = { queued:'Chờ giao việc', dispatching:'Đang gửi', running:'Chờ phản hồi', limit_wait:'Chờ reset hạn mức', blocked:'Cần kiểm tra', paused:'Tạm dừng', done:'Hoàn thành', cancelled:'Đã hủy' };
@@ -67,6 +67,27 @@
     if(!$('corpTeam').hidden&&($('corpTeam').dataset.project!==(project?.id||'')||$('corpTeam').dataset.members!==JSON.stringify(scopedChats().map(chat=>chat.chatId))))renderTeam(true);
     renderIdea();
   }
+  function renderDirectBrief(){
+    const select=$('corpDirectChat'),chats=scopedChats();
+    if(!select)return;
+    const signature=JSON.stringify(chats.map(chat=>[chat.id,chat.chatId,chat.name]));
+    if(select.dataset.choices!==signature){
+      const selected=select.value;select.replaceChildren(new Option(chats.length?'Chọn chat nhận brief':'Chưa có chat Corp',''));
+      for(const chat of chats){
+        const name=(chat.name||chat.chatId||chat.id).split('\n')[0];
+        select.add(new Option(name,chat.chatId||chat.id));
+      }
+      select.value=[...select.options].some(option=>option.value===selected)?selected:chats[0]?.chatId||chats[0]?.id||'';
+      select.dataset.choices=signature;
+    }
+    select.disabled=directSending||!chats.length;
+    $('corpProject').disabled=directSending||ideaSending;
+    $('corpIdeaWorkflowToggle').disabled=$('corpDirectToggle').disabled=directSending||ideaSending;
+    $('corpDirectBrief').readOnly=directSending;
+    $('corpDirectBriefSubmit').disabled=directSending||!chats.length;
+    $('corpDirectBriefSubmit').textContent=directSending?'Đang lưu...':data.enabled?'Gửi brief vào chat':'Lưu brief';
+    if(!directSending&&!$('corpDirectBriefStatus').dataset.sticky)$('corpDirectBriefStatus').textContent=chats.length?'':'Thêm hoặc đồng bộ chat Corp trước khi gửi.';
+  }
   function renderIdea(){
     if(!data)return;
     window.umiFolderDialog.initialize('corpIdeaParentRoot',data.projectsRoot);
@@ -99,6 +120,7 @@
     $('corpIdeaSubmit').disabled=ideaSending||!!folderPicking||!stages.length||(isNew?!data.paired||!supported:!project||!project.root||!!missing.length);
     $('corpIdeaConfigure').hidden=isNew;$('corpIdeaRun').closest('label').hidden=!isNew;
     $('corpIdeaConfigure').disabled=!project||ideaSending;
+    renderDirectBrief();
   }
   function renderBootstraps(){
     const jobs=(data.bootstraps||[]).filter(job=>!['done','cancelled'].includes(job.status));
@@ -133,6 +155,7 @@
   }
   function team(open){if(open)setCorpTab('queue');$('corpTeam').hidden=!open;section.classList.toggle('teaming',open);$('corpTeamToggle').setAttribute('aria-expanded',String(open));if(open)renderTeam();syncScene();sizeWorkspace();}
   function officeSnapshot() {
+    if(!data)return null;
     const agents = new Map();
     for (const workspace of scopedChats()) {
       if (agents.has(workspace.chatId)) continue;
@@ -161,7 +184,7 @@
     }
     const order=data.companyRoles?.map(role=>role.id)||[];
     const handoffs = data.events.filter(event => event.type === 'handoff' && runs.some(run => run.id === event.runId)).map(event => ({ id:event.id, from:event.from, to:event.to, task:event.task, at:event.at }));
-    return { project:selectedProject()?.id || 'umibridge-corp', name:selectedProject()?.name || 'UmiBridge Corp', coordinator:data.enabled, agents:[...agents.values()].sort((a,b)=>(order.indexOf(a.roleId)<0?99:order.indexOf(a.roleId))-(order.indexOf(b.roleId)<0?99:order.indexOf(b.roleId))), handoffs, baseline:first };
+    return { project:selectedProject()?.id || 'umibridge-corp', name:selectedProject()?.name || 'UmiBridge Corp', coordinator:data.enabled, office:data.office, agents:[...agents.values()].sort((a,b)=>(order.indexOf(a.roleId)<0?99:order.indexOf(a.roleId))-(order.indexOf(b.roleId)<0?99:order.indexOf(b.roleId))), handoffs, baseline:first };
   }
   function syncScene() {
     if (!data || !scene.contentWindow) return;
@@ -261,7 +284,7 @@
   $('corpIdeaParentRoot').oninput=()=>window.umiFolderDialog.remember($('corpIdeaParentRoot'));
   window.addEventListener('umibridge-folder-dialog',event=>{if(event.detail.inputId==='corpIdeaParentRoot'){folderPicking=event.detail.open?'corpIdeaParentRoot':null;renderIdea();}});
   $('corpIdeaForm').onsubmit=async event=>{
-    event.preventDefault();if(ideaSending||folderPicking)return;const project=selectedProject(),isNew=$('corpIdeaTarget').value==='new';if(!isNew&&!project)return;
+    event.preventDefault();if(ideaSending||directSending||folderPicking)return;const project=selectedProject(),isNew=$('corpIdeaTarget').value==='new';if(!isNew&&!project)return;
     const value={...(isNew?{parentRoot:$('corpIdeaParentRoot').value.trim()}:{workspaceId:project.id}),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked}:{})};
     if(isNew)window.umiFolderDialog.remember($('corpIdeaParentRoot'));
     const signature=JSON.stringify(value);if(ideaRequest?.signature!==signature)ideaRequest={signature,key:crypto.randomUUID()};
@@ -270,6 +293,26 @@
     catch(cause){if(cause.code==='project_folder_exists')ideaRequest=null;$('corpIdeaError').textContent=cause.message;$('corpIdeaError').hidden=false;}
     finally{ideaSending=false;$('corpIdeaForm').setAttribute('aria-busy','false');$('corpIdeaText').readOnly=false;$('corpIdeaMode').disabled=false;$('corpIdeaTarget').disabled=false;$('corpProject').disabled=false;renderIdea();}
   };
+  $('corpDirectBriefForm').onsubmit=async event=>{
+    event.preventDefault();if(directSending||ideaSending)return;
+    const chats=scopedChats(),chat=chats.find(item=>(item.chatId||item.id)===$('corpDirectChat').value),project=selectedProject(),prompt=$('corpDirectBrief').value.trim();
+    if(!chat||prompt.length<4)return;
+    const title=`Brief Corp · ${prompt.split(/\r?\n/,1)[0].slice(0,120)}`;
+    const body={title,...(project?{workspaceId:project.id}:{}),steps:[{workspaceId:project?.id||chat.id,chatId:chat.chatId,role:chat.name?.split('\n')[0]||'Nhân viên Corp',prompt}]};
+    const signature=JSON.stringify(body);if(directRequest?.signature!==signature)directRequest={signature,key:crypto.randomUUID(),runId:null};
+    directSending=true;$('corpDirectBriefForm').setAttribute('aria-busy','true');$('corpDirectBriefStatus').dataset.sticky='true';$('corpDirectBriefStatus').textContent='Đang lưu brief...';renderDirectBrief();
+    $('corpProject').disabled=true;
+    try {
+      const run=directRequest.runId?{id:directRequest.runId}:await api('/runs',{...body,requestKey:directRequest.key});directRequest.runId=run.id;
+      if(data.enabled){await api('/runs/'+run.id+'/start',{});$('corpDirectBriefStatus').textContent='Đã xếp lượt gửi. Xem tiến độ trong Hàng đợi.';}
+      else $('corpDirectBriefStatus').textContent='Đã lưu ở trạng thái tạm dừng. Bật Điều phối rồi mở Hàng đợi để gửi.';
+      $('corpDirectBrief').value='';directRequest=null;await load();
+    } catch(cause) { $('corpDirectBriefStatus').textContent=directRequest?.runId?'Brief đã lưu. Chưa xác nhận xếp lượt gửi; kiểm tra Hàng đợi. '+cause.message:cause instanceof TypeError?'Chưa xác nhận brief đã lưu. Giữ nguyên nội dung và thử lại để đối chiếu.':cause.message; }
+    finally { directSending=false;$('corpProject').disabled=false;$('corpDirectBriefForm').setAttribute('aria-busy','false');renderDirectBrief(); }
+  };
+  $('corpDirectBrief').oninput=()=>{delete $('corpDirectBriefStatus').dataset.sticky;$('corpDirectBriefStatus').textContent='';};
+  $('corpIdeaWorkflowToggle').onclick=()=>{ $('corpIdeaWorkflow').hidden=false;$('corpDirectSection').hidden=true;$('corpIdeaWorkflowToggle').setAttribute('aria-pressed','true');$('corpDirectToggle').setAttribute('aria-pressed','false'); };
+  $('corpDirectToggle').onclick=()=>{ $('corpIdeaWorkflow').hidden=true;$('corpDirectSection').hidden=false;$('corpIdeaWorkflowToggle').setAttribute('aria-pressed','false');$('corpDirectToggle').setAttribute('aria-pressed','true');$('corpDirectBrief').focus(); };
   $('corpTeamToggle').onclick=()=>team($('corpTeam').hidden);
   $('corpTeamClose').onclick=()=>{team(false);$('corpTeamToggle').focus();};
   $('corpTeamForm').onsubmit=async event=>{event.preventDefault();const project=selectedProject();if(!project)return;const members=[...$('corpTeamMembers').querySelectorAll('select')].filter(select=>select.value).map(select=>({chatId:select.dataset.chat,roleId:select.value}));if(await act('/team',{workspaceId:project.id,members})){renderTeam();team(false);}};
@@ -306,6 +349,7 @@
   $('corpRevoke').onclick = async () => { await act('/revoke'); $('corpPairToken').value = ''; $('corpPairBox').hidden = true; };
   $('corpCopyToken').onclick = () => navigator.clipboard.writeText($('corpPairToken').value).catch(() => { $('corpPairToken').select(); error('Không chép được. Chọn ô mã rồi nhấn Ctrl+C.'); });
   scene.onload = () => { first = true; syncScene(); };
+  window.umiCorpLayout={refresh:load,getSnapshot:officeSnapshot,selectProject(id){if(!$('corpProject').disabled&&[...$('corpProject').options].some(option=>option.value===id)){$('corpProject').value=id;$('corpProject').dispatchEvent(new Event('change'));}},openChat(id){const chat=scopedChats().find(item=>item.chatId===id);if(chat)window.open(chat.chatUrl,'_blank','noopener,noreferrer');}};
   window.addEventListener('umibridge-view', () => { first = true; syncScene(); if (section.classList.contains('view-active')) void load(); });
   document.addEventListener('visibilitychange',syncScene);
   function expandOffice(expanded) {

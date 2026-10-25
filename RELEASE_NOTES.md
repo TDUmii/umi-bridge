@@ -1,4 +1,24 @@
-# UmiBridge Sakura Console - 1.1.0
+# UmiBridge Sakura Console - 1.2.0
+
+## Split observation and clearer Corp briefs
+
+Xem đôi shows the existing Corp office and Arena colosseum in separate panes. Project and Arena selectors retain their own scope. Each pane can expand, Escape restores the split, and hidden panes stop motion. The saved Corp Office visibility switch applies here too. Returning to the office establishes a handoff baseline instead of replaying historical deliveries. Opening or refreshing this view reads existing state and does not create work or change dispatch switches.
+
+Arena Live and Xem đôi share a Roman colosseum renderer with twenty contestant positions and a separate judge. Empty, queued, active, blocked, advancing, eliminated and winner states follow recorded Arena data. The confirmed-progress band, selection path and current chat link appear before arena decoration; contestant states remain at least 11px on desktop/laptop. Reduced motion retains text and static state. Corp retains the Pixel Agents office with a quieter jade/cream room and existing manual zoom, Fit, tooltips and scope controls. The split view uses compact office mode with a roster overlay and one initial Fit for each visible populated pane, preserving manual zoom across later refreshes.
+
+Corp Idea adds a direct brief path for a selected existing chat, creating one scoped run. Dispatch-off saves it paused; dispatch-on requests start. Stable request keys recover lost create acknowledgements across restart; conflicting input is rejected. A failed start retains the created run for reconciliation. Existing multistep Queue and eight-department Idea workflows remain available.
+
+## Versioned scoring and acceptance
+
+New Arenas pin rubric v2: requirements/function 30, UX/accessibility 15, tests/evidence 20, security 10, performance/stability 10, maintainability 5 and local delivery/docs 10. Existing Arenas retain the original five-criterion v1, saved decisions, historical evidence and queued judge prompts. Round tables use the selected Arena's rubric. Fairness requires equal data, checks and evidence standards across candidates rather than adding a product criterion.
+
+Contestant prompts and Corp Idea handoffs now state shared acceptance dimensions, including keyboard/focus/labels/contrast/reduced motion where applicable, observed performance, maintainable source and reproducible local delivery. Report/file/hash gates retain their prior boundaries: they do not independently rerun every reported command or certify semantic quality.
+
+Validation: syntax build and all 151 Windows regression tests pass with zero failures, cancellations or skips (400,600 ms). Arena browser QA covers twenty seats and seven criteria; adapter QA passes. Corp browser QA passes eight direct-brief cases and hidden-state checks; Idea QA completes one Project, eight chats, thirteen turns and two repair rounds with a provider fixture. Split-view QA passes scoped selectors, focus/Escape, hidden/reduced motion, Office visibility, handoff baseline and initial Fit, with zero POSTs, remote requests or page errors. Filled direct-brief form captures cover desktop and laptop. Live local health and watch assets return successfully; the current Arena is cancelled/static and the real Corp roster has zero agents. Extension 0.4.0 is connected and paired.
+
+ZIP/privacy and remote release parity remain pending in docs/ACCEPTANCE-1.2.vi.md. Historical counts below remain evidence only for their own releases. Extension stays at 0.4.0, with no new provider/account capability or complete real-account tournament claim.
+
+## Previous 1.1.0
 
 ## Independent Arena
 

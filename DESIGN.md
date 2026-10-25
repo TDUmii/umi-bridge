@@ -1,4 +1,4 @@
-# UmiBridge 1.1.0 dashboard design
+# UmiBridge 1.2.0 dashboard design
 
 Scope: desktop/laptop dashboard with independent Corp and Arena workspaces, existing tools/settings and token analytics. Layout targets are 1600x1000 and 1366x768. Synthetic fixtures and live provider operation remain distinct evidence.
 
@@ -18,11 +18,13 @@ The saved Arena selector operates independently of Projects & chats. Setup progr
 
 Four keyboard-accessible internal views share one working area: Trực tiếp, Ứng viên, Vòng đấu and Lịch sử. Tab choice, chosen round and open product details persist through refresh. Arrow keys, Home and End move between tabs. Text results render as text rather than HTML; refresh retains active scroll/focus context.
 
-Trực tiếp shows setup or the active contestant/judge step, confirmed progress, the fixed selection path and winner summary. Processing motion reflects recorded dispatch/running state only. Hidden views stop motion; reduced motion keeps the same status and progress in static form. No invented scores, model activity or results.
+Trực tiếp shows a Roman colosseum with twenty contestant positions, a separate judge and an empty arena before creation. The same renderer is used in Xem đôi. A top progress band comes before the decorative arena: confirmed chat/turn count, native progress, the fixed selection path and current chat link. Setup or the active contestant/judge step and winner summary remain visible. Contestant status text is at least 11px in the desktop/laptop layouts. Processing motion reflects recorded dispatch/running state only. Hidden views stop motion; reduced motion keeps the same status and progress in static form. No invented scores, model activity or results.
 
 Ứng viên shows all twenty contestants, each with its own chat and folder. Version disclosures expose accepted source/README/evidence paths, source hash, manifest SHA-256, individual file hashes and build/test/run check evidence. Latest judge feedback stays with its contestant. The judge has a separate chat link. Historical source and evidence remain distinct from the mutable working product.
 
-Vòng đấu selects one of five judging rounds. Its ranking table shows every remaining contestant, all five criterion scores, total and advancement. Each row exposes criterion reasons, feedback and check evidence. Before another judging pass, every survivor completes a source revision and fresh build/test/run evidence. The next round cannot proceed on unchanged source or missing delivery. There is no group table, pairwise bracket or department workflow in this module.
+Vòng đấu selects one of five judging rounds. Its ranking table shows every remaining contestant, the criterion scores pinned to that Arena, total and advancement. Each row exposes criterion reasons, feedback and check evidence. Before another judging pass, every survivor completes a source revision and fresh build/test/run evidence. The next round cannot proceed on unchanged source or missing delivery. There is no group table, pairwise bracket or department workflow in this module.
+
+New Arenas pin rubric v2: requirements 30, UX/accessibility 15, evidence 20, security 10, performance/stability 10, maintainability 5 and delivery/docs 10. Existing Arenas pin the original five-criterion v1 without rewriting decisions or queued prompts. Round headers, maxima and reasons use the selected Arena's rubric. Fairness governs judging across candidates, rather than adding a product score.
 
 Lịch sử shows recorded setup, dispatch, product/revision, judging, pause, recovery and completion events. Timestamps and textual blocked reasons explain what requires action. Completion identifies the selected product and its local delivery path; it does not imply publication.
 
@@ -30,7 +32,13 @@ Lịch sử shows recorded setup, dispatch, product/revision, judging, pause, re
 
 Corp keeps Văn phòng, Từ ý tưởng and Hàng đợi. Office title, connection, visibility and dispatch controls remain compact. Manual task/team drawers live in Queue; switching views preserves drafts. The existing idea workflow keeps eight department chats, fixed stages and its report gates. Arena is absent from Corp tabs, forms, employee state and queue cards.
 
-The office uses locally bundled Pixel Agents sprites and a timber floor with graphite chrome. Logical room layout balances desks across centered rows, preserves a corridor below the lounge and expands with the pane. Manual zoom remains 75-200%; Fit computes only on request. Resize and expansion retain zoom; Escape exits expanded mode. Names/statuses use crisp DOM tooltips and roster entries. Motion follows recorded tasks and handoffs; hidden views stop animation and reduced motion stays static.
+The office uses locally bundled Pixel Agents sprites and a light jade/cream room with restrained graphite controls. Logical room layout balances desks across centered rows, preserves a corridor below the lounge and expands with the pane. Manual zoom remains 75-200%; the main Corp office computes Fit on request. Xem đôi embeds the same office with ?compact=1, hides the roster behind an overlay toggle and computes one initial Fit when a visible populated pane appears; subsequent snapshots retain manual zoom. Resize and expansion retain zoom; Escape exits expanded mode. Names/statuses use crisp DOM tooltips and roster entries. Motion follows recorded tasks and handoffs; hidden views stop animation and reduced motion stays static.
+
+The direct brief form selects a chat already registered in the current Corp scope and accepts one free-form request. It creates one run; dispatch-off saves paused, while dispatch-on requests start. Pending submission disables conflicting scope controls. Lost create acknowledgements reuse a stable request key, and a failed start retains the created run ID for reconciliation. Existing multistep Queue and Idea workflows remain available. Common idea acceptance covers functionality, UX/accessibility, evidence, security, performance, maintainability and local delivery. Desktop and laptop QA captures the filled direct-brief form as well as the office, Arena and split layouts.
+
+## Split observation
+
+Xem đôi is a top-level view with separate Corp and Arena panes. Corp uses its existing office renderer and current Project selection; Arena uses the shared colosseum renderer with a separate remembered Arena selection. Selectors refresh without stealing focus or mixing queues. Each pane can expand; Escape restores the two-pane layout. Visibility follows the visible pane and document, so a covered pane stops motion. Returning to Corp observation establishes a handoff baseline rather than replaying older events. The saved Office switch controls Corp visibility here as well. Refresh reads existing state and does not dispatch, create projects or change enabled flags.
 
 ## Folder selection
 
@@ -44,4 +52,4 @@ After an explicitly requested project-data reset, Requests and Overview show new
 
 ## Validation boundaries
 
-Browser checks use temporary state and simulated provider pages unless explicitly marked as real-account operation. The adapter prompt requests GPT-6.1 Sol; no UI model-selection guarantee follows. Local evidence and SHA-256 checks protect recorded artifact identity, not complete semantic correctness. Current test totals and release verification belong in the release acceptance record once run; historical 1.0.0 acceptance does not certify Arena 1.1.0.
+Browser checks use temporary state and simulated provider pages unless explicitly marked as real-account operation. The adapter prompt requests GPT-6.1 Sol; no UI model-selection guarantee follows. Local evidence and SHA-256 checks protect recorded artifact identity, not complete semantic correctness. Current test totals and release verification belong in the release acceptance record once run; historical acceptance records do not certify 1.2.0. See docs/ACCEPTANCE-1.2.vi.md for the current release checks.

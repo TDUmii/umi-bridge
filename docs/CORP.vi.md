@@ -1,4 +1,4 @@
-# Corp trong UmiBridge
+# Corp trong UmiBridge 1.2.0
 
 Corp nằm ngay trong dashboard UmiBridge. Mỗi chat đã khai báo là một nhân viên, nhận việc và chuyển kết quả theo các bước do người dùng đặt.
 
@@ -27,6 +27,14 @@ Chọn **Chỉ làm rõ ý tưởng và lập kế hoạch** để chạy 3 ch�
 Các chat cần sử dụng công cụ UmiBridge để tạo tệp hoặc chạy lệnh. Chưa có công cụ, thiếu báo cáo bắt buộc, kiểm thử cuối chưa đạt hoặc bộ phận bị chặn thì quy trình dừng và giữ bằng chứng để xử lý. Báo cáo Markdown nằm trong `.umibridge-projects/<mã quy trình>/`. Hệ thống kiểm tra cấu trúc báo cáo và các cổng đạt; kết luận chất lượng vẫn cần dựa vào bằng chứng thực mà bộ phận đã ghi.
 
 Tiến độ tạo Project/chat được lưu sau từng bước. Khi không xác nhận được thao tác, kiểm tra tab ChatGPT rồi mới bấm **Kiểm tra và tiếp tục**. Nếu mất tab cũ, hệ thống giữ trạng thái và báo cần đối chiếu để tránh tạo trùng. Hủy không tự xóa Project, chat hoặc tệp đã tạo. Tắt Điều phối ngăn lượt tạo/gửi mới; sau khi bật lại, kiểm tra trạng thái và bấm Bắt đầu nếu đang tạm dừng.
+
+## Gửi brief vào chat đã có
+
+Trong tab **Từ ý tưởng**, chọn phần gửi brief trực tiếp. Chọn đúng Project/nhóm, chọn một chat đã khai báo, nhập yêu cầu rồi gửi. Luồng này tạo một nhiệm vụ một bước trong chat được chọn, không tạo Project hoặc đội ngũ mới. Khi Điều phối tắt, nhiệm vụ được lưu tạm dừng; khi bật, thao tác gửi yêu cầu bắt đầu nhiệm vụ. Theo dõi hoặc phục hồi tại **Hàng đợi**.
+
+Trong lúc gửi, form giữ phạm vi đã chọn. Nếu phản hồi lưu nhiệm vụ bị mất, thử lại cùng bản nháp dùng lại mã yêu cầu để tìm nhiệm vụ cũ. Nếu lưu thành công nhưng chưa xác nhận bắt đầu, trạng thái giữ nhiệm vụ đã tạo; kiểm tra Hàng đợi trước khi lặp thao tác. Không suy ra gửi đúng một lần từ một thông báo UI.
+
+Luồng **Tạo Project và đội ngũ** vẫn giữ 8 bộ phận và các chặng. Tiêu chuẩn nghiệm thu chung gồm chức năng, UX/khả năng tiếp cận, bằng chứng kiểm thử, bảo mật, hiệu năng/ổn định, khả năng bảo trì và bàn giao local có thể tái hiện. Báo cáo phải ghi phần chưa kiểm chứng hoặc không áp dụng cùng lý do; không thay kết quả thực bằng lời khẳng định.
 
 ## Arena nằm ở mục riêng
 
@@ -72,7 +80,7 @@ Project là nhóm cha; từng chat là nhân viên. Extension 0.4.0 đọc tên 
 
 Quan sát một phần được gộp với danh sách đã có. Chỉ lượt quét hoàn tất mới loại chat đã rời Project; nhiệm vụ trỏ tới chat đó bị chặn, kể cả lệnh đang chờ xác nhận gửi. Đồng bộ lại sau khi chuyển/xóa chat trong ChatGPT. Mở tab **Trò chuyện** của trang Project trong Chrome để extension đọc danh sách. Từ ý tưởng có luồng tạo Project mới cùng 8 chat; đồng bộ Project có sẵn không tự thêm hoặc chuyển chat giữa các Project.
 
-Sau khi cập nhật extension, mở trang quản lý extensions của Chrome, bấm **Reload** ở UmiBridge Corp rồi tải lại các tab ChatGPT. Bản 0.4.0 hỗ trợ Arena độc lập và giữ kiểm tra placeholder “Không thể tải phản hồi này” cùng tương đương tiếng Anh, không bàn giao chúng như kết quả. Gateway 1.1.0 cũng kiểm tra để bảo vệ khi adapter cũ vẫn đang hoạt động. Giữ mã ghép cũ nếu còn kết nối; không cần nạp lại từ đầu hoặc tạo connector MCP mới.
+Sau khi cập nhật extension, mở trang quản lý extensions của Chrome, bấm **Reload** ở UmiBridge Corp rồi tải lại các tab ChatGPT. Bản 0.4.0 hỗ trợ Arena độc lập và giữ kiểm tra placeholder “Không thể tải phản hồi này” cùng tương đương tiếng Anh, không bàn giao chúng như kết quả. Gateway từ 1.1.0 cũng kiểm tra để bảo vệ khi adapter cũ vẫn đang hoạt động. Giữ mã ghép cũ nếu còn kết nối; không cần nạp lại từ đầu hoặc tạo connector MCP mới.
 
 ## Đóng trình duyệt, ngủ máy và khởi động lại
 
@@ -90,8 +98,15 @@ Tên nhân viên chỉ hiện trong tooltip khi trỏ chuột hoặc dùng Tab �
 
 Trạng thái “Chờ phản hồi” không chứng minh model đang suy nghĩ. Hình Pixel Agents dùng theo MIT; xem `scripts/corp-office/assets/provenance.json` và `THIRD_PARTY_NOTICES.md`.
 
+## Xem đôi
+
+Mở **Xem đôi** để quan sát văn phòng Corp và đấu trường Arena trong hai pane. Project Corp dùng cùng lựa chọn với mục Corp; Arena có selector riêng và không tham gia đội ngũ/hàng đợi Corp. **Phóng lớn** tập trung một pane, **Escape** khôi phục hai pane. Pane bị che dừng hoạt ảnh; sự kiện bàn giao cũ không phát lại khi quay về. **Văn phòng: Tắt** cũng ẩn văn phòng trong Xem đôi, không tắt điều phối.
+
+Văn phòng trong Xem đôi dùng bố cục gọn: nút Đội ngũ mở danh sách nổi, khung tự Vừa khung một lần khi hiện đội ngũ, các lượt refresh tiếp giữ zoom đã chọn. Chế độ này đọc trạng thái sẵn có, không tạo công việc hoặc tự đổi công tắc. Mở Corp để giao việc, thay điều phối hoặc xử lý lượt cần kiểm tra. Chữ trạng thái và giảm chuyển động vẫn dùng được khi không có hoạt ảnh.
+
 ## Nghiệm thu và giới hạn
 
+- Các bằng chứng extension/tài khoản dưới đây là lịch sử; kết quả riêng của 1.2.0 ghi tại [nghiệm thu 1.2.0](ACCEPTANCE-1.2.vi.md).
 - Kiểm thử trên một máy Windows hiện tại. Không xác nhận máy vật lý thứ hai hoặc thiết bị di động.
 - Kiểm thử extension thật trong Edge với các trang ChatGPT giả lập: gửi một lần, nhận kết quả, bàn giao, chờ reset và tự tiếp tục, giữ bản nháp, công tắc nhớ lựa chọn.
 - Chrome thật, extension 0.2.1: đồng bộ hai chat con trong Project đã chọn, tự gửi bước đầu và nhận `UMI_CORP_PROJECT_STEP1_OK`, tự bàn giao sang chat thứ hai và nhận `UMI_CORP_PROJECT_HANDOFF_OK`. Sổ nhiệm vụ ghi đúng một handoff, cả hai bước hoàn tất. Lượt thử chỉ yêu cầu văn bản, không gọi công cụ hay sửa tệp.

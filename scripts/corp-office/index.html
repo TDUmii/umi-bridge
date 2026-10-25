@@ -19,6 +19,7 @@
       <button id="zoom-fit" type="button">Vừa khung</button>
       <button id="expand" type="button" aria-pressed="false">Mở rộng</button>
       <button id="motion" type="button" aria-pressed="false">Giảm chuyển động</button>
+      <button id="toggle-roster" type="button" aria-expanded="false" aria-controls="office-roster">Đội ngũ</button>
     </div>
   </header>
   <main>
@@ -28,7 +29,7 @@
       </div>
       <div class="legend" aria-label="Chú thích trạng thái"><span><i class="sending"></i>Đang gửi</span><span><i class="waiting"></i>Chờ phản hồi</span><span><i class="review"></i>Chờ duyệt</span><span><i class="limit"></i>Chờ hạn mức</span><span><i class="blocked"></i>Bị chặn</span><span><i class="idle"></i>Sẵn sàng</span></div>
     </section>
-    <aside aria-label="Đội ngũ và nhiệm vụ">
+    <aside id="office-roster" aria-label="Đội ngũ và nhiệm vụ">
       <div class="roster-title"><h2>Đội ngũ</h2><span id="count">0</span></div>
       <div id="roster" aria-label="Chọn nhân viên"></div>
       <section id="detail" hidden aria-label="Nhiệm vụ của nhân viên">

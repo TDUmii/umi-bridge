@@ -190,6 +190,12 @@ try {
   assert.equal(await largeOffice.locator('#employee-tooltip').isVisible(),true,'keyboard focus exposes employee name');
   assert.equal(await largeOffice.locator('#tooltip-name').evaluate(el=>getComputedStyle(el).fontSize),'13px','tooltip text retains font size when zoom changes');
   if(!process.env.CORP_SKIP_CAPTURES)await largeOffice.screenshot({path:join(screenshots,'office-24-agents.png'),animations:'disabled'});
+  await largeOffice.evaluate(()=>window.office.setSnapshot({project:'illustrated-status-office',name:'MINH HỌA - trạng thái',coordinator:true,baseline:true,handoffs:[],agents:[{id:'status-active',role:'Nhân viên',roles:['Kiểm thử'],status:'WAITING',pose:'idle',count:1,can_open:false}]}));
+  assert.equal(await largeOffice.locator('#connection').getAttribute('data-state'),'active');
+  await largeOffice.locator('#motion').click();assert.equal(await largeOffice.locator('body').getAttribute('data-reduced-motion'),'true');
+  assert.equal(await largeOffice.locator('#connection .dot').evaluate(el=>getComputedStyle(el).animationName),'none','motion control stops status pulse');
+  await largeOffice.evaluate(()=>window.office.setVisible(false));assert.equal(await largeOffice.locator('body').getAttribute('data-visible'),'false');
+  assert.equal(await largeOffice.evaluate(()=>window.office.inspect().framesActive),false,'hidden office stops canvas frames');
   await largeOffice.close();
   // Analytics uses the complete journal, pagination and a separate observed Corp source.
   await page.locator('.nav-link[data-view="analytics"]').click();
@@ -220,7 +226,46 @@ try {
   }
   await page.locator('#theme').click();await page.locator('.nav-link[data-view="overview"]').click();
   if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'overview-light.png'),fullPage:true,animations:'disabled'});
+  // Direct brief UI uses recorded Corp API fixtures; no extra provider turns.
+  const directState=await api('corp');directState.enabled=false;
+  const directBodies=[],directStarts=[];let directFailure=null,directDelay=0;
+  await page.route('**/admin/api/corp',route=>route.fulfill({json:directState}));
+  await page.route('**/admin/api/corp/runs',async route=>{
+    const body=route.request().postDataJSON();directBodies.push(body);
+    if(directDelay)await new Promise(resolve=>setTimeout(resolve,directDelay));
+    if(directFailure==='create'){directFailure=null;return route.abort('failed');}
+    return route.fulfill({json:{id:'direct-fixture-'+body.requestKey,status:'paused',steps:body.steps}});
+  });
+  await page.route('**/admin/api/corp/runs/*/start',route=>{
+    directStarts.push(route.request().url());if(directFailure==='start'){directFailure=null;return route.fulfill({status:400,json:{error:'enable_corp_first'}});}
+    return route.fulfill({json:{status:'running'}});
+  });
+  await page.locator('.nav-link[data-view="corp"]').click();await page.locator('#corpTabIdea').click();await page.locator('#corpDirectToggle').click();
+  await until(async()=>await page.locator('#corpDirectBriefSubmit').innerText()==='Lưu brief','paused direct button');
+  await page.locator('#corpDirectChat').selectOption('fixture-boss');await page.locator('#corpDirectBrief').fill('MINH HỌA - brief Project tạm dừng');
+  directDelay=250;await page.locator('#corpDirectBriefSubmit').click();await page.locator('#corpDirectBriefForm').evaluate(form=>form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  await until(async()=>await page.locator('#corpDirectBrief').inputValue()==='','paused direct saved');
+  assert.equal(directBodies.length,1,'double submit creates one request');assert.equal(directStarts.length,0);
+  assert.equal(directBodies[0].workspaceId,project.id);assert.equal(directBodies[0].steps[0].chatId,'fixture-boss');assert.match(directBodies[0].requestKey,/^[a-f0-9-]{36}$/i);
+  assert.match(await page.locator('#corpDirectBriefStatus').innerText(),/tạm dừng/);
+  directState.enabled=true;await page.locator('#corpProject').selectOption('standalone');
+  await until(async()=>await page.locator('#corpDirectBriefSubmit').innerText()==='Gửi brief vào chat','enabled direct button');
+  await page.locator('#corpDirectChat').selectOption('fixture-draft');await page.locator('#corpDirectBrief').fill('MINH HỌA - brief chat riêng');
+  directDelay=0;await page.locator('#corpDirectBriefSubmit').click();await until(async()=>await page.locator('#corpDirectBrief').inputValue()==='','enabled direct queued');
+  assert.equal(directBodies[1].workspaceId,undefined);assert.equal(directBodies[1].steps[0].workspaceId,d.id);assert.equal(directStarts.length,1);
+  assert.match(await page.locator('#corpDirectBriefStatus').innerText(),/Đã xếp lượt gửi/);assert.doesNotMatch(await page.locator('#corpDirectBriefStatus').innerText(),/Đã gửi/);
+  directFailure='create';await page.locator('#corpDirectBrief').fill('MINH HỌA - giữ brief khi mất mạng');await page.locator('#corpDirectBriefSubmit').click();
+  await until(async()=>await page.locator('#corpDirectBriefForm').getAttribute('aria-busy')==='false','create failure shown');
+  assert.equal(await page.locator('#corpDirectBrief').inputValue(),'MINH HỌA - giữ brief khi mất mạng');
+  await page.locator('#corpDirectBriefSubmit').click();await until(async()=>await page.locator('#corpDirectBrief').inputValue()==='','create retry queued');
+  assert.equal(directBodies[2].requestKey,directBodies[3].requestKey,'uncertain creation reuses request key');
+  directFailure='start';await page.locator('#corpDirectBrief').fill('MINH HỌA - giữ run khi chưa xếp lượt');await page.locator('#corpDirectBriefSubmit').click();
+  await until(async()=>await page.locator('#corpDirectBriefForm').getAttribute('aria-busy')==='false','start failure shown');
+  assert.match(await page.locator('#corpDirectBriefStatus').innerText(),/Brief đã lưu/);assert.equal(await page.locator('#corpDirectBrief').inputValue(),'MINH HỌA - giữ run khi chưa xếp lượt');
+  const createsBeforeRetry=directBodies.length;await page.locator('#corpDirectBriefSubmit').click();await until(async()=>await page.locator('#corpDirectBrief').inputValue()==='','start retry queued');
+  assert.equal(directBodies.length,createsBeforeRetry,'start retry reuses saved run');
+  if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'direct-brief.png'),animations:'disabled'});
   assert.deepEqual(errors,[]);assert.deepEqual(remote,[]);
-  console.log(JSON.stringify({pass:true,realExtension:true,syntheticProvider:true,projectDiscovery:true,projectPagination:true,outsideSidebarExcluded:true,scopedQueue:true,desktop:[1600,1000],laptop:[1366,768],dispatchOnce:true,handoff:true,quotaResetResume:true,draftPreserved:true,remoteRequests:remote.length,screenshots},null,2));
+  console.log(JSON.stringify({pass:true,realExtension:true,syntheticProvider:true,projectDiscovery:true,projectPagination:true,outsideSidebarExcluded:true,scopedQueue:true,desktop:[1600,1000],laptop:[1366,768],dispatchOnce:true,handoff:true,quotaResetResume:true,draftPreserved:true,directBrief:{project:true,standalone:true,paused:true,queued:true,doubleSubmit:true,uncertainCreateRetry:true,startRetry:true,errorPreserves:true},remoteRequests:remote.length,screenshots},null,2));
 } catch(error) { if(diagnostic)console.error(JSON.stringify(await diagnostic(),null,2));throw error; }
 finally {await context?.close();await gateway?.close();await rm(root,{recursive:true,force:true});}

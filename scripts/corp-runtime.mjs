@@ -112,6 +112,13 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
   const arenaRunCount = arena => arena.count + (arena.format === 'group_knockout' ? arena.count * 2 + arena.count / 5 * 2 - 1 : arena.count - 1);
   const reservedArenaRuns = (excludeKey) => state.arenas.filter(arena => !['done','cancelled'].includes(arena.status)).reduce((sum,arena) => sum + Math.max(0,arenaRunCount(arena)-state.runs.filter(run=>run.arenaId===arena.id).length),0) + state.bootstraps.filter(job=>job.kind==='arena'&&!['done','cancelled'].includes(job.status)&&job.id!==excludeKey&&!state.arenas.some(arena=>arena.requestKey===job.id)).reduce((sum,job)=>sum+arenaRunCount(job),0);
   const createRun = (input, options = {}) => {
+    let requestDigest;
+    if(input.requestKey!==undefined){
+      if(typeof input.requestKey!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestKey))throw Error('invalid_run_request');
+      requestDigest=hash(JSON.stringify({title:text(input.title,180)||'Nhiệm vụ Corp',workspaceId:input.workspaceId||null,steps:Array.isArray(input.steps)?input.steps.map(step=>({workspaceId:step.workspaceId,chatId:step.chatId||null,role:text(step.role,80),prompt:text(step.prompt,options.arena?20000:12000)})):input.steps})).toString('hex');
+      const existing=state.runs.find(run=>run.requestKey===input.requestKey);
+      if(existing){if(existing.requestDigest!==requestDigest)throw Error('run_request_conflict');return existing;}
+    }
     if (state.runs.length >= 2100 || !options.arena && (state.runs.filter(run => !run.arenaId).length >= 100 || state.runs.length + reservedArenaRuns() >= 2100)) throw Error('corp_run_capacity');
     if (!Array.isArray(input.steps) || input.steps.length < 1 || input.steps.length > 12) throw Error('invalid_steps');
     const known = workspaces();
@@ -129,6 +136,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       return {id:randomUUID(),workspaceId:workspace.id,...(run.projectId?{projectId:run.projectId}:{}),chatId:chat.id,chatUrl:chat.url,
         role:text(item.role,80)||member.name,prompt,status:'queued',attempt:randomUUID(),sent:false,issuedAt:null,resetAt:null,limitText:null,result:null,reason:null};
     });
+    if(input.requestKey!==undefined)Object.assign(run,{requestKey:input.requestKey,requestDigest});
     state.runs.push(run);event('created',run);return run;
   };
   const createIdeaRun = input => {

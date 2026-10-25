@@ -2,7 +2,7 @@
 
 UmiBridge kết nối ChatGPT với máy Windows của bạn: đọc và sửa tệp, chạy PowerShell, quan sát và điều khiển cửa sổ. Dashboard local quản lý quyền công cụ, lịch sử, thiết bị, thống kê token và điều phối nhiều chat trong một ChatGPT Project.
 
-**Bản chính thức 1.1.0.** Giao diện dành cho máy tính để bàn và laptop.
+**Bản 1.2.0.** Giao diện dành cho máy tính để bàn và laptop.
 
 [Tải bản chính thức mới nhất](https://github.com/TDUmii/umi-bridge/releases/latest) · [Thay đổi từng bản](RELEASE_NOTES.md) · [Hướng dẫn Corp](docs/CORP.vi.md) · [Hướng dẫn Arena](docs/ARENA.vi.md)
 
@@ -70,6 +70,7 @@ Giữ kín connection code, mã ghép, token và dữ liệu OAuth. Không gửi
 | **Projects & chats / Dự án và chat** | Gắn thư mục máy với link Project hoặc chat; nhóm lịch sử và chọn nhóm điều phối. |
 | **Corp** | Giao việc theo chuỗi chat, bàn giao kết quả và xem văn phòng hoạt ảnh. |
 | **Arena** | Tạo Project riêng với 20 thí sinh và 1 giám khảo, cải tiến sản phẩm qua 5 vòng chấm. |
+| **Xem đôi** | Quan sát Corp và Arena trong hai pane; chọn riêng, phóng lớn và dừng chuyển động pane bị che. |
 | **Requests / Yêu cầu** | Đọc tham số được lưu, stdout, stderr, exit code, thời gian và trạng thái công cụ. |
 | **Devices / Thiết bị** | Ghép/thu hồi máy Windows phụ và xem job của Agent. |
 | **Tools / Công cụ** | Bật/tắt từng công cụ, từng nhóm và hướng dẫn MCP tự động. |
@@ -106,7 +107,7 @@ Extension gửi/quan sát trong các tab ChatGPT được giao việc. Connector
 
 **Mã Corp khác Connection code của MCP.** Không dán nhầm hai mã. Tạo mã Corp mới làm mã trước mất hiệu lực; chọn **Thu hồi kết nối** để ngắt extension và tắt điều phối.
 
-Khi cập nhật extension đã cài: trở lại trang extensions, tìm thẻ **UmiBridge Corp**, bấm nút **mũi tên tròn Reload** trên chính thẻ đó, gần phần dưới của thẻ. Đây là nút nạp lại extension, khác nút tải lại trang trên thanh địa chỉ. Sau đó tải lại tab ChatGPT. Nếu nút chưa hiện, kiểm tra Developer mode đang bật. Extension hiện tại là **0.4.0**; phiên bản extension độc lập với phiên bản UmiBridge **1.1.0**. Corp và Arena dùng chung kết nối trình duyệt, nhưng có state và công tắc điều phối riêng.
+Khi cập nhật extension đã cài: trở lại trang extensions, tìm thẻ **UmiBridge Corp**, bấm nút **mũi tên tròn Reload** trên chính thẻ đó, gần phần dưới của thẻ. Đây là nút nạp lại extension, khác nút tải lại trang trên thanh địa chỉ. Sau đó tải lại tab ChatGPT. Nếu nút chưa hiện, kiểm tra Developer mode đang bật. Extension hiện tại là **0.4.0**; phiên bản extension độc lập với phiên bản UmiBridge **1.2.0**. Corp và Arena dùng chung kết nối trình duyệt, nhưng có state và công tắc điều phối riêng.
 
 ## Tạo dự án từ một ý tưởng
 
@@ -129,6 +130,12 @@ Khởi tạo được lưu cùng hàng đợi Corp. Nếu thao tác tạo chưa 
 
 Tính năng tạo Project có từ extension **0.3.0**; bản hiện tại **0.4.0** tiếp tục hỗ trợ. Sau khi cập nhật source, bấm Reload ở thẻ UmiBridge Corp trong trang quản lý extension. Gateway giữ mã ghép hiện có. Adapter chỉ thao tác giao diện đang hiển thị, không dùng cookie hoặc API nội bộ ChatGPT. Giao diện hoặc đăng nhập thay đổi có thể làm khởi tạo dừng để kiểm tra.
 
+## Gửi brief nhanh và xem hai luồng
+
+Trong **Corp → Từ ý tưởng**, chọn gửi brief trực tiếp, chọn một chat đã có rồi nhập yêu cầu. Đây là nhiệm vụ một bước trong phạm vi Project/nhóm đang chọn. Điều phối tắt thì lưu tạm dừng; bật thì yêu cầu bắt đầu. Retry cùng bản nháp giữ mã yêu cầu để tránh tạo trùng khi mất phản hồi lưu; nếu chưa xác nhận bắt đầu, kiểm tra Hàng đợi.
+
+Mở **Xem đôi** để xem văn phòng Corp và đấu trường Arena cùng lúc. Mỗi pane có selector riêng; lựa chọn Corp dùng cùng Project với mục Corp. **Phóng lớn** tập trung một pane; **Escape** trở lại hai pane. Pane bị che dừng chuyển động, sự kiện bàn giao cũ không phát lại khi mở lại. Văn phòng: Bật/Tắt áp dụng cả phần xem đôi. Chế độ xem không tạo hoặc bắt đầu công việc.
+
 ## Arena độc lập từ một ý tưởng
 
 Mở **Arena** trên thanh điều hướng chính. Arena tạo **một Project ChatGPT riêng, 20 chat thí sinh và 1 chat giám khảo**. Mỗi thí sinh tự làm toàn bộ sản phẩm trong chat và thư mục riêng, gồm mã nguồn, README hướng dẫn cài/build/test/run cùng tệp bằng chứng thực tế. Không dùng đội ngũ hoặc hàng đợi Corp.
@@ -139,7 +146,7 @@ Mở **Arena** trên thanh điều hướng chính. Arena tạo **một Project 
 4. Sau khi khởi tạo hoàn tất, kiểm tra Project, công cụ UmiBridge và các chat rồi bấm **Bắt đầu**.
 5. Theo dõi các tab **Trực tiếp**, **Ứng viên**, **Vòng đấu** và **Lịch sử**. Một giám khảo chấm tất cả sản phẩm còn lại theo cùng rubric, xếp hạng và phản hồi đầy đủ. Số sản phẩm đi tiếp cố định: **20 → 10 → 5 → 3 → 2 → 1**.
 
-Trước mỗi vòng chấm tiếp theo, **mọi thí sinh đi tiếp phải sửa source theo phản hồi và chạy lại build/test/run**. Thiếu source, README, ba kiểm tra đạt hoặc tệp bằng chứng thì bị chặn. Phiên bản được chấp nhận lưu source, README và bằng chứng riêng với manifest cùng SHA-256; bản lịch sử không được ghi đè. Giám khảo dùng đủ năm tiêu chí tổng 100 điểm: chức năng 35, trải nghiệm 15, kiểm thử/bằng chứng 20, bảo mật 15, chạy local/tài liệu 15.
+Trước mỗi vòng chấm tiếp theo, **mọi thí sinh đi tiếp phải sửa source theo phản hồi và chạy lại build/test/run**. Thiếu source, README, ba kiểm tra đạt hoặc tệp bằng chứng thì bị chặn. Phiên bản được chấp nhận lưu source, README và bằng chứng riêng với manifest cùng SHA-256; bản lịch sử không được ghi đè. Arena mới dùng rubric v2 tổng 100: chức năng 30, UX/khả năng tiếp cận 15, bằng chứng 20, bảo mật 10, hiệu năng/ổn định 10, khả năng bảo trì 5, local/tài liệu 10. Arena cũ giữ rubric v1 và điểm/prompt đã lưu. Công bằng là quy tắc chấm chung, không phải một điểm sản phẩm.
 
 Prompt yêu cầu **GPT-6.1 Sol**; adapter không bảo đảm model thực tế đang được chọn trên giao diện ChatGPT. Kiểm tra model và quyền công cụ trong ChatGPT trước khi bắt đầu. Hủy hoặc xóa khỏi danh sách giữ Project/chat và tệp sản phẩm; không tự dừng lệnh hệ điều hành đã gửi. Chưa có xác nhận hoàn tất toàn bộ giải bằng tài khoản ChatGPT thật. Xem [hướng dẫn Arena](docs/ARENA.vi.md) để biết phục hồi, phiên bản và giới hạn.
 
@@ -301,7 +308,7 @@ Khi báo lỗi, gửi phiên bản, bước tái hiện và log ngắn đã che 
 
 ## Phát triển và kiểm thử
 
-Biên bản lịch sử: [Nghiệm thu 1.0.0](docs/ACCEPTANCE-1.0.vi.md). Biên bản này không chứng nhận Arena 1.1.0. Source dùng Node.js >=22.12.0. Từ thư mục repo:
+Biên bản hiện tại: [Nghiệm thu 1.2.0](docs/ACCEPTANCE-1.2.vi.md). [Nghiệm thu 1.0.0](docs/ACCEPTANCE-1.0.vi.md) và [1.1.0](docs/ACCEPTANCE-1.1.vi.md) là lịch sử, không thay kết quả kiểm tra bản mới. Source dùng Node.js >=22.12.0. Từ thư mục repo:
 
 ```powershell
 npm ci

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { createCorpRuntime, parseResetDelay } from '../scripts/corp-runtime.mjs';
 
 test('quota countdown parses all supplied spellings and rejects absent or unbounded times', () => {
@@ -20,6 +21,17 @@ async function fixture(t) {
   const poll=()=>corp.poll(token,{chats:['chat-one','chat-two']});
   return {get corp(){return corp;},token,create,poll,file,advance:ms=>now+=ms,now:()=>now,restart:async()=>{await corp.close();corp=await createCorpRuntime(file,options);}};
 }
+
+test('Manual run requestKey recovers lost create acknowledgements and rejects conflicting retry after restart',async t=>{
+  const f=await fixture(t),input={requestKey:randomUUID(),title:'Direct brief',steps:[{workspaceId:'one',role:'Builder',prompt:'Build requested counter.'}]};
+  const run=await f.corp.create(input);
+  assert.equal((await f.corp.create(input)).id,run.id);assert.equal(f.corp.snapshot().runs.length,1);
+  await f.restart();assert.equal((await f.corp.create(input)).id,run.id);
+  await assert.rejects(f.corp.create({...input,steps:[{...input.steps[0],prompt:'Different task.'}]}),/run_request_conflict/);
+  await assert.rejects(f.corp.create({...input,title:'Different title'}),/run_request_conflict/);
+  await assert.rejects(f.corp.create({...input,requestKey:'invalid'}),/invalid_run_request/);
+  assert.equal(f.corp.snapshot().runs.length,1);assert.equal(f.corp.snapshot().runs[0].status,'paused');
+});
 
 test('Corp sends ordered steps once, preserves acknowledgement and hands off real result',async t=>{
   const f=await fixture(t),run=await f.create();

@@ -8,9 +8,11 @@
 <title>UmiBridge ✦ Sakura Console</title>
 <link rel="stylesheet" href="/admin/corp-dashboard.css">
 <link rel="stylesheet" href="/admin/arena-dashboard.css">
+<link rel="stylesheet" href="/admin/watch-dashboard.css">
 <script defer src="/admin/folder-dialog.js"></script>
 <script defer src="/admin/corp-dashboard.js"></script>
 <script defer src="/admin/arena-dashboard.js"></script>
+<script defer src="/admin/watch-dashboard.js"></script>
 <script defer src="/admin/usage-dashboard.js"></script>
 <style>
 :root{
@@ -510,7 +512,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       <span class="brand-logo" aria-hidden="true"><span class="brand-letter">U</span><span class="brand-spark">✦</span></span>
       <span class="brand-text"><strong>UmiBridge <span class="brand-flower" aria-hidden="true">✿</span></strong><span>SAKURA CONSOLE</span></span>
     </a>
-    <label class="sr-only" for="mobileView">Navigate to section</label><select id="mobileView" class="mobile-navigation" aria-label="Navigate to section"><option value="overview">Overview</option><option value="analytics">Analytics</option><option value="conversations">Projects & chats</option><option value="devices">Devices</option><option value="tools">Tools</option><option value="skills">Skill Center</option><option id="mobileWorkflows" value="workflows" hidden>Workflows</option><option value="corp">Corp</option><option value="arena">Arena</option><option value="requests">Request history</option><option value="settings">Settings</option></select>
+<label class="sr-only" for="mobileView">Navigate to section</label><select id="mobileView" class="mobile-navigation" aria-label="Navigate to section"><option value="overview">Overview</option><option value="analytics">Analytics</option><option value="conversations">Projects & chats</option><option value="devices">Devices</option><option value="tools">Tools</option><option value="skills">Skill Center</option><option id="mobileWorkflows" value="workflows" hidden>Workflows</option><option value="corp">Corp</option><option value="arena">Arena</option><option value="watch">Xem đôi</option><option value="requests">Request history</option><option value="settings">Settings</option></select>
     <nav class="nav" aria-label="Sections">
       <a href="#overview" data-view="overview" class="nav-link active"><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg> Overview</a>
       <a href="#analytics" data-view="analytics" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-activity"/></svg> Analytics</a>
@@ -521,6 +523,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       <a href="#workflows" id="workflowNav" data-view="workflows" class="nav-link" hidden><svg class="icon" aria-hidden="true"><use href="#i-bolt"/></svg> Workflows</a>
       <a href="#corp" data-view="corp" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-building"/></svg> Corp</a>
       <a href="#arena" data-view="arena" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg> Arena</a>
+      <a href="#watch" data-view="watch" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg> Xem đôi</a>
       <a href="#requests" data-view="requests" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg> Request history</a>
       <a href="#settings" data-view="settings" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg> Settings</a>
     </nav>
@@ -681,7 +684,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
         </div>
       </section>
       <section id="corp" class="view-section" data-view="corp" aria-labelledby="corpTitle">
-        <div class="corp-head"><div class="corp-title"><h2 id="corpTitle">Corp</h2><p id="corpConnection" role="status">Đang tải Corp...</p></div><div class="actions"><button id="corpSetupToggle" class="btn" type="button" aria-expanded="false" aria-controls="corpSetup">Kết nối</button><button id="corpOffice" class="btn" type="button" aria-pressed="true">Văn phòng: Bật</button><button id="corpEnabled" class="btn" type="button" aria-pressed="false">Điều phối: Tắt</button><button id="corpComposeToggle" class="btn" type="button" aria-expanded="false" aria-controls="corpCompose">Giao việc</button><button id="corpIdeaToggle" class="btn primary" type="button" aria-expanded="false" aria-controls="corpIdea">Từ ý tưởng</button></div></div>
+        <div class="corp-head"><div class="corp-title"><h2 id="corpTitle">Corp</h2><p id="corpConnection" role="status">Đang tải Corp...</p></div><div class="actions"><a class="btn" href="#watch">Xem đôi</a><button id="corpSetupToggle" class="btn" type="button" aria-expanded="false" aria-controls="corpSetup">Kết nối</button><button id="corpOffice" class="btn" type="button" aria-pressed="true">Văn phòng: Bật</button><button id="corpEnabled" class="btn" type="button" aria-pressed="false">Điều phối: Tắt</button><button id="corpComposeToggle" class="btn" type="button" aria-expanded="false" aria-controls="corpCompose">Giao việc</button><button id="corpIdeaToggle" class="btn primary" type="button" aria-expanded="false" aria-controls="corpIdea">Từ ý tưởng</button></div></div>
         <p id="corpError" role="alert" hidden></p>
         <div class="corp-scope"><label for="corpProject">Project</label><select id="corpProject" aria-label="Project điều phối"></select><button id="corpTeamToggle" class="btn small" type="button" aria-expanded="false" aria-controls="corpTeam">Bộ phận</button><a id="corpOpenProject" class="btn small" target="_blank" rel="noopener noreferrer" hidden>Mở Project</a><button id="corpSync" class="btn small" type="button" hidden>Đồng bộ chat</button><span id="corpScopeStatus" role="status"></span></div>
         <div class="corp-tabs" role="tablist" aria-label="Không gian Corp">
@@ -695,7 +698,8 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
         <div id="corpPanelOffice" class="corp-tabpanel" role="tabpanel" aria-labelledby="corpTabOffice"><p id="corpOfficeEmpty" class="corp-empty" hidden>Văn phòng đang ẩn. Bật Văn phòng ở thanh trên để xem đội ngũ.</p><iframe id="corpScene" title="Văn phòng hoạt ảnh UmiBridge" src="/admin/corp/office/" loading="lazy"></iframe></div>
           <section id="corpIdea" class="panel corp-idea corp-tabpanel" role="tabpanel" aria-labelledby="corpTabIdea" hidden>
             <div class="corp-queue-head"><h3 id="corpIdeaTitle">Từ ý tưởng</h3><button id="corpIdeaClose" class="btn small" type="button">Đóng</button></div>
-            <div class="corp-idea-layout">
+            <div class="corp-idea-methods" aria-label="Cách giao ý tưởng"><button id="corpIdeaWorkflowToggle" class="btn" type="button" aria-pressed="true" aria-controls="corpIdeaWorkflow">Quy trình 8 bộ phận</button><button id="corpDirectToggle" class="btn" type="button" aria-pressed="false" aria-controls="corpDirectSection">Gửi brief trực tiếp</button></div>
+            <div id="corpIdeaWorkflow" class="corp-idea-layout">
               <form id="corpIdeaForm"><label for="corpIdeaTarget">Project</label><select id="corpIdeaTarget"><option value="new">Tạo Project mới và 8 chat bộ phận</option><option value="existing">Dùng Project đang chọn</option></select><p id="corpIdeaProject" class="corp-idea-context"></p><p id="corpIdeaRoot" class="corp-idea-path"></p>
                 <div id="corpIdeaFolder" class="corp-folder-field"><label for="corpIdeaParentRoot">Thư mục lưu</label><div class="corp-path-control"><input id="corpIdeaParentRoot" type="text" maxlength="1500" spellcheck="false" autocomplete="off" aria-describedby="corpIdeaFolderStatus"><button id="corpIdeaBrowse" class="btn" type="button">Chọn thư mục</button></div><p id="corpIdeaFolderStatus" class="corp-folder-status" role="status" hidden></p></div>
                 <label for="corpIdeaText">Ý tưởng</label><textarea id="corpIdeaText" required minlength="4" maxlength="8000" rows="5" placeholder="Mô tả sản phẩm và yêu cầu của bạn..."></textarea>
@@ -704,6 +708,14 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
               </form>
               <div class="corp-idea-overview"><h4>Đội ngũ</h4><p id="corpIdeaReadiness" role="status"></p><dl id="corpIdeaTeam"></dl><details class="corp-idea-stages"><summary id="corpIdeaStagesTitle">Các chặng thực hiện</summary><ol id="corpIdeaStages"></ol><p id="corpIdeaProcessNote" class="corp-idea-note"></p></details></div>
             </div>
+            <section id="corpDirectSection" class="corp-direct-brief" aria-labelledby="corpDirectBriefTitle" hidden>
+              <div class="corp-direct-brief-head"><h4 id="corpDirectBriefTitle">Gửi brief trực tiếp</h4><p>Một yêu cầu, một chat Corp.</p></div>
+              <form id="corpDirectBriefForm" class="corp-direct-brief-form">
+                <label for="corpDirectChat">Chat nhận brief<select id="corpDirectChat" required></select></label>
+                <label for="corpDirectBrief">Brief<textarea id="corpDirectBrief" required minlength="4" maxlength="12000" rows="4" placeholder="Nêu việc cần làm, phạm vi và đầu ra cần bàn giao..."></textarea></label>
+                <div class="actions"><button id="corpDirectBriefSubmit" class="btn primary" type="submit">Gửi brief vào chat</button><span id="corpDirectBriefStatus" role="status" aria-live="polite"></span></div>
+              </form>
+            </section>
           </section>
           <section id="corpTeam" class="panel corp-team" aria-labelledby="corpTeamTitle" hidden><div class="corp-queue-head"><h3 id="corpTeamTitle">Bộ phận & nhân viên</h3><button id="corpTeamClose" class="btn small" type="button">Đóng</button></div><p id="corpTeamSummary"></p><form id="corpTeamForm"><div id="corpTeamMembers"></div><button class="btn primary" type="submit">Lưu phân công</button></form></section>
           <section id="corpCompose" class="panel corp-compose" aria-labelledby="corpCreateTitle" hidden><div class="corp-queue-head"><h3 id="corpCreateTitle">Giao nhiệm vụ</h3><button id="corpComposeClose" class="btn small" type="button">Đóng</button></div>
@@ -716,14 +728,23 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       </section>
 
       <section id="arena" class="view-section" data-view="arena" aria-labelledby="arenaTitle">
-        <div class="arena-head"><div><h2 id="arenaTitle">Arena</h2><p id="arenaConnection" role="status">Đang kiểm tra kết nối...</p></div><div class="actions"><button id="arenaConnect" class="btn" type="button">Kết nối</button><button id="arenaEnabled" class="btn" type="button" aria-pressed="false">Điều phối Arena: Tắt</button><button id="arenaRefresh" class="btn" type="button">Làm mới</button><button id="arenaNew" class="btn primary" type="button">Tạo Arena</button></div></div>
+        <div class="arena-head"><div><h2 id="arenaTitle">Arena</h2><p id="arenaConnection" role="status">Đang kiểm tra kết nối...</p></div><div class="actions"><a class="btn" href="#watch">Xem đôi</a><button id="arenaConnect" class="btn" type="button">Kết nối</button><button id="arenaEnabled" class="btn" type="button" aria-pressed="false">Điều phối Arena: Tắt</button><button id="arenaRefresh" class="btn" type="button">Làm mới</button><button id="arenaNew" class="btn primary" type="button">Tạo Arena</button></div></div>
         <p id="arenaError" role="alert" hidden></p>
         <section id="arenaPairPanel" class="arena-pair-panel" hidden><h3>Kết nối extension</h3><p>Dùng extension UmiBridge 0.4.0 với địa chỉ gateway đang mở. Mã ghép dùng chung cho Corp và Arena; dữ liệu hai khu vực lưu riêng.</p><button id="arenaPair" class="btn" type="button">Tạo mã ghép extension</button><label id="arenaPairBox" hidden>Mã chỉ hiện lần này<input id="arenaPairToken" type="password" readonly autocomplete="off"><button id="arenaCopyToken" class="btn" type="button">Chép mã</button></label></section>
         <details id="arenaCreate" class="arena-create"><summary>Arena mới</summary><form id="arenaForm" aria-busy="false"><label class="arena-idea-field" for="arenaIdea">Ý tưởng<textarea id="arenaIdea" required minlength="4" maxlength="8000" rows="5" placeholder="Sản phẩm cần làm, người dùng và yêu cầu..."></textarea><p class="arena-promise">Mỗi thí sinh tự làm toàn bộ sản phẩm, source, kiểm thử và hướng dẫn chạy. Thí sinh đi tiếp cải tiến sản phẩm sau mỗi vòng chấm.</p></label><label for="arenaName">Tên Arena <span class="arena-muted">(không bắt buộc)</span><input id="arenaName" maxlength="48" placeholder="Lấy từ ý tưởng nếu để trống"></label><div><label for="arenaRoot">Thư mục lưu</label><div class="arena-path-control"><input id="arenaRoot" maxlength="1500" spellcheck="false" autocomplete="off"><button id="arenaBrowse" class="btn" type="button">Chọn thư mục</button></div><p id="arenaFolderStatus" role="status" hidden></p></div><div class="actions"><button id="arenaSubmit" class="btn primary" type="submit" disabled>Lưu Arena</button><p>Lưu tạm dừng. Tạo Project và chat, rồi bấm Bắt đầu.</p></div></form></details>
         <p id="arenaReadiness" role="status"></p>
         <div id="arenaSelection" class="arena-select-row" hidden><label for="arenaSelect">Arena<select id="arenaSelect"></select></label></div>
-        <p id="arenaEmpty">Chưa có Arena. Nhập ý tưởng để tạo 20 sản phẩm độc lập.</p>
+        <div id="arenaEmpty"></div>
         <section id="arenaWorkspace" class="arena-workspace" hidden><div class="arena-current-head"><div><h3 id="arenaCurrentTitle"></h3><span id="arenaState"></span></div><div id="arenaActions" class="actions"></div></div><p id="arenaReason" role="status" hidden></p><div id="arenaTabs" class="arena-tabs" role="tablist" aria-label="Theo dõi Arena"><button type="button" role="tab" id="arenaTabLive" data-arena-tab="live" aria-controls="arenaContent" aria-selected="true">Trực tiếp</button><button type="button" role="tab" id="arenaTabCandidates" data-arena-tab="candidates" aria-controls="arenaContent" aria-selected="false">Ứng viên</button><button type="button" role="tab" id="arenaTabRounds" data-arena-tab="rounds" aria-controls="arenaContent" aria-selected="false">Vòng đấu</button><button type="button" role="tab" id="arenaTabHistory" data-arena-tab="history" aria-controls="arenaContent" aria-selected="false">Lịch sử</button></div><div id="arenaContent" role="tabpanel" aria-labelledby="arenaTabLive"></div></section>
+      </section>
+
+      <section id="watch" class="view-section" data-view="watch" aria-labelledby="watchTitle">
+        <div class="watch-head"><h2 id="watchTitle">Xem đôi</h2><div class="actions"><a class="btn" href="#corp">Mở Corp</a><a class="btn" href="#arena">Mở Arena</a><button id="watchRefresh" class="btn" type="button">Làm mới</button></div></div>
+        <p id="watchError" role="alert" hidden></p>
+        <div class="watch-grid">
+          <section class="watch-panel watch-corp-panel" aria-labelledby="watchCorpTitle"><div class="watch-panel-head"><div><h3 id="watchCorpTitle">Corp</h3><span id="watchCorpState" class="watch-state" role="status">Đang tải...</span></div><div class="actions"><label class="sr-only" for="watchCorpSelect">Project Corp</label><select id="watchCorpSelect"></select><button class="btn small" type="button" data-watch-expand="corp" aria-pressed="false">Phóng lớn</button></div></div><p id="watchCorpEmpty" class="watch-empty" hidden>Văn phòng đang ẩn. Bật Văn phòng trong Corp để xem.</p><iframe id="watchCorpScene" title="Văn phòng Corp trong chế độ xem đôi" src="/admin/corp/office/?compact=1" loading="lazy"></iframe></section>
+          <section class="watch-panel watch-arena-panel" aria-labelledby="watchArenaTitle"><div class="watch-panel-head"><div><h3 id="watchArenaTitle">Arena</h3><span id="watchArenaState" class="watch-state" role="status">Đang tải...</span></div><div class="actions"><label class="sr-only" for="watchArenaSelect">Arena</label><select id="watchArenaSelect"></select><button class="btn small" type="button" data-watch-expand="arena" aria-pressed="false">Phóng lớn</button></div></div><div id="watchArenaScene" class="watch-arena-scene"></div></section>
+        </div>
       </section>
 
         <dialog id="corpFolderDialog" class="corp-folder-dialog" aria-labelledby="corpFolderTitle"><h3 id="corpFolderTitle">Chọn thư mục lưu</h3><div class="corp-folder-toolbar"><label class="sr-only" for="corpFolderDrive">Ổ đĩa</label><select id="corpFolderDrive"></select><button id="corpFolderUp" class="btn small" type="button">Lên một cấp</button></div><form id="corpFolderNavigate" class="corp-path-control"><label class="sr-only" for="corpFolderPath">Đường dẫn thư mục</label><input id="corpFolderPath" type="text" maxlength="1500" spellcheck="false" autocomplete="off"><button id="corpFolderOpen" class="btn" type="submit">Mở</button></form><p id="corpFolderError" role="alert" hidden></p><div id="corpFolderList" class="corp-folder-list" aria-label="Thư mục con" aria-busy="false"></div><p id="corpFolderEmpty" class="corp-folder-status" role="status" hidden></p><div class="actions"><button id="corpFolderCancel" class="btn" type="button">Hủy</button><button id="corpFolderSelect" class="btn primary" type="button" disabled>Dùng thư mục này</button></div></dialog>
@@ -822,7 +843,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
   const model = {requests:[],stats:null,runtime:null,links:new Map(),workspaces:[],devices:[],jobs:[],workflows:[],workflowEnabled:false,visible:15,expanded:new Set(),loading:false,interval:null,startedAt:null,refreshSeconds:20,currentView:'overview'};
   const viewSections=[...document.querySelectorAll('main>.view-section')];
   const navLinks=[...document.querySelectorAll('.nav-link[data-view]')];
-  const viewHashes={overview:'overview',analytics:'analytics',conversations:'conversations',devices:'devices',tools:'tools',skills:'skill-center',workflows:'workflows',corp:'corp',arena:'arena',requests:'requests',settings:'settings'};
+  const viewHashes={overview:'overview',analytics:'analytics',conversations:'conversations',devices:'devices',tools:'tools',skills:'skill-center',workflows:'workflows',corp:'corp',arena:'arena',watch:'watch',requests:'requests',settings:'settings'};
   function activateView(name,updateHash=true){
     if(!viewSections.some(section=>section.dataset.view===name))name='overview';
     const changed=model.currentView!==name;
