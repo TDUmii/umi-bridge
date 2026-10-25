@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$LocalOnly)
+param([switch]$LocalOnly, [switch]$NoDashboard)
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $ErrorActionPreference = 'Stop'
@@ -23,7 +23,7 @@ if (Test-Dashboard) {
     $running = Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json
     $retiredCredentials = (Test-Path -LiteralPath (Join-Path $stateDir 'gemini-pairing-secret.txt')) -or (Test-Path -LiteralPath (Join-Path $stateDir 'GEMINI-CONNECT.txt'))
     if ($retiredCredentials -or (([bool]$LocalOnly) -ne ($running.tunnelProvider -eq 'local'))) {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts\windows\Stop-ChatGPT.ps1')
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts\windows\Stop-ChatGPT.ps1') -KeepWatchdog
         if ($LASTEXITCODE -ne 0) { throw 'Could not switch UmiBridge connection mode.' }
     }
 }
@@ -47,7 +47,7 @@ if (-not (Test-Dashboard)) {
 }
 
 for ($attempt = 0; $attempt -lt 60; $attempt++) {
-    if (Test-Dashboard) { Start-Process $dashboard; exit 0 }
+    if (Test-Dashboard) { if (-not $NoDashboard) { Start-Process $dashboard }; exit 0 }
     if ($gatewayProcess) {
         $gatewayProcess.Refresh()
         if ($gatewayProcess.HasExited) {

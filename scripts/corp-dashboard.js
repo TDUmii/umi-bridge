@@ -22,6 +22,7 @@
   function error(value) { $('corpError').textContent = value; $('corpError').hidden = !value; }
   async function api(path, body) {
     const response = await fetch('/admin/api/corp' + path, body === undefined ? { cache:'no-store' } : { method:'POST', headers:{ 'Content-Type':'application/json', 'X-DC-Admin-Action':'1' }, body:JSON.stringify(body) });
+    if(!response.headers.get('content-type')?.includes('application/json'))throw Error('Gateway đang khởi động hoặc kết nối lại. Tiến độ được giữ; tự kiểm tra lại trong giây lát.');
     const result = await response.json(); if (!response.ok) {
       const messages={invalid_idea:'Nhập ý tưởng từ 4 đến 8.000 ký tự.',project_folder_required:'Project cần có thư mục làm việc. Cập nhật trong Dự án & chat.',invalid_idea_request:'Yêu cầu đã hết hiệu lực. Đóng rồi mở lại phần Từ ý tưởng.',idea_request_conflict:'Ý tưởng đã thay đổi. Thử tạo lại quy trình.',enable_corp_first:'Bật Điều phối trước khi bắt đầu quy trình.',project_not_found:'Chọn một Project trước khi tạo quy trình.',pair_corp_first:'Kết nối extension Corp trước khi tạo Project tự động.',bootstrap_unavailable:'Khởi động lại UmiBridge để nạp chức năng tạo Project.'};
       const cause=Error(result.error?.startsWith('missing_company_roles:')?'Chưa có chat nhận việc cho: '+result.error.split(':')[1].split(',').map(id=>data?.companyRoles?.find(role=>role.id===id)?.department||id).join(', ')+'. Mở Bộ phận để phân công.':messages[result.error]||reasons[result.error]||result.error||'Không cập nhật được Corp');cause.code=result.error;throw cause;
@@ -182,7 +183,7 @@
         continue;
       }
       a.count++; if (a.task_id && step.status === 'queued') continue;
-      a.role = step.role; a.roles = [step.role]; a.task = step.prompt; a.task_id = step.id.slice(0, 8);
+      a.role = step.role; a.roles = [step.role]; a.task = step.title||run.title; a.taskDetail=step.assessment?.summary||run.title; a.task_id = step.id.slice(0, 8);
       a.status = { queued:'QUEUED', dispatching:'DISPATCHED', running:'WAITING', limit_wait:'LIMIT', blocked:'BLOCKED' }[step.status] || 'IDLE';
       if (run.status === 'paused') a.status = 'PAUSED';
       a.pose = ['dispatching','running'].includes(step.status) && data.enabled && run.status === 'running' ? 'type' : 'idle';
@@ -195,7 +196,11 @@
     }
     const order=[...(data.companyRoles||[]),...(data.reviewTeams||[])].map(role=>role.id);
     const handoffs = data.events.filter(event => event.type === 'handoff' && runs.some(run => run.id === event.runId)).map(event => ({ id:event.id, from:event.from, to:event.to, task:event.task, at:event.at }));
-    return { project:selectedProject()?.id || 'umibridge-corp', name:selectedProject()?.name || 'UmiBridge Corp', coordinator:data.enabled, office:data.office, agents:[...agents.values()].sort((a,b)=>(order.indexOf(a.roleId)<0?99:order.indexOf(a.roleId))-(order.indexOf(b.roleId)<0?99:order.indexOf(b.roleId))), handoffs, customers:runs.filter(run=>!['done','cancelled'].includes(run.status)).map(run=>({id:run.id,name:run.customerName||'Chưa đặt tên',title:run.title,status:run.status})), baseline:first };
+    const conversations=runs.flatMap(run=>run.steps.flatMap((step,index)=>{if(!step.result)return [];const next=run.steps[index+1],handoff=data.events.find(event=>event.type==='handoff'&&event.runId===run.id&&event.stepId===next?.id&&event.from===step.chatId),recorded=data.events.find(event=>['done','blocked'].includes(event.type)&&event.runId===run.id&&event.stepId===step.id);return [{id:run.id+':'+step.id,from:step.chatId,to:handoff?.to||null,fromName:step.role,toName:handoff?next.role:null,at:step.completedAt||step.finishedAt||recorded?.at||null,task:step.title||run.title,text:step.result,summary:step.assessment?.summary||'',status:step.assessment?.outcome||step.status}];}));
+    const project=selectedProject(),projectJob=(data.bootstraps||[]).find(row=>row.workspaceId===project?.id),job=projectJob&&!['done','cancelled'].includes(projectJob.status)?projectJob:null;
+    const expected=job?8+(job.mode==='plan'?0:(job.reviewTeams||[]).length):teamMembers().length||agents.size;
+    const registered=job?.chats.length??agents.size,rosterConfirmed=!project||projectJob?.status==='done'||project.sync?.status==='complete',staffing={ready:!job&&rosterConfirmed&&agents.size>0,expected,registered,message:job?'Đang chuẩn bị đội ngũ. Văn phòng mở khi đủ nhân sự.':!rosterConfirmed?'Đồng bộ danh sách chat đầy đủ trước khi tạo văn phòng.':agents.size?'':'Thêm và phân công nhân sự để tạo văn phòng.'};
+    return { project:project?.id || 'umibridge-corp', name:project?.name || 'UmiBridge Corp', coordinator:data.enabled, office:data.office, staffing,conversations,agents:[...agents.values()].sort((a,b)=>(order.indexOf(a.roleId)<0?99:order.indexOf(a.roleId))-(order.indexOf(b.roleId)<0?99:order.indexOf(b.roleId))), handoffs, customers:runs.filter(run=>!['done','cancelled'].includes(run.status)).map(run=>({id:run.id,name:run.customerName||'Chưa đặt tên',title:run.title,status:run.status})), baseline:first };
   }
   function syncScene() {
     if (!data || !scene.contentWindow) return;
@@ -236,15 +241,21 @@
       signature = next; $('corpRuns').replaceChildren();
       if (!runs.length) $('corpRuns').append(node('p', filter === 'active' ? 'Hàng đợi trống. Chọn Giao việc để bắt đầu.' : 'Chưa có nhiệm vụ trong nhóm này.', 'corp-empty'));
       for (const run of [...runs].reverse()) {
-        const article = node('article', undefined, 'corp-run'); article.dataset.status = run.status; article.append(node('h4', run.customerName||'Khách chưa đặt tên'),node('p',run.title,'corp-customer-task'), node('span', labels[run.status] || run.status, 'corp-status'));
+        const article = node('article', undefined, 'corp-run'); article.dataset.status = run.status;
+        const currentIndex=run.steps.findIndex(step=>!['done','cancelled'].includes(step.status)),activeStep=run.steps[currentIndex],completed=run.steps.filter(step=>step.status==='done').length;
+        const header=node('header',undefined,'corp-run-heading'),who=node('div');who.append(node('h4',run.customerName||'Khách chưa đặt tên'),node('p',run.title,'corp-customer-task'));
+        header.append(who,node('span',labels[activeStep?.status]||labels[run.status]||run.status,'corp-status'));article.append(header);
+        const meter=node('div',undefined,'corp-run-meter'),progress=node('progress');progress.max=run.steps.length;progress.value=completed;progress.setAttribute('aria-label','Tiến độ công việc');meter.append(progress,node('span',completed+'/'+run.steps.length+' chặng'));article.append(meter);
+        if(activeStep){const focus=node('section',undefined,'corp-run-focus');focus.dataset.state=activeStep.status;focus.append(node('h5',activeStep.title||activeStep.role),node('p',activeStep.role));if(activeStep.reason)focus.append(node('p',reasons[activeStep.reason]||activeStep.reason,'corp-reason'));article.append(focus);}
         if(run.idea){
           const index=run.steps.findIndex(step=>!['done','cancelled'].includes(step.status));
           article.append(node('p',index<0?'Đã kết thúc quy trình':`Chặng ${index+1}/${run.steps.length} · ${run.steps[index].title}`,'corp-idea-progress'));
           const brief=node('details');brief.append(node('summary','Ý tưởng và thư mục đầu ra'),node('p',run.idea.text),node('code',run.idea.root+' / '+run.idea.artifactDir));article.append(brief);
         }
-        const steps = document.createElement('ol');
-        for (const step of run.steps) {
-          const li = node('li'); li.append(node('strong', step.title||step.role));if(step.title)li.append(node('small',step.role,'corp-stage-role'));
+        const journey=node('details',undefined,'corp-journey');journey.append(node('summary','Quy trình · '+run.steps.length+' chặng'));
+        const steps = document.createElement('ol');steps.className='corp-stage-grid';
+        for (const [stepIndex,step] of run.steps.entries()) {
+          const li = node('li');li.dataset.state=step.status;li.append(node('b',String(stepIndex+1),'corp-step-number'));li.append(node('strong', step.title||step.role));if(step.title)li.append(node('small',step.role,'corp-stage-role'));
           li.append(node('span',step.status==='done'&&step.assessment?.outcome==='needs_changes'?'Đã phát hiện lỗi':labels[step.status] || step.status));
           if (step.resetAt && step.status === 'limit_wait') { const stamp = node('time'); stamp.dataset.reset = step.resetAt; stamp.dateTime = new Date(step.resetAt).toISOString(); li.append(stamp); }
           if (step.reason && (reasons[step.reason] || step.reason === 'chat_outside_project')) li.append(node('span', reasons[step.reason] || 'Chat đã rời Project. Đồng bộ và kiểm tra lại phạm vi giao việc.', 'corp-reason'));
@@ -254,15 +265,15 @@
           }
           steps.append(li);
         }
-        article.append(steps); const actions = node('div', undefined, 'actions'), current = run.steps.find(step => !['done','cancelled'].includes(step.status));
+        journey.append(steps);article.append(journey); const actions = node('div', undefined, 'actions'), current = run.steps.find(step => !['done','cancelled'].includes(step.status));
         if (!['done','cancelled'].includes(run.status)) {
           const start = button(run.status === 'running' ? 'Tạm dừng' : 'Bắt đầu', () => act('/runs/' + run.id + '/' + (run.status === 'running' ? 'pause' : 'start')));
           start.disabled = run.status !== 'running' && (!data.enabled || current?.status === 'blocked'); actions.append(start);
-          if (['blocked','limit_wait'].includes(current?.status)) actions.append(button('Đã kiểm tra chat - chuẩn bị thử lại', () => {
-            if (confirm('Chỉ tiếp tục khi bạn đã kiểm tra chat và chấp nhận gửi lại hoặc gửi lời nhắc tiếp tục. Nếu lần trước đã chạy, thao tác này có thể tạo thêm lượt. Chuẩn bị thử lại?')) void act('/runs/' + run.id + '/retry');
+          if (['blocked','limit_wait'].includes(current?.status)) actions.append(button('Đã kiểm tra chat - thử lại', async () => {
+            if (await window.umiConfirm('Thử lại nhiệm vụ?', 'Chỉ tiếp tục sau khi đối chiếu chat. Lần trước đã chạy có thể tạo thêm lượt khi gửi lại.','Chuẩn bị thử lại')) void act('/runs/' + run.id + '/retry');
           }));
           actions.append(button('Hủy', () => act('/runs/' + run.id + '/cancel')));
-        } else actions.append(button('Xóa khỏi hàng đợi', () => act('/runs/' + run.id + '/delete')));
+        } else {actions.append(button('Xóa khỏi hàng đợi', () => act('/runs/' + run.id + '/delete')));const source=(data.bootstraps||[]).find(job=>job.runId===run.id);if(run.status==='done'&&source?.cleanupAfterDelivery)actions.append(button('Dọn chat sau bàn giao',()=>window.umiProjectManager?.({channel:'corp',id:source.id,name:source.name,chats:source.chats||[],projectUrl:source.projectUrl})));}
         if (current) { const a = node('a', 'Mở chat', 'btn small'); a.href = current.chatUrl; a.target = '_blank'; a.rel = 'noopener noreferrer'; actions.append(a); }
         article.append(actions); $('corpRuns').append(article);
       }
@@ -297,7 +308,7 @@
   window.addEventListener('umibridge-folder-dialog',event=>{if(event.detail.inputId==='corpIdeaParentRoot'){folderPicking=event.detail.open?'corpIdeaParentRoot':null;renderIdea();}});
   $('corpIdeaForm').onsubmit=async event=>{
     event.preventDefault();if(ideaSending||directSending||folderPicking)return;const project=selectedProject(),isNew=$('corpIdeaTarget').value==='new';if(!isNew&&!project)return;
-    const value={...(isNew?{parentRoot:$('corpIdeaParentRoot').value.trim()}:{workspaceId:project.id}),customerName:$('corpIdeaCustomer').value.trim(),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,productProfile:$('corpProductProfile').value||'general',productGoal:$('corpProductGoal').value.trim(),reviewTeams:[...$('corpReviewTeams').querySelectorAll('input:checked')].map(input=>input.value),start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked}:{})};
+    const value={...(isNew?{parentRoot:$('corpIdeaParentRoot').value.trim()}:{workspaceId:project.id}),cleanupAfterDelivery:$('corpCleanupAfterDelivery').checked,customerName:$('corpIdeaCustomer').value.trim(),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,productProfile:$('corpProductProfile').value||'general',productGoal:$('corpProductGoal').value.trim(),reviewTeams:[...$('corpReviewTeams').querySelectorAll('input:checked')].map(input=>input.value),start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked}:{})};
     if(isNew)window.umiFolderDialog.remember($('corpIdeaParentRoot'));
     const signature=JSON.stringify(value);if(ideaRequest?.signature!==signature)ideaRequest={signature,key:crypto.randomUUID()};
     ideaSending=true;$('corpIdeaForm').setAttribute('aria-busy','true');$('corpIdeaText').readOnly=true;$('corpIdeaCustomer').readOnly=true;$('corpIdeaMode').disabled=true;$('corpIdeaTarget').disabled=true;$('corpProject').disabled=true;renderIdea();$('corpIdeaError').hidden=true;
@@ -326,6 +337,7 @@
   $('corpIdeaWorkflowToggle').onclick=()=>{ $('corpIdeaWorkflow').hidden=false;$('corpDirectSection').hidden=true;$('corpIdeaWorkflowToggle').setAttribute('aria-pressed','true');$('corpDirectToggle').setAttribute('aria-pressed','false'); };
   $('corpDirectToggle').onclick=()=>{ $('corpIdeaWorkflow').hidden=true;$('corpDirectSection').hidden=false;$('corpIdeaWorkflowToggle').setAttribute('aria-pressed','false');$('corpDirectToggle').setAttribute('aria-pressed','true');$('corpDirectBrief').focus(); };
   $('corpTeamToggle').onclick=()=>team($('corpTeam').hidden);
+  $('corpProjectManage').onclick=()=>{const project=selectedProject(),job=(data.bootstraps||[]).find(row=>row.workspaceId===project?.id);if(!project){error('Chọn Project để quản lý chat.');return;}window.umiProjectManager?.({channel:'corp',id:job?.id||project.id,gitId:job?.id,name:job?.name||project.name,chats:project.chats||job?.chats||[],projectUrl:project.chatUrl||project.projectUrl,onSync:()=>$('corpSync').click()});};
   $('corpTeamClose').onclick=()=>{team(false);$('corpTeamToggle').focus();};
   $('corpTeamForm').onsubmit=async event=>{event.preventDefault();const project=selectedProject();if(!project)return;const members=[...$('corpTeamMembers').querySelectorAll('select')].filter(select=>select.value).map(select=>({chatId:select.dataset.chat,roleId:select.value}));if(await act('/team',{workspaceId:project.id,members})){renderTeam();team(false);}};
   $('corpCompanyTemplate').onclick=()=>{

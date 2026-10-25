@@ -2,14 +2,14 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 
 const unavailable = () => ({ mode: 'unavailable', elevated: false, installed: false, capability: 'unavailable', running: false });
-const fields = ['mode', 'elevated', 'installed', 'capability', 'running', 'version', 'needsUpdate', 'pending'];
+const fields = ['mode', 'elevated', 'installed', 'capability', 'running', 'version', 'needsUpdate', 'pending', 'error'];
 
 // Native Windows owns consent and credentials. The web API accepts only a mode.
 export function createPrivilegeControl({ root, enabled = process.platform === 'win32', spawnProcess = spawn } = {}) {
   const shell = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   const helper = join(root, 'scripts', 'windows', 'Admin-Mode.ps1');
   const args = action => ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helper, '-Action', action, '-SourceRoot', root, ...(action === 'status' ? [] : ['-GatewayRequest'])];
-  let operation, error, cached, expires = 0, reading;
+  let operation, error, cached, expires = 0, reading, operationStarted = 0;
 
   const read = () => new Promise(resolve => {
     let child, output = '', done = false;
@@ -32,6 +32,7 @@ export function createPrivilegeControl({ root, enabled = process.platform === 'w
           if (typeof result.version !== 'string' || !/^\d+\.\d+\.\d+(?:-[\w.]+)?$/.test(result.version)) delete result.version;
           if (typeof result.needsUpdate !== 'boolean') delete result.needsUpdate;
           if (typeof result.pending !== 'boolean') delete result.pending;
+          if (!['uac_cancelled', 'privilege_failed'].includes(result.error)) delete result.error;
           finish(result);
         } catch { finish(unavailable()); }
       });
@@ -45,7 +46,14 @@ export function createPrivilegeControl({ root, enabled = process.platform === 'w
         reading ??= read().then(value => { cached = value; expires = Date.now() + 2000; return value; }).finally(() => { reading = undefined; });
         await reading;
       }
-      return { ...cached, pending: Boolean(operation) || cached.pending === true, ...(error ? { error } : {}) };
+      const timedOut = operation && Date.now() - operationStarted >= 120_000;
+      if (timedOut) {
+        const stale = operation;
+        operation = undefined;
+        error ||= 'privilege_timeout';
+        try { stale.kill(); } catch { }
+      }
+      return { ...cached, pending: Boolean(operation) || cached.pending === true, ...(error || timedOut ? { error: error || 'privilege_timeout' } : {}) };
     },
     async change(body) {
       if (!body || Object.keys(body).length !== 1 || !['normal', 'admin'].includes(body.mode)) {
@@ -72,6 +80,7 @@ export function createPrivilegeControl({ root, enabled = process.platform === 'w
           windowsHide: true, cwd: root, stdio: 'ignore',
         });
         operation = child;
+        operationStarted = Date.now();
         const finish = code => {
           if (operation !== child) return;
           operation = undefined; cached = undefined; expires = 0;

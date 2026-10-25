@@ -14,6 +14,7 @@
   const message=(text='')=>{$('arenaError').textContent=text;$('arenaError').hidden=!text;};
   async function api(path='',body,global=false){
     const response=await fetch((global?'/admin/api':'/admin/api/arena')+path,body===undefined?{cache:'no-store'}:{method:'POST',headers:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},body:JSON.stringify(body)});
+    if(!response.headers.get('content-type')?.includes('application/json'))throw Error('Gateway đang khởi động hoặc kết nối lại. Arena giữ tiến độ và tự kiểm tra lại.');
     const result=await response.json();if(!response.ok){const cause=Error(reasons[result.error]||result.error||'Không cập nhật được Arena.');cause.code=result.error;throw cause;}return result;
   }
   const link=(label,url)=>{const element=node('a',label,'btn small');element.href=url;element.target='_blank';element.rel='noopener noreferrer';return element;};
@@ -56,6 +57,7 @@
       add('Hủy Arena','cancel');
     }else add('Xóa khỏi danh sách','delete');
     if(arena.projectUrl)root.append(link('Mở Project',arena.projectUrl));
+    if(arena.projectId)root.append(button(arena.status==='done'&&arena.cleanupAfterDelivery?'Dọn chat sau bàn giao':'Quản lý Project',()=>window.umiProjectManager?.({channel:'arena',id:arena.id,gitId:arena.id,name:arena.name,projectUrl:arena.projectUrl,chats:[...(arena.candidates||[]).filter(row=>row.chatId).map(row=>({chatId:row.chatId,name:row.label})),...(arena.judge?.chatId?[{chatId:arena.judge.chatId,name:'Giám khảo'}]:[])]})));
   }
   function arenaWorld(arena,job,{enabled=false,visible=true,compact=false}={}){
     const roster=arena?.candidates||[],steps=arena?.steps||[],active=steps.find(step=>!['done','cancelled'].includes(step.status)),candidate=roster.find(row=>row.id===active?.candidateId),setup=!!arena&&job?.status!=='done';
@@ -71,19 +73,21 @@
     for(let tier=0;tier<3;tier++){const row=node('div',undefined,'arena-colosseum-tier');for(let arch=0;arch<18;arch++)row.append(node('i',undefined,'arena-colosseum-arch'));architecture.append(row);}world.append(architecture);
     const floor=node('div',undefined,'arena-sand');floor.setAttribute('aria-hidden','true');floor.append(node('i'),node('i'),node('i'));world.append(floor);
     for(const side of ['left','right']){const standard=node('div',undefined,'arena-standard '+side);standard.setAttribute('aria-hidden','true');standard.append(node('i'),node('b'));world.append(standard);}
-    if(!arena){const heading=node('header',undefined,'arena-world-heading');heading.append(node('strong','Đấu trường La Mã'),node('span','Chưa có Arena'));world.append(heading);}
+    const heading=node('header',undefined,'arena-world-heading');heading.append(node('strong','ARENA'),node('span',arena?'Đấu trường sản phẩm':'Đấu trường La Mã'));world.append(heading);
     const judge=node('div',undefined,'arena-world-judge');judge.dataset.active=String(active?.kind==='judge'&&running);judge.append(node('i',undefined,'arena-judge-figure'),node('strong','Giám khảo'),node('span',!arena?'Chưa có chat':active?.kind==='judge'?`Vòng ${active.round} · ${labels[active.status]||active.status}`:arena.judge?.chatUrl?'Đã có chat':'Chờ khởi tạo'));world.append(judge);
     const focus=node('div',undefined,'arena-world-focus');focus.setAttribute('role','status');focus.append(node('span',!arena?'10–100 đội độc lập':setup?'Khởi tạo Project và chat':active?.kind==='judge'?`Chấm vòng ${active.round}`:candidate?`${candidate.label} · Vòng ${active.round}`:arena.winnerId?'Đã chọn sản phẩm thắng':'Chờ lượt thực hiện'),node('small',!arena?'Tạo Arena để bắt đầu':setup?labels[job?.status]||'Chờ khởi tạo':active?labels[active.status]||active.status:labels[arena.status]||arena.status));world.append(focus);
     const seats=node('ol',undefined,'arena-contestants');seats.setAttribute('aria-label','Vị trí đội đang xem');
-    const activeIndex=arena?.candidates.findIndex(row=>row.id===active?.candidateId)??0,totalSeats=arena?.count||10,currentPage=Math.min(Math.max(0,seatPage??Math.floor(Math.max(0,activeIndex)/20)),Math.ceil(totalSeats/20)-1),start=currentPage*20,end=Math.min(totalSeats,start+20);seats.style.gridTemplateRows='repeat('+Math.ceil((end-start)/10)+',1fr)';
-    if(totalSeats>20){const pages=node('nav',undefined,'arena-seat-pages');pages.setAttribute('aria-label','Trang đội');for(let page=0;page<Math.ceil(totalSeats/20);page++){const control=button((page*20+1)+'–'+Math.min(totalSeats,(page+1)*20),()=>{seatPage=page;signature='';render();});control.setAttribute('aria-pressed',String(page===currentPage));pages.append(control);}world.append(pages);}
+    const activeIndex=arena?.candidates.findIndex(row=>row.id===active?.candidateId)??0,totalSeats=arena?.count||10,pageSize=10,currentPage=Math.min(Math.max(0,seatPage??Math.floor(Math.max(0,activeIndex)/pageSize)),Math.ceil(totalSeats/pageSize)-1),start=currentPage*pageSize,end=Math.min(totalSeats,start+pageSize);
+    if(totalSeats>pageSize){const pages=node('nav',undefined,'arena-seat-pages');pages.setAttribute('aria-label','Trang đội');for(let page=0;page<Math.ceil(totalSeats/pageSize);page++){const control=button((page*pageSize+1)+'–'+Math.min(totalSeats,(page+1)*pageSize),()=>{seatPage=page;signature='';render();});control.setAttribute('aria-pressed',String(page===currentPage));pages.append(control);}world.append(pages);}
     for(let index=start;index<end;index++){
       const item=roster[index],state=!item?'empty':item.id===arena.winnerId?'winner':item.id===candidate?.id?(running?'active':active?.status==='blocked'?'blocked':item.status||'waiting'):item.status||'waiting';
       const seat=node('li',undefined,'arena-contestant');seat.dataset.state=state;seat.style.setProperty('--seat-arc',String(Math.abs((index%10)-4.5)));seat.style.setProperty('--seat-index',String(index));
+      const positions=[[75,28],[90,49],[87,73],[73,87],[58,85],[42,85],[27,87],[13,73],[10,49],[25,28]],position=positions[index-start];seat.style.left=position[0]+'%';seat.style.top=position[1]+'%';
       const name=item?.label||`Vị trí ${String(index+1).padStart(2,'0')}`,stateText=state==='empty'?'Trống':state==='winner'?'Thắng':state==='active'?'Đang làm':labels[state]||state;
       seat.title=`${name} · ${stateText} · ${item?.versions?.length||0} phiên bản`;seat.setAttribute('aria-label',seat.title);if(item)seat.tabIndex=0;
       const figure=node('span',undefined,'arena-contestant-figure');figure.setAttribute('aria-hidden','true');figure.style.setProperty('--palette-row',String(index%5));seat.append(figure,node('strong',String(index+1).padStart(2,'0')),node('span',stateText),node('small',item?.versions?.length?`${item.versions.length} bản`:''));seats.append(seat);
     }world.append(seats);
+    if(candidate&&!setup){const featured=node('div',undefined,'arena-featured');featured.dataset.active=String(running);const figure=node('i',undefined,'arena-featured-figure');figure.style.setProperty('--palette-row',String(Math.max(0,activeIndex)%5));featured.append(figure,node('strong',candidate.label),node('span',active?.kind==='judge'?'Đang được chấm':labels[active?.status]||'Chờ lượt'));world.append(featured);}
     const legend=node('footer',undefined,'arena-world-legend');for(const [state,text] of [['active','Đang làm'],['advancing','Đi tiếp'],['eliminated','Dừng thi'],['blocked','Cần kiểm tra']]){const entry=node('span',text);entry.dataset.state=state;legend.append(entry);}world.append(legend);
     const credit=node('a','Chasersgaming · CC0','arena-art-credit');credit.href='https://opengameart.org/content/rpg-asset-character-gladiator-sms';credit.target='_blank';credit.rel='noopener noreferrer';world.append(credit);
     return world;
@@ -154,7 +158,7 @@
   $('arenaEnabled').onclick=async()=>{if(!data||pending.has('settings'))return;pending.add('settings');readiness();try{await api('/settings',{enabled:!data.enabled});await load(true);}catch(cause){message(cause.message);}finally{pending.delete('settings');readiness();}};
   $('arenaForm').onsubmit=async event=>{
     event.preventDefault();if(sending||folderOpen||!data?.paired||!capable())return;
-    const body={name:$('arenaName').value.trim(),idea:$('arenaIdea').value.trim(),parentRoot:$('arenaRoot').value.trim(),count:Number($('arenaCount').value),start:false},key=JSON.stringify(body);if(request?.signature!==key)request={signature:key,key:crypto.randomUUID()};
+    const body={name:$('arenaName').value.trim(),idea:$('arenaIdea').value.trim(),parentRoot:$('arenaRoot').value.trim(),count:Number($('arenaCount').value),cleanupAfterDelivery:$('arenaCleanupAfterDelivery').checked,start:false},key=JSON.stringify(body);if(request?.signature!==key)request={signature:key,key:crypto.randomUUID()};
     sending=true;message();$('arenaForm').setAttribute('aria-busy','true');readiness();
     try{const arena=await api('/arenas',{...body,requestKey:request.key});selected=arena.id;localStorage.setItem('umibridge.arena.selected',selected);await load(true);$('arenaIdea').value='';$('arenaName').value='';request=null;$('arenaCreate').open=false;}
     catch(cause){if(cause.code==='project_folder_exists')request=null;message(cause.message);}

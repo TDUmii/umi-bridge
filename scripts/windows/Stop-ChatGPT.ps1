@@ -1,27 +1,39 @@
+[CmdletBinding()]
+param([switch]$KeepWatchdog)
+
+if ($PSVersionTable.PSVersion.Major -le 5) {
+    $env:PSModulePath = [IO.Path]::Combine([Environment]::GetFolderPath('System'), 'WindowsPowerShell\v1.0\Modules')
+}
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $ErrorActionPreference = 'Stop'
 $statePath = Join-Path $projectRoot '.local-data\web-status.json'
-if (-not (Test-Path -LiteralPath $statePath)) {
-    Write-Host 'UmiBridge is not running (no saved session).'
-    exit 0
+if (-not $KeepWatchdog) {
+    [void][IO.Directory]::CreateDirectory((Split-Path -Parent $statePath))
+    [IO.File]::WriteAllText((Join-Path $projectRoot '.local-data\launcher-stop'), [DateTime]::UtcNow.ToString('o'))
 }
-
-$state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
-$targetPid = [int]$state.pid
-$port = [int]$state.port
-$process = Get-CimInstance Win32_Process -Filter "ProcessId = $targetPid" -ErrorAction Stop
+$state = $null
+if (Test-Path -LiteralPath $statePath) { $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json }
 $expectedPath = Join-Path $projectRoot 'scripts\run-local-web.mjs'
-
-if ($process) {
+$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$absolutePattern = '(?i)^"?[^"\r\n]+?node\.exe"?\s+"?' + [regex]::Escape($expectedPath) + '"?(?:\s|$)'
+$processes = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction Stop | Where-Object {
+    $_.CommandLine -match $absolutePattern -or ($state -and $_.ProcessId -eq [int]$state.pid)
+})
+foreach ($process in $processes) {
+    $targetPid = [int]$process.ProcessId
     $commandLine = [string]$process.CommandLine
-    $absoluteMatch = $commandLine.IndexOf($expectedPath, [StringComparison]::OrdinalIgnoreCase) -ge 0
+    $absoluteMatch = $commandLine -match $absolutePattern
     # Older launchers may start Node using "scripts/run-local-web.mjs" relative to this project.
     # Accept that form ONLY if this exact process also owns the recorded loopback listener.
     $relativeMatch = $commandLine -match '(?i)(?:^|\s)"?(?:\.?[\\/])?scripts[\\/]run-local-web\.mjs"?(?:\s|$)'
-    $portOwner = @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
-        Where-Object { $_.OwningProcess -eq $targetPid -and $_.LocalAddress -in @('127.0.0.1', '::1') }).Count -gt 0
+    $portOwner = $false
+    if ($state) {
+        $portOwner = @(Get-NetTCPConnection -LocalPort ([int]$state.port) -State Listen -ErrorAction SilentlyContinue |
+            Where-Object { $_.OwningProcess -eq $targetPid -and $_.LocalAddress -in @('127.0.0.1', '::1') }).Count -gt 0
+    }
+    $owner = Invoke-CimMethod -InputObject $process -MethodName GetOwnerSid -ErrorAction Stop
 
-    if ($process.Name -ne 'node.exe' -or -not ($absoluteMatch -or ($relativeMatch -and $portOwner))) {
+    if ($owner.ReturnValue -ne 0 -or $owner.Sid -ne $sid -or -not ($absoluteMatch -or ($relativeMatch -and $portOwner))) {
         throw "Saved PID $targetPid does not match this UmiBridge instance. Nothing was stopped."
     }
 

@@ -22,7 +22,7 @@ Khuyến cáo số đội dùng RAM/CPU của máy tại thời điểm chạy, 
 
 ## Model, giao diện và phân tích
 
-Dùng extension **0.7.2** trong extensions/umibridge-corp, ghép vào địa chỉ local đang chạy. Trong Cài đặt → Model, quét picker thật của ChatGPT Trò chuyện rồi chọn model/effort đọc được. Adapter chọn và xác minh trước lượt gửi; không có lựa chọn sẽ chặn, không thay bằng lời yêu cầu trong prompt. Giữ lựa chọn hiện tại để tắt đổi model. Nạp lại extension và tab ChatGPT sau khi cập nhật extension.
+Dùng extension **0.8.0** trong extensions/umibridge-corp, ghép vào địa chỉ local đang chạy. Trong Cài đặt → Model, quét picker thật của ChatGPT Trò chuyện rồi chọn model/effort đọc được. Adapter chọn và xác minh trước lượt gửi; không có lựa chọn sẽ chặn, không thay bằng lời yêu cầu trong prompt. Giữ lựa chọn hiện tại để tắt đổi model. Nạp lại extension và tab ChatGPT sau khi cập nhật extension.
 
 Cài đặt chia tab Model, Giao diện, Kết nối, Hệ thống và Bảo trì. Có màu nhấn, mật độ, độ trong bảng và nền PNG/JPEG/WebP từ máy. Nền được thu nhỏ và lưu trong trình duyệt, không upload. Nút VI/EN đổi ngôn ngữ bằng một lần bấm.
 
@@ -37,3 +37,13 @@ Gói source chỉ giữ file app, launcher/installer, dependency manifests, asse
 App MIT. Asset và công cụ bên thứ ba xem THIRD_PARTY_NOTICES.md và license/provenance đi kèm. Quy chuẩn review viết riêng, tham khảo Playwright (microsoft/playwright), axe-core (dequelabs/axe-core), OWASP/ASVS và anthropics/skills/webapp-testing. Không có chứng nhận ASVS/accessibility tự động.
 
 UmiBridge chỉ gửi trong **Chat thường / Trò chuyện**. Adapter chuyển và xác nhận chế độ trước khởi tạo/gửi; không dùng Work. Catalog model/effort được quét lại trên Chat thường, không dùng danh sách Work trước đó. Hạn mức nào hiện trên Chat vẫn được tôn trọng.
+
+## Bản cập nhật 1.6.0
+
+Corp chỉ mở bản đồ sau khi roster đã đủ. Phòng ban có ranh giới, bàn ghép đối diện, lối đi theo A*, và hoạt ảnh nhân viên mang bàn, ghế, màn hình vào lắp. Chấm trạng thái nằm góc trên trái; Sơ đồ phòng tô vùng khi rê chuột; nhân viên hiển thị tên, vai trò và nhiệm vụ thật. Đội ngũ, khách và bàn giao nằm trong tab con; trao đổi bàn giao chỉ dùng kết quả thật từ run.
+
+Hàng đợi hiển thị khách hàng, chặng hiện tại, tiến độ và quy trình thu gọn. Giao diện có xem trước trước khi lưu. Hướng dẫn mới đi theo bước, có tìm kiếm và nút mở đúng màn hình. Dự án có lựa chọn dọn chat sau bàn giao, giữ sản phẩm và Git. Git private chỉ bật khi người dùng bật và máy đã xác thực gh; collector chặn test, dữ liệu riêng, thông tin máy, bí mật và repo public.
+
+Gateway tự khôi phục công việc đã dở theo chat Project đã xác minh; lượt gửi không rõ chỉ đối chiếu, không tự gửi trùng. UmiBridge chạy nền cùng icon khay hệ thống, menu mở dashboard/khởi động lại/thoát, watchdog có giới hạn.
+
+Khi xóa đã được UI xác minh hoàn tất, app bỏ liên kết chat/Project tương ứng và hủy công việc phụ thuộc; file sản phẩm, lịch sử token và Git vẫn giữ. Nếu phản hồi ChatGPT lỗi hoặc chưa đủ báo cáo, Corp dừng tại chặng với lý do cụ thể. Tự khôi phục gateway không biến lỗi phản hồi thành kết quả thành công.

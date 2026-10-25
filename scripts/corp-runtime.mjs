@@ -46,6 +46,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     state = saved;
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
   if(state.modelSurface!=='chat'){state.modelSurface='chat';state.modelCatalog=[];state.modelScan=null;}
+  state.autoResume ??= true;
   state.usage = Array.isArray(state.usage) ? state.usage : [];
   state.teams = Array.isArray(state.teams) ? state.teams : [];
   state.bootstraps = Array.isArray(state.bootstraps) ? state.bootstraps : [];
@@ -159,7 +160,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     const run=createRun({...plan,customerName:input.customerName},{idea:true});run.idea={...plan.idea,repairRounds:1};
     run.steps.forEach((step,index)=>Object.assign(step,{stage:plan.steps[index].stage,title:plan.steps[index].title,roleId:plan.steps[index].roleId,requiresPass:plan.steps[index].requiresPass}));
     state.teams=state.teams.filter(team=>team.workspaceId!==project.id);state.teams.push({workspaceId:project.id,members:[...(stateTeamBefore||[]).filter(member=>project.chats.some(chat=>chat.chatId===member.chatId)&&staffRoles.some(role=>role.id===member.roleId)&&!plan.team.some(row=>row.chatId===member.chatId)),...plan.team]});
-    if(input.start===true){run.status='running';event('start',run,run.steps[0]);}return run;
+    if(input.start!==false&&state.enabled){run.status='running';event('start',run,run.steps[0]);}return run;
   };
   const arenaForRun = run => run?.arenaId ? state.arenas.find(arena => arena.id === run.arenaId) : null;
   const arenaMatches = arena => [...(arena.groups ?? []).flatMap(group => group.matches), ...arena.rounds.flatMap(round => round.matches)];
@@ -334,6 +335,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     return {projectId:match[1],projectUrl:`https://chatgpt.com/g/${match[1]}/project`};
   };
   const createBootstrap = async (input, onRollback) => {
+      if(input.chatMode==='temporary')throw Error('temporary_chat_project_unsupported');
       if(!createWorkspace||!syncProject)throw Error('bootstrap_unavailable');if(!state.tokenHash)throw Error('pair_corp_first');
       if(typeof input.idea!=='string'||input.idea.trim().length<4||input.idea.trim().length>8000)throw Error('invalid_idea');
       if(!['build','plan'].includes(input.mode||'build'))throw Error('invalid_idea_mode');
@@ -377,13 +379,15 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(!delta||delta==='..'||delta.startsWith('..\\')||delta.startsWith('../')||isAbsolute(delta)||(await lstat(root)).isSymbolicLink())throw Error('invalid_parent_root');
       const contents=`# ${name}\n\n${input.idea.trim()}\n`,ideaHandle=await open(ideaFile,'wx');ideaCreated=true;
       try{await ideaHandle.writeFile(contents,'utf8');}finally{await ideaHandle.close();}
-      const job={id:input.requestKey,...config,customerName:text(input.customerName,80),idea:input.idea.trim(),name,parentRoot,root,kind,count,...(kind==='arena'?{format:input.format??'knockout'}:{}),mode:input.mode||'build',runAfterSetup:kind==='arena'?false:input.runAfterSetup!==false,
-        status:input.start===true&&state.enabled?'running':'paused',createdAt:new Date(clock()).toISOString(),projectUrl:null,projectId:null,workspaceId:null,chats:[],attempt:null,issuedAt:null,reason:null,runId:null};
+      const job={id:input.requestKey,cleanupAfterDelivery:input.cleanupAfterDelivery===true,...config,customerName:text(input.customerName,80),idea:input.idea.trim(),name,parentRoot,root,kind,count,...(kind==='arena'?{format:input.format??'knockout'}:{}),mode:input.mode||'build',runAfterSetup:kind==='arena'?false:input.runAfterSetup!==false,
+        status:input.start!==false&&state.enabled?'running':'paused',createdAt:new Date(clock()).toISOString(),projectUrl:null,projectId:null,workspaceId:null,chats:[],attempt:null,issuedAt:null,reason:null,runId:null};
       state.bootstraps.push(job);return copy(job);
   };
   if (JSON.stringify(state.arenas) !== arenasBeforeMigration) await save();
   return {
     snapshot: summary,
+    deletedTargets:()=>copy(state.deletedTargets||[]),
+    recordDeletion:input=>transaction(()=>{const target={projectId:input.projectId,chatId:input.chatId||null};state.deletedTargets??=[];if(!state.deletedTargets.some(row=>row.projectId===target.projectId&&row.chatId===target.chatId))state.deletedTargets.push({...target,at:new Date(clock()).toISOString()});for(const run of state.runs.filter(row=>row.projectId===target.projectId&&(!target.chatId||row.steps.some(step=>step.chatId===target.chatId))))if(!['done','cancelled'].includes(run.status)){run.status='cancelled';for(const step of run.steps.filter(active)){recordUsage(run,step,'error');step.status='cancelled';step.reason=target.chatId?'chat_deleted':'project_deleted';}event('cancel',run,current(run),{reason:target.chatId?'chat_deleted':'project_deleted'});}return {ok:true};}),
     usage: () => copy(state.usage),
     team: input => transaction(() => {
       const project=workspaces().find(item=>item.id===input.workspaceId&&item.kind==='project');
@@ -541,7 +545,8 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
             if (step.status !== 'blocked' || step.reason !== 'chat_outside_project') { step.status = 'blocked'; step.reason = 'chat_outside_project'; markArenaBlocked(run,step.reason); event('blocked', run, step); }
             continue;
           }
-          const sentPhase = ['dispatching', 'running'].includes(step.status);
+          const reconcilable = step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(step.reason);
+          const sentPhase = ['dispatching', 'running'].includes(step.status)||reconcilable;
           if (sentPhase) monitors.push({ runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId, projectId: step.projectId });
           if (step.status === 'dispatching' && clock() - step.issuedAt > 90_000) { step.status = 'blocked'; step.reason = 'send_unconfirmed'; markArenaBlocked(run,step.reason); event('blocked', run, step); }
           if (step.status === 'running' && clock() - step.issuedAt > 45 * 60_000) { step.status = 'blocked'; step.reason = 'response_timeout'; markArenaBlocked(run,step.reason); recordUsage(run, step, 'error'); event('blocked', run, step); }
@@ -564,14 +569,17 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
           step.refresh = false; occupied.add(step.chatId); event('dispatch', run, step);
         }
         if (JSON.stringify(state) !== JSON.stringify(before)) await save();
-        return { enabled: state.enabled, command, monitors, bootstrap };
+        const openChats=state.enabled&&state.autoResume?state.runs.filter(run=>run.status==='running').map(run=>({run,step:current(run)})).filter(({run,step})=>step&&inScope(run,step)&&(!step.status.includes('blocked')||['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(step.reason))).map(({step})=>({chatId:step.chatId,projectId:step.projectId,chatUrl:step.chatUrl})):[];
+        return { enabled: state.enabled, command, monitors, bootstrap,openChats };
       } catch (error) { state = before; throw error; }
     }),
     report: (token, input) => transaction(async () => {
       authenticate(token);
       const run = find(input.runId), step = run.steps.find(item => item.id === input.stepId);
       if (!step || step.attempt !== input.attempt) throw Error('stale_attempt');
-      if (['done', 'cancelled'].includes(run.status) || !['dispatching', 'running', 'limit_wait'].includes(step.status)) return { ignored: true };
+      const reconcile=step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(step.reason)&&['sent','done'].includes(input.kind);
+      if (['done', 'cancelled'].includes(run.status) || !reconcile&&!['dispatching', 'running', 'limit_wait'].includes(step.status)) return { ignored: true };
+      if(reconcile){step.status='running';step.reason=null;}
       if (!inScope(run, step)) { step.status = 'blocked'; step.reason = 'chat_outside_project'; markArenaBlocked(run, step.reason); event('blocked', run, step); return { ignored: true }; }
       if (input.kind === 'sent') {
         if (step.status === 'limit_wait') return { ignored: true };

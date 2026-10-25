@@ -27,6 +27,12 @@ UmiBridge uses CursorTouch/Windows-MCP as an isolated local stdio worker.
 - Runtime dependencies are installed from the hash-pinned `scripts/windows-tools-requirements.txt` lock. The reviewed source revision is loaded from the verified source archive; the registry wheel alone does not include all of the reviewed revision's features.
 - Telemetry is disabled by UmiBridge. Upstream HTTP, OAuth and startup-task installers are not used.
 
+## Cinzel display typeface
+
+Copyright 2020 The Cinzel Project Authors. Source: https://github.com/NDISCOVER/Cinzel and https://github.com/google/fonts/tree/main/ofl/cinzel. Distributed under SIL Open Font License 1.1; full license in `scripts/arena-assets/LICENSE.Cinzel.txt`. Used only for Latin display text such as ARENA. Vietnamese labels use the dashboard text font to preserve accents.
+
+Arena composition references: Kenney Mini Arena (https://kenney.nl/assets/mini-arena) and TorjusFS/colosseum-fight (https://github.com/TorjusFS/colosseum-fight). No code, art, random combat outcomes or assets copied from these references.
+
 ## MIT License
 
 Copyright (c) 2025 JEOMON GEORGE

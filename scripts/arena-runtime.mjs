@@ -75,6 +75,7 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
   // Pin legacy tournaments to their original scoring, including queued judge prompts.
   let migrated=false;
   for(const arena of state.arenas){if(!Array.isArray(arena.rubric)){arena.rubricVersion=1;arena.rubric=clone(legacyArenaRubric);migrated=true;}}
+  state.autoResume ??= true;
   let queue=Promise.resolve(),lastSeen=0,extensionVersion=null;
   const serial=fn=>{const result=queue.then(fn);queue=result.catch(()=>{});return result;};
   const save=async()=>{const temp=`${filePath}.${process.pid}.tmp`;try{await writeFile(temp,JSON.stringify(state),{mode:0o600});await rename(temp,filePath);}catch(error){await unlink(temp).catch(()=>{});throw error;}};
@@ -113,20 +114,20 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
     const round=arena.rounds.at(-1);
     if(arena.phase==='build'||arena.phase==='revise'){arena.phase='judge';newStep(arena,'judge',round.number);}
   };
-  const snapshot=()=>({enabled:state.enabled,paired:paired(),connected:lastSeen>0&&clock()-lastSeen<45000,lastSeen:lastSeen?new Date(lastSeen).toISOString():null,extensionVersion,arenas:clone(state.arenas),bootstraps:clone(state.bootstraps),events:clone(state.events),rubricVersion:arenaRubricVersion,rubric:clone(arenaRubric),capacity:{min:10,max:100,recommended:recommendArenaCount()},projectsRoot});
-  // Restart always pauses: an outbox item may already exist in a browser composer or have been sent.
-  let recovered=false;
-  for(const arena of state.arenas){if(arena.status==='running'){arena.status='paused';arena.reason='restart_reconcile';recovered=true;}for(const step of arena.steps.filter(row=>['dispatching','running'].includes(row.status))){step.status='blocked';step.reason='restart_reconcile';arena.status='paused';arena.reason='restart_reconcile';recovered=true;}}
-  for(const job of state.bootstraps.filter(row=>row.status==='running')){job.status=job.issuedAt===null?'paused':'blocked';job.reason=job.issuedAt===null?'restart_paused':'bootstrap_unconfirmed';recovered=true;}
-  if(recovered||migrated)await save();
+  const snapshot=()=>({enabled:state.enabled,autoResume:state.autoResume,paired:paired(),connected:lastSeen>0&&clock()-lastSeen<45000,lastSeen:lastSeen?new Date(lastSeen).toISOString():null,extensionVersion,arenas:clone(state.arenas),bootstraps:clone(state.bootstraps),events:clone(state.events),rubricVersion:arenaRubricVersion,rubric:clone(arenaRubric),capacity:{min:10,max:100,recommended:recommendArenaCount()},projectsRoot});
+  // Persisted running intent survives restart; issued attempts are observed, never replayed.
+  if(migrated)await save();
 
   return {
     snapshot,authenticate,
+    deletedTargets:()=>clone(state.deletedTargets||[]),
+    recordDeletion:input=>transaction(()=>{const target={projectId:input.projectId,chatId:input.chatId||null};state.deletedTargets??=[];if(!state.deletedTargets.some(row=>row.projectId===target.projectId&&row.chatId===target.chatId))state.deletedTargets.push({...target,at:now()});for(const arena of state.arenas.filter(row=>row.projectId===target.projectId)){if(!['done','cancelled'].includes(arena.status)){arena.status='cancelled';arena.reason=target.chatId?'chat_deleted':'project_deleted';for(const step of arena.steps.filter(row=>!finished(row))){usage(arena,step,'error');step.status='cancelled';step.reason=arena.reason;}history(arena,'cancel',{reason:arena.reason});}const job=state.bootstraps.find(row=>row.arenaId===arena.id);if(job&&!finished(job))job.status='cancelled';}return {ok:true};}),
     usage:()=>clone(state.usage),
-    settings:input=>transaction(()=>{if(typeof input.enabled==='boolean')state.enabled=input.enabled;return snapshot();}),
+    settings:input=>transaction(()=>{if(typeof input.enabled==='boolean')state.enabled=input.enabled;if(typeof input.autoResume==='boolean')state.autoResume=input.autoResume;return snapshot();}),
     pair:()=>transaction(()=>{if(externalAuthenticate)throw Error('shared_pairing_managed_by_gateway');const token=randomBytes(32).toString('base64url');state.tokenHash=digest(token);return {token};}),
     revoke:()=>transaction(()=>{state.tokenHash=null;state.enabled=false;lastSeen=0;return snapshot();}),
     create:input=>transaction(async rollback=>{
+      if(input.chatMode==='temporary')throw Error('temporary_chat_project_unsupported');
       if(!paired())throw Error('pair_arena_first');
       if(!bounded(input.idea,8000)||input.idea.trim().length<4)throw Error('invalid_idea');
       const count=input.count??20;if(!Number.isInteger(count)||count<10||count>100)throw Error('invalid_arena_count');
@@ -143,8 +144,8 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
       const ideaFile=join(root,'UMI-ARENA-IDEA.md'),handle=await open(ideaFile,'wx');rollback(()=>unlink(ideaFile));try{await handle.writeFile(`# ${base}\n\n${input.idea.trim()}\n`);}finally{await handle.close();}
       const id=input.requestKey,candidates=[];
       for(let index=1;index<=count;index++){const roleId=`contestant-${String(index).padStart(2,'0')}`,candidateRoot=join(root,roleId);await mkdir(candidateRoot);rollback(()=>rmdir(candidateRoot));candidates.push({id:roleId,roleId,label:`Thí sinh ${String(index).padStart(2,'0')}`,root:candidateRoot,chatId:null,chatUrl:null,status:'waiting',versions:[],feedback:[]});}
-      const arena={id,requestKey:id,title:base,name:`${base.slice(0,30)} [Arena-${id.slice(0,8)}]`,idea:input.idea.trim(),parentRoot:parent,root,count,rubricVersion:arenaRubricVersion,rubric:clone(arenaRubric),status:'setup',phase:'setup',createdAt:now(),projectId:null,projectUrl:null,candidates,judge:null,steps:[],rounds:[],history:[],winnerId:null,reason:null};
-      const job={id,arenaId:id,kind:'arena',name:arena.name,root,idea:arena.idea,count,status:input.start===true&&state.enabled?'running':'paused',projectId:null,projectUrl:null,chats:[],attempt:null,issuedAt:null,reason:null,createdAt:now()};
+      const arena={id,cleanupAfterDelivery:input.cleanupAfterDelivery===true,requestKey:id,title:base,name:`${base.slice(0,30)} [Arena-${id.slice(0,8)}]`,idea:input.idea.trim(),parentRoot:parent,root,count,rubricVersion:arenaRubricVersion,rubric:clone(arenaRubric),status:'setup',phase:'setup',createdAt:now(),projectId:null,projectUrl:null,candidates,judge:null,steps:[],rounds:[],history:[],winnerId:null,reason:null};
+      const job={id,arenaId:id,kind:'arena',name:arena.name,root,idea:arena.idea,count,status:input.start!==false&&state.enabled?'running':'paused',projectId:null,projectUrl:null,chats:[],attempt:null,issuedAt:null,reason:null,createdAt:now()};
       state.arenas.push(arena);state.bootstraps.push(job);history(arena,'created');return clone(arena);
     }),
     action:(id,action)=>transaction(()=>{
@@ -152,8 +153,8 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
       if(action==='delete'){if(!finished(arena))throw Error('cancel_before_delete');state.arenas=state.arenas.filter(row=>row.id!==id);state.bootstraps=state.bootstraps.filter(row=>row.id!==id);return {ok:true};}
       if(finished(arena))throw Error('arena_finished');
       if(action==='setup'){if(!state.enabled)throw Error('enable_arena_first');if(job.status==='done')throw Error('bootstrap_finished');if(job.issuedAt!==null)throw Error('check_browser_before_retry');job.status='running';job.reason=null;}
-      else if(action==='start'){if(!state.enabled)throw Error('enable_arena_first');if(job.status!=='done')throw Error('arena_setup_required');if(step?.status==='blocked')throw Error('check_chat_before_retry');arena.status='running';arena.reason=null;advance(arena);}
-      else if(action==='pause'){arena.status=job.status==='done'?'paused':'setup';if(!finished(job))job.status='paused';}
+      else if(action==='start'){arena.manualPaused=false;if(!state.enabled)throw Error('enable_arena_first');if(job.status!=='done')throw Error('arena_setup_required');if(step?.status==='blocked')throw Error('check_chat_before_retry');arena.status='running';arena.reason=null;advance(arena);}
+      else if(action==='pause'){arena.manualPaused=true;arena.reason='manual_pause';arena.status=job.status==='done'?'paused':'setup';if(!finished(job))job.status='paused';}
       else if(action==='retry'){
         if(job.status!=='done'){if(!['blocked','paused'].includes(job.status))throw Error('retry_not_available');job.status='paused';job.attempt=null;job.issuedAt=null;job.reason=null;}
         else {if(step?.status!=='blocked')throw Error('retry_not_available');usage(arena,step,'error');Object.assign(step,{status:'queued',attempt:randomUUID(),issuedAt:null,sent:false,result:null,reason:null,continuation:true});arena.status='paused';arena.reason=null;}
@@ -191,9 +192,9 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
       const inflight=state.arenas.some(arena=>arena.steps.some(step=>['dispatching','running','blocked'].includes(step.status)));
       for(const arena of state.arenas.filter(row=>!finished(row))){
         const step=current(arena);if(!step)continue;
-        if(['dispatching','running'].includes(step.status)){
+        if(['dispatching','running'].includes(step.status)||step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(step.reason)){
           monitors.push({channel:'arena',mode:'arena',arenaId:arena.id,runId:arena.id,stepId:step.id,attempt:step.attempt,chatId:step.chatId,projectId:arena.projectId});
-          if(clock()-step.issuedAt>(step.status==='dispatching'?90000:45*60000)){usage(arena,step,'error');block(arena,step,step.status==='dispatching'?'send_unconfirmed':'response_timeout');}
+          if(['dispatching','running'].includes(step.status)&&clock()-step.issuedAt>(step.status==='dispatching'?90000:45*60000)){usage(arena,step,'error');block(arena,step,step.status==='dispatching'?'send_unconfirmed':'response_timeout');}
         }
         if(!state.enabled||!supported(arena.count)||arena.status!=='running'||step.status!=='queued'||command||bootstrap||inflight||state.bootstraps.some(row=>row.issuedAt!==null&&!finished(row)))continue;
         // The adapter must attest the exact Project chat; a same-named ordinary chat is insufficient.
@@ -203,13 +204,15 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
         step.inputTokens=countTextTokens(prompt);step.inputBytes=Buffer.byteLength(prompt);
         command={channel:'arena',mode:'arena',arenaId:arena.id,runId:arena.id,stepId:step.id,attempt:step.attempt,chatId:step.chatId,projectId:arena.projectId,prompt,kind:step.kind,round:step.round,candidateId:step.candidateId};history(arena,'dispatch',{stepId:step.id,kind:step.kind,candidateId:step.candidateId,round:step.round});
       }
-      return {enabled:state.enabled,bootstrap,command,monitors};
+      const openChats=state.enabled&&state.autoResume?state.arenas.filter(row=>row.status==='running'||row.status==='paused'&&!row.manualPaused&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(row.reason)).map(current).filter(Boolean).map(step=>({chatId:step.chatId,projectId:step.projectId,chatUrl:step.chatUrl})):[];
+      return {enabled:state.enabled,bootstrap,command,monitors,openChats};
     }),
     authorize:(token,input)=>serial(()=>{authenticate(token);const arena=arenaById(input.arenaId||input.runId),step=arena.steps.find(row=>row.id===input.stepId);return {allowed:state.enabled&&arena.status==='running'&&Boolean(step&&step.attempt===input.attempt&&step.status==='dispatching'&&step.issuedAt!==null&&clock()-step.issuedAt<90000)};}),
     report:(token,input)=>transaction(async rollback=>{
       authenticate(token);const arena=arenaById(input.arenaId||input.runId),step=arena.steps.find(row=>row.id===input.stepId);
       if(!step||step.attempt!==input.attempt)throw Error('stale_attempt');
       if(finished(arena)||finished(step))return {ignored:true};
+      if(step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(step.reason)&&['sent','done'].includes(input.kind)){step.status='dispatching';step.reason=null;if(state.autoResume&&!arena.manualPaused&&arena.reason!=='manual_pause'){arena.status='running';arena.reason=null;}}
       if(input.kind==='sent'){if(step.status==='dispatching'){step.sent=true;step.status='running';usage(arena,step);}return {ok:true};}
       if(input.kind==='blocked'||input.kind==='limit'){step.sent ||= input.sent===true;usage(arena,step,'error');block(arena,step,input.kind==='limit'?'provider_limit':clean(input.reason,150)||'browser_unavailable');return {ok:true};}
       if(input.kind!=='done')throw Error('invalid_report');

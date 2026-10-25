@@ -203,8 +203,44 @@
       return { ...base, kind: 'blocked', reason: 'send_unconfirmed' };
     } finally { dispatching = false; }
   }
+  async function prepareDeletion(command){
+    const target=command.target;
+    const scope=()=>location.origin==='https://chatgpt.com'&&projectId()===target.projectId&&(!target.chatId||chatId()===target.chatId);
+    if(!scope()||dispatching||sending())throw Error('lifecycle_scope_changed');
+    await UmiModelPicker.ensureChat();
+    const allowed=await chrome.runtime.sendMessage({type:'lifecycle-authorize',channel:channelOf(command),ticket:command.ticket,index:command.index,projectId:target.projectId,chatId:target.chatId});
+    if(!allowed?.allowed||!scope())throw Error('lifecycle_stopped');
+    const isProject=!target.chatId,name=String(target.projectName||target.name||'').trim();
+    if(isProject&&![...document.querySelectorAll('main h1,[data-chatgpt-project-conversation-drop-target] h1')].some(el=>visible(el)&&el.textContent.trim()===name))throw Error('lifecycle_scope_changed');
+    const label=el=>buttonText(el).normalize('NFD').replace(/\p{Diacritic}/gu,'');
+    const deleteLabel=/^(?:delete(?: project| chat| conversation)?|xoa(?: du an| cuoc tro chuyen)?)$/i;
+    if(!isProject&&document.title.trim()!==name)throw Error('lifecycle_chat_title_changed');
+    const controls=[...document.querySelectorAll('main button,header button,[data-chatgpt-project-conversation-drop-target] button')].filter(visible);
+    const menus=controls.filter(el=>/^(?:project (?:options|menu|actions)|open project menu|chat (?:options|menu)|conversation (?:options|menu)|open conversation options|more options|tuy chon du an|tuy chon cuoc tro chuyen|hanh đong tren du an|hanh dong tren du an)$/i.test(buttonText(el).normalize('NFD').replace(/\p{Diacritic}/gu,''))||!isProject&&/^(?:them|more)$/i.test(label(el))||el.dataset.testid===(isProject?'project-menu-button':'conversation-options-button'));
+    if(menus.length!==1)throw Error('delete_menu_unavailable');menus[0].click();
+    const item=await waitForValue(()=>{const nodes=[...document.querySelectorAll('[role="menuitem"]')].filter(el=>visible(el)&&(deleteLabel.test(label(el))||isProject&&/^(?:project settings|cai đat du an|cai dat du an)$/i.test(label(el))));return nodes.length===1?nodes[0]:null;},5000);
+    if(!scope())throw Error('lifecycle_scope_changed');const settingsMenu=!deleteLabel.test(label(item));item.click();
+    let settingsDialog=null;
+    if(settingsMenu){
+      settingsDialog=await waitForValue(()=>[...document.querySelectorAll('[role="dialog"]')].find(el=>visible(el)&&[...el.querySelectorAll('input')].some(input=>/^(?:project name|ten du an)$/i.test(label(input))&&input.value===name)),5000);
+      const deletes=[...settingsDialog.querySelectorAll('button')].filter(el=>visible(el)&&!el.disabled&&deleteLabel.test(label(el)));
+      if(deletes.length!==1||!scope())throw Error('delete_menu_unavailable');deletes[0].click();
+    }
+    const dialog=await waitForValue(()=>[...document.querySelectorAll('[role="alertdialog"],[role="dialog"]')].find(el=>el!==settingsDialog&&visible(el)&&/delete|xóa/i.test(el.textContent)),5000);
+    if(!scope()||!dialog)throw Error('delete_confirmation_unavailable');
+    const confirms=[...dialog.querySelectorAll('button')].filter(el=>visible(el)&&!el.disabled&&/^(?:delete(?: project| chat| conversation)?|xoa(?: du an| cuoc tro chuyen)?)$/i.test(buttonText(el).normalize('NFD').replace(/\p{Diacritic}/gu,'')));
+    // If the native dialog does not identify the exact named target, leave final consent in that dialog.
+    if(!name||!dialog.innerText.includes(name)||confirms.length!==1)return {status:'awaiting_user'};
+    const confirmed=await chrome.runtime.sendMessage({type:'lifecycle-authorize',channel:channelOf(command),ticket:command.ticket,index:command.index,projectId:target.projectId,chatId:target.chatId});
+    if(!confirmed?.allowed||!scope()||!dialog.isConnected||!confirms[0].isConnected)throw Error('lifecycle_stopped');
+    confirms[0].click();
+    try{await waitForValue(()=>!visible(dialog)&&[...document.querySelectorAll('[role="status"],[role="alert"],[data-sonner-toast]')].some(el=>visible(el)&&/deleted|đã xóa|xóa thành công/i.test(el.textContent)),10000);}catch{throw Error('delete_unconfirmed');}
+    return {status:'done'};
+  }
   chrome.runtime.onMessage.addListener((command, sender, respond) => {
     if (sender.id !== chrome.runtime.id) return;
+    if(command.type==='lifecycle-ready'){respond({ready:true});return;}
+    if(command.type==='lifecycle-prepare'){prepareDeletion(command).then(respond,error=>respond({status:'blocked',reason:String(error.message).slice(0,120)}));return true;}
     if(command.type==='model-catalog'){
       if(dispatching||sending()||value(composer()).trim()){respond({models:[],error:'composer_busy'});return;}
       dispatching=true;UmiModelPicker.scan().then(models=>respond({models,surface:'chat'}),error=>respond({models:[],surface:'chat',error:error.message})).finally(()=>{dispatching=false;});return true;

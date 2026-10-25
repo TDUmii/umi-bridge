@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#201735">
 <meta name="description" content="UmiBridge Sakura Console: a private local dashboard for ChatGPT MCP activity.">
 <title>UmiBridge ✦ Sakura Console</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231d5848'/%3E%3Cpath d='M17 16v22c0 18 30 18 30 0V16h-8v22c0 8-14 8-14 0V16z' fill='%23fff3cf'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/admin/corp-dashboard.css">
 <link rel="stylesheet" href="/admin/arena-dashboard.css">
 <link rel="stylesheet" href="/admin/dashboard-experience.css">
@@ -14,6 +15,7 @@
 <script defer src="/admin/model-settings.js"></script>
 <script defer src="/admin/arena-dashboard.js"></script>
 <script defer src="/admin/dashboard-experience.js"></script>
+<script defer src="/admin/help-center.js"></script>
 <script defer src="/admin/usage-dashboard.js"></script>
 <style>
 :root{
@@ -526,6 +528,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       <a href="#arena" data-view="arena" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-trophy"/></svg> Arena</a>
             <a href="#requests" data-view="requests" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg> Request history</a>
       <a href="#settings" data-view="settings" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg> Settings</a>
+      <a href="#guide" data-view="guide" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-tool"/></svg><span id="guideNavLabel">Hướng dẫn</span></a>
     </nav>
     <div class="nav-bottom">
       <div class="nav-note"><div class="title"><svg class="icon"><use href="#i-lock"/></svg> My private space ✿</div><p>Connections and history on this computer.</p></div>
@@ -686,7 +689,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       <section id="corp" class="view-section" data-view="corp" aria-labelledby="corpTitle">
         <div class="corp-head"><div class="corp-title"><h2 id="corpTitle">Corp</h2><p id="corpConnection" role="status">Đang tải Corp...</p></div><div class="actions"><button id="corpSetupToggle" class="btn" type="button" aria-expanded="false" aria-controls="corpSetup">Kết nối</button><button id="corpOffice" class="btn" type="button" aria-pressed="true">Văn phòng: Bật</button><button id="corpEnabled" class="btn" type="button" aria-pressed="false">Điều phối: Tắt</button><button id="corpComposeToggle" class="btn" type="button" aria-expanded="false" aria-controls="corpCompose">Giao việc</button><button id="corpIdeaToggle" class="btn primary" type="button" aria-expanded="false" aria-controls="corpIdea">Từ ý tưởng</button></div></div>
         <p id="corpError" role="alert" hidden></p>
-        <div class="corp-scope"><label for="corpProject">Project</label><select id="corpProject" aria-label="Project điều phối"></select><button id="corpTeamToggle" class="btn small" type="button" aria-expanded="false" aria-controls="corpTeam">Bộ phận</button><a id="corpOpenProject" class="btn small" target="_blank" rel="noopener noreferrer" hidden>Mở Project</a><button id="corpSync" class="btn small" type="button" hidden>Đồng bộ chat</button><span id="corpScopeStatus" role="status"></span></div>
+        <div class="corp-scope"><label for="corpProject">Project</label><select id="corpProject" aria-label="Project điều phối"></select><button id="corpTeamToggle" class="btn small" type="button" aria-expanded="false" aria-controls="corpTeam">Bộ phận</button><a id="corpOpenProject" class="btn small" target="_blank" rel="noopener noreferrer" hidden>Mở Project</a><button id="corpProjectManage" class="btn small" type="button">Quản lý</button><button id="corpSync" class="btn small" type="button" hidden>Đồng bộ chat</button><span id="corpScopeStatus" role="status"></span></div>
         <div class="corp-tabs" role="tablist" aria-label="Không gian Corp">
           <button id="corpTabOffice" class="corp-tab" type="button" role="tab" aria-selected="true" aria-controls="corpPanelOffice" data-corp-tab="office">Văn phòng</button>
           <button id="corpTabIdea" class="corp-tab" type="button" role="tab" aria-selected="false" aria-controls="corpIdea" data-corp-tab="idea">Từ ý tưởng</button>
@@ -705,7 +708,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
                 <label for="corpIdeaCustomer">Tên khách hàng<input id="corpIdeaCustomer" maxlength="80" autocomplete="off" placeholder="Không bắt buộc"></label><label for="corpIdeaText">Ý tưởng</label><textarea id="corpIdeaText" required minlength="4" maxlength="8000" rows="5" placeholder="Mô tả sản phẩm và yêu cầu của bạn..."></textarea>
                 <label for="corpIdeaMode">Cách thực hiện</label><select id="corpIdeaMode"><option value="build">Lập kế hoạch rồi triển khai đầy đủ</option><option value="plan">Chỉ làm rõ ý tưởng và lập kế hoạch</option></select>
                 <details class="corp-review-options"><summary>Đội kiểm thử & mục tiêu</summary><label for="corpProductProfile">Loại sản phẩm</label><select id="corpProductProfile"></select><p id="corpProductStandard"></p><label for="corpProductGoal">Mục đích hướng tới</label><input id="corpProductGoal" maxlength="800" placeholder="Ví dụ: học sinh lớp 3 tự hoàn thành bài học"><div id="corpReviewTeams" class="corp-review-list"></div></details>
-                <label class="corp-check corp-idea-start"><input id="corpIdeaRun" type="checkbox" checked>Tự bắt đầu các chặng sau khi tạo đội ngũ</label><p id="corpIdeaDispatch" class="corp-idea-note"></p><div class="actions"><button id="corpIdeaSubmit" class="btn primary" type="submit">Tạo quy trình</button><button id="corpIdeaConfigure" class="btn" type="button">Chỉnh bộ phận</button></div><p id="corpIdeaError" role="alert" hidden></p>
+                <label class="corp-check"><input id="corpCleanupAfterDelivery" type="checkbox">Dọn chat sau bàn giao, giữ sản phẩm và Git</label><label class="corp-check corp-idea-start"><input id="corpIdeaRun" type="checkbox" checked>Tự bắt đầu các chặng sau khi tạo đội ngũ</label><p id="corpIdeaDispatch" class="corp-idea-note"></p><div class="actions"><button id="corpIdeaSubmit" class="btn primary" type="submit">Tạo quy trình</button><button id="corpIdeaConfigure" class="btn" type="button">Chỉnh bộ phận</button></div><p id="corpIdeaError" role="alert" hidden></p>
               </form>
               <div class="corp-idea-overview"><h4>Đội ngũ</h4><p id="corpIdeaReadiness" role="status"></p><dl id="corpIdeaTeam"></dl><details class="corp-idea-stages"><summary id="corpIdeaStagesTitle">Các chặng thực hiện</summary><ol id="corpIdeaStages"></ol><p id="corpIdeaProcessNote" class="corp-idea-note"></p></details></div>
             </div>
@@ -732,7 +735,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
         <div class="arena-head"><div><h2 id="arenaTitle">Arena</h2><p id="arenaConnection" role="status">Đang kiểm tra kết nối...</p></div><div class="actions"><button id="arenaConnect" class="btn" type="button">Kết nối</button><button id="arenaEnabled" class="btn" type="button" aria-pressed="false">Điều phối Arena: Tắt</button><button id="arenaRefresh" class="btn" type="button">Làm mới</button><button id="arenaNew" class="btn primary" type="button">Tạo Arena</button></div></div>
         <p id="arenaError" role="alert" hidden></p>
         <section id="arenaPairPanel" class="arena-pair-panel" hidden><h3>Kết nối extension</h3><p>Dùng extension UmiBridge 0.4.0 với địa chỉ gateway đang mở. Mã ghép dùng chung cho Corp và Arena; dữ liệu hai khu vực lưu riêng.</p><button id="arenaPair" class="btn" type="button">Tạo mã ghép extension</button><label id="arenaPairBox" hidden>Mã chỉ hiện lần này<input id="arenaPairToken" type="password" readonly autocomplete="off"><button id="arenaCopyToken" class="btn" type="button">Chép mã</button></label></section>
-        <details id="arenaCreate" class="arena-create"><summary>Arena mới</summary><form id="arenaForm" aria-busy="false"><label class="arena-idea-field" for="arenaIdea">Ý tưởng<textarea id="arenaIdea" required minlength="4" maxlength="8000" rows="5" placeholder="Sản phẩm cần làm, người dùng và yêu cầu..."></textarea><p class="arena-promise">Mỗi thí sinh tự làm toàn bộ sản phẩm, source, kiểm thử và hướng dẫn chạy. Thí sinh đi tiếp cải tiến sản phẩm sau mỗi vòng chấm.</p></label><label for="arenaName">Tên Arena <span class="arena-muted">(không bắt buộc)</span><input id="arenaName" maxlength="48" placeholder="Lấy từ ý tưởng nếu để trống"></label><div><label for="arenaRoot">Thư mục lưu</label><div class="arena-path-control"><input id="arenaRoot" maxlength="1500" spellcheck="false" autocomplete="off"><button id="arenaBrowse" class="btn" type="button">Chọn thư mục</button></div><p id="arenaFolderStatus" role="status" hidden></p></div><label for="arenaCount">Số đội<input id="arenaCount" type="number" min="10" max="100" step="1" value="10" required><small id="arenaRecommendation"></small></label><div class="actions"><button id="arenaSubmit" class="btn primary" type="submit" disabled>Lưu Arena</button><p>Lưu tạm dừng. Tạo Project và chat, rồi bấm Bắt đầu.</p></div></form></details>
+        <details id="arenaCreate" class="arena-create"><summary>Arena mới</summary><form id="arenaForm" aria-busy="false"><label class="arena-idea-field" for="arenaIdea">Ý tưởng<textarea id="arenaIdea" required minlength="4" maxlength="8000" rows="5" placeholder="Sản phẩm cần làm, người dùng và yêu cầu..."></textarea><p class="arena-promise">Mỗi thí sinh tự làm toàn bộ sản phẩm, source, kiểm thử và hướng dẫn chạy. Thí sinh đi tiếp cải tiến sản phẩm sau mỗi vòng chấm.</p></label><label for="arenaName">Tên Arena <span class="arena-muted">(không bắt buộc)</span><input id="arenaName" maxlength="48" placeholder="Lấy từ ý tưởng nếu để trống"></label><div><label for="arenaRoot">Thư mục lưu</label><div class="arena-path-control"><input id="arenaRoot" maxlength="1500" spellcheck="false" autocomplete="off"><button id="arenaBrowse" class="btn" type="button">Chọn thư mục</button></div><p id="arenaFolderStatus" role="status" hidden></p></div><label class="corp-check"><input id="arenaCleanupAfterDelivery" type="checkbox">Dọn chat sau bàn giao</label><label for="arenaCount">Số đội<input id="arenaCount" type="number" min="10" max="100" step="1" value="10" required><small id="arenaRecommendation"></small></label><div class="actions"><button id="arenaSubmit" class="btn primary" type="submit" disabled>Lưu Arena</button><p>Lưu tạm dừng. Tạo Project và chat, rồi bấm Bắt đầu.</p></div></form></details>
         <p id="arenaReadiness" role="status"></p>
         <div id="arenaSelection" class="arena-select-row" hidden><label for="arenaSelect">Arena<select id="arenaSelect"></select></label></div>
         <div id="arenaEmpty"></div>
@@ -796,6 +799,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
           </div>
         </div>
       </section>
+<section id="guide" class="panel view-section guide-view" data-view="guide" aria-labelledby="guideTitle"><div class="guide-header"><h2 id="guideTitle">Hướng dẫn từng bước</h2><label class="guide-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only" id="guideSearchLabel">Bạn muốn làm gì?</span><input id="guideSearch" type="search" aria-labelledby="guideSearchLabel" placeholder="Ví dụ: tạo app, đổi model, gateway offline…" autocomplete="off"></label></div><div class="guide-layout"><nav id="guideTopics" aria-label="Chủ đề hướng dẫn"></nav><article id="guideSteps" aria-live="polite"></article></div></section>
       <section id="requests" class="panel activity view-section" data-view="requests" aria-labelledby="requestTitle">
         <div class="activity-header">
           <div><h2 id="requestTitle">Request history</h2><p>Search, inspect, and manually associate chat links and IDs with requests. PowerShell commands run hidden; command output appears in each request detail.</p><p id="historyScope">Latest 500 records in memory; request execution continues past 500.</p></div>
@@ -838,7 +842,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
   const model = {requests:[],stats:null,runtime:null,links:new Map(),workspaces:[],devices:[],jobs:[],workflows:[],workflowEnabled:false,visible:15,expanded:new Set(),loading:false,interval:null,startedAt:null,refreshSeconds:20,currentView:'overview'};
   const viewSections=[...document.querySelectorAll('main>.view-section')];
   const navLinks=[...document.querySelectorAll('.nav-link[data-view]')];
-  const viewHashes={overview:'overview',analytics:'analytics',conversations:'conversations',devices:'devices',tools:'tools',skills:'skill-center',workflows:'workflows',corp:'corp',arena:'arena',requests:'requests',settings:'settings'};
+  const viewHashes={overview:'overview',analytics:'analytics',conversations:'conversations',devices:'devices',tools:'tools',skills:'skill-center',workflows:'workflows',corp:'corp',arena:'arena',requests:'requests',settings:'settings',guide:'guide'};
   function activateView(name,updateHash=true){
     if(!viewSections.some(section=>section.dataset.view===name))name='overview';
     const changed=model.currentView!==name;
@@ -879,12 +883,14 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
   function stored(key,fallback){try{return localStorage.getItem(key)??fallback;}catch{return fallback;}}
   function save(key,value){try{localStorage.setItem(key,value);}catch{}}
   function themePreference(){const value=stored('dc_dashboard_theme','light');return ['light','dark','system'].includes(value)?value:'light';}
-  function applyTheme(value){
+  let themePreview=null;
+  function applyTheme(value,persist=true){
     const preference=['light','dark','system'].includes(value)?value:'light';
     const dark=preference==='dark'||(preference==='system'&&window.matchMedia?.('(prefers-color-scheme: dark)').matches);
-    document.body.classList.toggle('dark',dark);save('dc_dashboard_theme',preference);
+    document.body.classList.toggle('dark',dark);if(persist){themePreview=null;save('dc_dashboard_theme',preference);}
     if($('settingsTheme'))$('settingsTheme').value=preference;
   }
+  window.umiTheme={preview:value=>{themePreview=value;applyTheme(value,false);},save:value=>applyTheme(value),current:themePreference};
   function setAutoRefresh(active){
     if(model.interval){clearInterval(model.interval);model.interval=null;}
     if(active)model.interval=setInterval(()=>{if(!document.hidden)void load();},model.refreshSeconds*1000);
@@ -900,7 +906,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
     if(model.interval)setAutoRefresh(true);
   }
   function syncSettings(){
-    applyTheme(themePreference());
+    applyTheme(themePreview??themePreference(),false);
     setRefreshSeconds(Number(stored('dc_dashboard_refresh_seconds','20')));
     setAutoRefresh(stored('dc_dashboard_auto_refresh','0')==='1');
     const language=stored('umibridge.admin.language','en');
@@ -1147,7 +1153,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
     $('privilegeAdmin').disabled=pending||state.loading||!available||(data.installed&&data.elevated&&data.running);
     $('privilegeRefresh').disabled=state.loading||state.submitting;
     let message=state.message,isError=state.error;
-    if(nativePending){message='Đang chờ Windows xác nhận và chuyển chế độ. Gateway có thể ngắt kết nối trong giây lát.';isError=false;}
+    if(nativePending&&!data?.error){message='Đang chờ Windows xác nhận và chuyển chế độ. Gateway có thể ngắt kết nối trong giây lát.';isError=false;}
     else if(!message&&data?.capability==='needs-admin-account')message='Cần tài khoản Windows thuộc nhóm Administrator để bật chế độ này.';
     else if(!message&&data?.capability==='integrity-error'){message='Bản chạy admin không toàn vẹn. Mở UmiBridge.cmd để kiểm tra và sửa.';isError=true;}
     else if(!message&&(data?.mode==='unavailable'||data?.capability==='unavailable'))message='Chế độ quyền chưa khả dụng trên máy này.';
@@ -1170,17 +1176,17 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       if(!['normal','admin','unavailable'].includes(data.mode)||typeof data.elevated!=='boolean'||typeof data.installed!=='boolean'||typeof data.running!=='boolean'||typeof data.pending!=='boolean'||!['available','needs-admin-account','integrity-error','unavailable'].includes(data.capability))throw Error('privilege-invalid');
       state.data=data;state.connected=true;state.message='';state.error=false;
       if(!data.pending&&data.capability==='integrity-error')state.target=null;
-      if(data.error){state.target=null;state.message=/cancel|1223/i.test(data.error)?'Đã hủy xác nhận Windows. Chế độ trước đó được giữ nguyên.':'Không thể đổi chế độ. Kiểm tra cửa sổ Windows, rồi thử lại.';state.error=true;}
+      if(data.error){state.target=null;state.message=data.error==='privilege_timeout'?'Windows chưa hoàn tất xác nhận sau 2 phút. Kiểm tra hộp UAC trên máy, rồi bấm Kiểm tra lại.':/cancel|1223/i.test(data.error)?'Đã hủy xác nhận Windows. Chế độ trước đó được giữ nguyên.':'Không thể đổi chế độ. Kiểm tra cửa sổ Windows, rồi thử lại.';state.error=true;}
       else if(state.target!==null&&!data.pending){
         const admin=state.target==='admin';
         if((!admin||data.running)&&data.installed===admin&&data.elevated===admin){state.target=null;state.message='Đã chuyển chế độ. UmiBridge.cmd sẽ dùng quyền này trong những lần mở sau.';}
-        else if(Date.now()-state.acceptedAt>240000){state.target=null;state.message='Chưa xác nhận được chế độ mới. Bấm kiểm tra lại hoặc mở UmiBridge.cmd.';state.error=true;}
+        else if(Date.now()-state.acceptedAt>150000){state.target=null;state.message='Chưa xác nhận được chế độ mới. Bấm kiểm tra lại hoặc mở UmiBridge.cmd.';state.error=true;}
       }
     }catch{
       state.connected=false;
       state.message=state.target!==null?'Đang kết nối lại gateway sau khi chuyển quyền...':'Không đọc được trạng thái quyền. Bấm kiểm tra lại khi gateway sẵn sàng.';
       state.error=state.target===null;
-      if(state.target!==null&&Date.now()-state.acceptedAt>240000){state.target=null;state.message='Gateway chưa kết nối lại. Mở UmiBridge.cmd, rồi bấm kiểm tra lại.';state.error=true;}
+      if(state.target!==null&&Date.now()-state.acceptedAt>150000){state.target=null;state.message='Gateway chưa kết nối lại. Mở UmiBridge.cmd, rồi bấm kiểm tra lại.';state.error=true;}
     }finally{state.loading=false;renderPrivilege();schedulePrivilege();}
   }
   async function changePrivilege(mode){
@@ -1269,7 +1275,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
   $('autoRefresh').addEventListener('click',()=>setAutoRefresh(!model.interval));
   $('settingsAutoRefresh').addEventListener('click',()=>setAutoRefresh(!model.interval));
   $('settingsRefreshInterval').addEventListener('change',event=>setRefreshSeconds(Number(event.target.value)));
-  $('settingsTheme').addEventListener('change',event=>applyTheme(event.target.value));
+  $('settingsTheme').addEventListener('change',event=>window.umiTheme.preview(event.target.value));
   $('settingsLanguage').addEventListener('change',event=>{
     const input=$('languageSelect');
     if(input&&input.value!==event.target.value){input.value=event.target.value;input.dispatchEvent(new Event('change'));}

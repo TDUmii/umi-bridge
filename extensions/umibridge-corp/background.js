@@ -75,6 +75,16 @@ async function bootstrap(command){
     const projectTab=bootstrapTabs[channel+':'+command.jobId+':project'];if(projectTab)await chrome.tabs.reload(projectTab.tabId).catch(()=>{});
   }
 }
+async function lifecycleCommand(command){
+  const target=command.target,url=new URL(target.url),channel=channelOf(command);
+  if(url.origin!=='https://chatgpt.com'||project(url.href)!==target.projectId||(target.chatId&&conversation(url.href)!==target.chatId))throw Error('lifecycle_scope_invalid');
+  const tab=await chrome.tabs.create({url:url.href,active:true});
+  let ready=false;
+  for(let i=0;i<30;i++){try{await chrome.tabs.sendMessage(tab.id,{type:'lifecycle-ready',target});ready=true;break;}catch{}await new Promise(resolve=>setTimeout(resolve,1000));}
+  if(!ready)throw Error('lifecycle_content_unavailable');
+  const result=await chrome.tabs.sendMessage(tab.id,{type:'lifecycle-prepare',...command});
+  await api('lifecycle-report',{channel,ticket:command.ticket,index:command.index,...result},channel);
+}
 const matches = (tab, command) => conversation(tab.url) === command.chatId && (!command.projectId || project(tab.url) === command.projectId);
 async function tabMessage(tab, command) {
   // Sending never creates or navigates a tab. Only an existing, matching conversation is eligible.
@@ -114,6 +124,10 @@ async function tick() {
         }
       } catch { /* A loading/navigated Project is retried; it never widens the task scope. */ }
     }
+    if(response.lifecycle){try{await lifecycleCommand(response.lifecycle);}catch(error){await api('lifecycle-report',{channel:channelOf(response.lifecycle),ticket:response.lifecycle.ticket,index:response.lifecycle.index,status:'blocked',reason:String(error.message).slice(0,120)},channelOf(response.lifecycle)).catch(()=>{});}}
+    for(const chat of (response.openChats||[]).slice(0,1)){
+      if(!tabs.some(tab=>matches(tab,chat))){const url=new URL(chat.chatUrl);if(url.origin==='https://chatgpt.com'&&conversation(url.href)===chat.chatId&&(!chat.projectId||project(url.href)===chat.projectId))await chrome.tabs.create({url:url.href,active:false});}
+    }
     for (const monitor of response.monitors || []) {
       const tab = tabs.find(item => matches(item, monitor));
       if (tab) await tabMessage(tab, { type: 'observe', ...monitor,channel }).catch(() => {});
@@ -148,6 +162,10 @@ async function tick() {
 }
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id) return;
+  if(message.type==='lifecycle-authorize'&&sender.tab){
+    if(project(sender.tab.url)!==message.projectId||(message.chatId&&conversation(sender.tab.url)!==message.chatId)){respond({allowed:false});return;}
+    api('lifecycle-authorize',message,channelOf(message)).then(respond,()=>respond({allowed:false}));return true;
+  }
   if(message.type==='bootstrap-authorize'&&sender.tab){
     chrome.storage.local.get('bootstrapTabs').then(({bootstrapTabs={}})=>{
       const owns=Object.values(bootstrapTabs).some(row=>row.tabId===sender.tab.id&&row.jobId===message.jobId&&row.attempt===message.attempt&&channelOf(row)===channelOf(message)&&row.roleId===message.roleId);

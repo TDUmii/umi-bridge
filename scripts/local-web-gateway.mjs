@@ -18,6 +18,8 @@ import { createOAuthState } from './oauth-state.mjs';
 import { createDeviceRegistry } from './device-registry.mjs';
 import { createWorkflowLedger } from './workflow-ledger.mjs';
 import { createCorpRuntime } from './corp-runtime.mjs';
+import { createGeneratedProjectGit } from './generated-project-git.mjs';
+import { createProjectLifecycle } from './project-lifecycle.mjs';
 import { createArenaRuntime } from './arena-runtime.mjs';
 import { createCorpFolderBrowser } from './corp-folder-browser.mjs';
 import { baseInstructions, CATALOG_META, createToolPolicy, WINDOWS_TOOL_NAMES, withContext, withoutContext } from './tool-policy.mjs';
@@ -75,6 +77,25 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
   const addCorpWorkspace=async item=>{let link;try{link=parseProjectLink(item.chatUrl);}catch{link=parseChatLink(item.chatUrl);}if(link.projectId&&arena.snapshot().arenas.some(row=>row.projectId===link.projectId))throw Error('arena_project_reserved');return chatLinks.addWorkspace(item);};
   const corp = await createCorpRuntime(resolve(configDir, '..', 'corp-state.json'), { workspaces: () => chatLinks.workspaces(), createWorkspace:addCorpWorkspace, syncProject:input=>chatLinks.syncProject(input), ...(corpClock ? { clock: corpClock } : {}),...(corpProjectsRoot?{projectsRoot:corpProjectsRoot}:{}) });
   const arena = await createArenaRuntime(resolve(configDir,'..','arena-state.json'),{authenticate:token=>corp.authenticate(token),isPaired:()=>corp.snapshot().paired,projectAllowed:id=>!chatLinks.workspaces().some(project=>project.projectId===id),...(corpClock?{clock:corpClock}:{}),...((arenaProjectsRoot||corpProjectsRoot)?{projectsRoot:arenaProjectsRoot||corpProjectsRoot}:{})});
+  const generatedProjects=()=>[
+    ...corp.snapshot().bootstraps.map(job=>({...job,channel:'corp',busy:job.status==='running'||corp.snapshot().runs.some(run=>run.workspaceId===job.workspaceId&&run.status==='running'),completed:corp.snapshot().runs.some(run=>run.id===job.runId&&run.status==='done')})),
+    ...arena.snapshot().arenas.map(item=>({...item,channel:'arena',chats:arena.snapshot().bootstraps.find(job=>job.arenaId===item.id)?.chats||[],busy:item.status==='running'||arena.snapshot().bootstraps.some(job=>job.arenaId===item.id&&job.status==='running'),completed:item.status==='done'}))
+  ];
+  const generatedGit=await createGeneratedProjectGit(resolve(configDir,'..','generated-git'),{projects:generatedProjects});
+  const lifecycleProjects=()=>[...generatedProjects().map(project=>({...project,chats:(project.chats||[]).map(chat=>({...chat,name:chatLinks.workspaces().find(workspace=>workspace.projectId===project.projectId)?.chats.find(member=>member.chatId===chat.chatId)?.name||chat.name}))})),...chatLinks.workspaces().filter(row=>row.kind==='project'&&!generatedProjects().some(item=>item.projectId===row.projectId)).map(row=>({...row,channel:'corp',busy:corp.snapshot().runs.some(run=>run.workspaceId===row.id&&run.status==='running')}))].flatMap(project=>{const removed=(project.channel==='arena'?arena:corp).deletedTargets().filter(row=>row.projectId===project.projectId);if(removed.some(row=>!row.chatId))return [];return [{...project,chats:(project.chats||[]).filter(chat=>!removed.some(row=>row.chatId===chat.chatId))}];});
+  const lifecycle=createProjectLifecycle({projects:lifecycleProjects,onDeleted:async target=>{
+    await (target.channel==='arena'?arena:corp).recordDeletion(target);
+    for(const workspace of chatLinks.workspaces().filter(row=>row.projectId===target.projectId)){
+      if(!target.chatId)await chatLinks.removeWorkspace(workspace.id);
+      else await chatLinks.syncProject({workspaceId:workspace.id,projectUrl:workspace.projectUrl||workspace.chatUrl,requested:workspace.sync.requested,status:'complete',chats:workspace.chats.filter(chat=>chat.chatId!==target.chatId).map(chat=>({name:chat.name,chatUrl:chat.chatUrl||chat.url}))});
+    }
+  }});
+  const checkpoint=(channel,input)=>{
+    if(input.kind!=='done')return;
+    const project=channel==='corp'?generatedProjects().find(row=>row.channel==='corp'&&corp.snapshot().runs.some(run=>run.id===input.runId&&run.workspaceId===row.workspaceId)):generatedProjects().find(row=>row.channel==='arena'&&row.id===(input.arenaId||input.runId));
+    const step=channel==='corp'?corp.snapshot().runs.find(run=>run.id===input.runId)?.steps.find(row=>row.id===input.stepId):arena.snapshot().arenas.find(row=>row.id===(input.arenaId||input.runId))?.steps.find(row=>row.id===input.stepId);
+    if(project&&step?.status==='done')void generatedGit.checkpoint({channel,id:project.id,checkpoint:input.attempt});
+  };
   const deviceRegistry = await createDeviceRegistry({ stateDir: resolve(configDir, '..') });
   const workflowsEnabled = workflowEnabled === undefined ? process.env.UMIBRIDGE_WORKFLOWS === '1' || existsSync(resolve(configDir, 'workflows-enabled')) : workflowEnabled === true || workflowEnabled === '1';
   const workflowLedger = await createWorkflowLedger(resolve(configDir, '..', 'workflows.jsonl'), { enabled: workflowsEnabled });
@@ -334,7 +355,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     };
     app.get('/', localAdmin, (_req, res) => res.redirect('/admin'));
     app.get('/admin', localAdmin, (_req, res) => {
-      res.set('Content-Security-Policy', "default-src 'none'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'");
+      res.set('Content-Security-Policy', "default-src 'none'; img-src 'self' data: blob:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'");
       res.type('html').send(renderAdminPage());
     });
     app.get('/admin/i18n.js', localAdmin, (_req, res) => {
@@ -394,8 +415,16 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.post('/admin/api/arena/arenas/:id/:action',localAdmin,adminWrite,corpHandler(req=>arena.action(req.params.id,req.params.action)));
     for(const action of ['poll','report','authorize','bootstrap-authorize','bootstrap-report']){
       const method={'bootstrap-authorize':'bootstrapAuthorize','bootstrap-report':'bootstrapReport'}[action]||action;
-      app.post('/admin/arena/bridge/'+action,localAdmin,arenaJson,corpHandler(async req=>{if(action==='poll')corp.authenticate(String(req.headers.authorization??'').replace(/^Bearer /,''));if(action==='poll'&&!/^([1-9]\d*\.|0\.([7-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||''))return {command:null,monitors:[],bootstrap:null};const result=await arena[method](String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{});if(action==='poll'){const preference=corp.snapshot().modelPreference;if(preference){if(result.command)result.command.modelPreference=preference;if(result.bootstrap)result.bootstrap.modelPreference=preference;}}return action==='poll'?{...result,resetGeneration:corp.snapshot().resetGeneration}:result;}));
+      app.post('/admin/arena/bridge/'+action,localAdmin,arenaJson,corpHandler(async req=>{if(action==='poll')corp.authenticate(String(req.headers.authorization??'').replace(/^Bearer /,''));if(action==='poll'&&!/^([1-9]\d*\.|0\.([7-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||''))return {command:null,monitors:[],bootstrap:null};const result=await arena[method](String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{});if(action==='report')checkpoint('arena',req.body??{});if(action==='poll'){const preference=corp.snapshot().modelPreference;if(preference){if(result.command)result.command.modelPreference=preference;if(result.bootstrap)result.bootstrap.modelPreference=preference;}}return action==='poll'?{...result,lifecycle:/^(?:[1-9]\d*\.|0\.(?:[8-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||'')?lifecycle.poll():null,resetGeneration:corp.snapshot().resetGeneration}:result;}));
     }
+    app.get('/admin/api/generated-git',localAdmin,(_req,res)=>res.set('Cache-Control','no-store').json(generatedGit.snapshot()));
+    app.post('/admin/api/generated-git/settings',localAdmin,adminWrite,corpJson,corpHandler(req=>generatedGit.settings(req.body??{})));
+    app.post('/admin/api/generated-git/archive',localAdmin,adminWrite,corpJson,corpHandler(req=>generatedGit.archive(req.body??{})));
+    app.get('/admin/api/project-lifecycle',localAdmin,(_req,res)=>res.set('Cache-Control','no-store').json({actions:lifecycle.snapshot(),projects:lifecycleProjects().map(({id,channel,name,projectId,chats,busy})=>({id,channel,name,projectId,chats,busy})),cleanupSuggestions:generatedProjects().filter(row=>row.cleanupAfterDelivery&&row.completed).map(({id,channel,name,projectId})=>({id,channel,name,projectId}))}));
+    app.post('/admin/api/project-lifecycle/prepare',localAdmin,adminWrite,corpJson,corpHandler(req=>lifecycle.prepare(req.body??{})));
+    app.post('/admin/api/project-lifecycle/confirm',localAdmin,adminWrite,corpJson,corpHandler(req=>lifecycle.confirm(req.body??{})));
+    for(const action of ['authorize','report'])app.post('/admin/corp/bridge/lifecycle-'+action,localAdmin,corpJson,corpHandler(req=>{corp.authenticate(String(req.headers.authorization??'').replace(/^Bearer /,''));return lifecycle[action](req.body??{});}));
+    for(const action of ['authorize','report'])app.post('/admin/arena/bridge/lifecycle-'+action,localAdmin,corpJson,corpHandler(req=>{corp.authenticate(String(req.headers.authorization??'').replace(/^Bearer /,''));return lifecycle[action](req.body??{});}));
     app.post('/admin/api/browser/pair',localAdmin,adminWrite,corpHandler(pairBrowser));
     app.post('/admin/api/browser/revoke',localAdmin,adminWrite,corpHandler(revokeBrowser));
     app.post('/admin/api/corp/settings', localAdmin, adminWrite, corpJson, corpHandler(req => corp.settings(req.body ?? {})));
@@ -416,8 +445,9 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
         const token = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
         if(action==='poll'&&!/^([1-9]\d*\.|0\.([7-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||'')){return corp.poll(token,{...(req.body??{}),suppressDispatch:true});}
         const result = await corp[action](token, req.body ?? {});
+        if(action==='report')checkpoint('corp',req.body??{});
         if(action==='poll'&&corp.snapshot().modelPreference){if(result.command)result.command.modelPreference=corp.snapshot().modelPreference;if(result.bootstrap)result.bootstrap.modelPreference=corp.snapshot().modelPreference;}
-        return action === 'poll' ? { ...result, modelScan:corp.snapshot().modelScan, resetGeneration:corp.snapshot().resetGeneration, projects: chatLinks.workspaces().filter(item => item.kind === 'project' && !corp.snapshot().bootstraps.some(job=>job.workspaceId===item.id&&!['done','cancelled'].includes(job.status))).map(({id, projectId, chatUrl, sync}) => ({id, projectId, chatUrl, requested: sync.requested})) } : result;
+        return action === 'poll' ? { ...result,lifecycle:/^(?:[1-9]\d*\.|0\.(?:[8-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||'')?lifecycle.poll():null, modelScan:corp.snapshot().modelScan, resetGeneration:corp.snapshot().resetGeneration, projects: chatLinks.workspaces().filter(item => item.kind === 'project' && !corp.snapshot().bootstraps.some(job=>job.workspaceId===item.id&&!['done','cancelled'].includes(job.status))).map(({id, projectId, chatUrl, sync}) => ({id, projectId, chatUrl, requested: sync.requested})) } : result;
       }));
     }
     app.post('/admin/corp/bridge/sync', localAdmin, express.json({ limit: '1mb' }), corpHandler(req => {
@@ -430,7 +460,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       next();
     }, express.static(resolve(ROOT, 'scripts/corp-office'), { dotfiles: 'deny', index: 'index.html' }));
     app.use('/admin/arena/assets', localAdmin, express.static(resolve(ROOT, 'scripts/arena-assets'), {dotfiles:'deny', index:false}));
-    for (const asset of ['model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
+    for (const asset of ['help-center.js', 'model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
       app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
     }
     const workflowAvailable = (_req, res, next) => {

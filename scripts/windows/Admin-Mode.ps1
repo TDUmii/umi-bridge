@@ -514,7 +514,7 @@ function Resolve-UmiPrincipalSid {
 function Get-UmiProductionStateNames {
     # Keep operational identity/settings; do not elevate QA scripts, screenshots,
     # diagnostic bundles, releases, or arbitrary executable files in .local-data.
-    return @('connection-secret.txt', 'oauth-state.json', 'oauth-profiles', 'tunnel-config.json', 'profile', 'tool-policy.json', 'windows-tools-disabled', 'windows-tools.toml', 'devices.json', 'skill-registry.json', 'chat-links.json', 'request-history.jsonl', 'token-history.jsonl', 'agent-config.json', 'workflows.jsonl', 'corp-state.json', 'arena-state.json')
+    return @('connection-secret.txt', 'oauth-state.json', 'oauth-profiles', 'tunnel-config.json', 'profile', 'tool-policy.json', 'windows-tools-disabled', 'windows-tools.toml', 'devices.json', 'skill-registry.json', 'chat-links.json', 'request-history.jsonl', 'token-history.jsonl', 'agent-config.json', 'workflows.jsonl', 'corp-state.json', 'arena-state.json', 'generated-git\settings.json')
 }
 
 function Copy-UmiPrivateState {
@@ -525,8 +525,21 @@ function Copy-UmiPrivateState {
     foreach ($name in (Get-UmiProductionStateNames)) {
         $from = Assert-UmiContainedPath $SourceState (Join-Path $SourceState $name)
         $to = Assert-UmiContainedPath $DestinationState (Join-Path $DestinationState $name)
+        $nestedFile = $name.Contains('\')
+        if ($nestedFile -and (Test-Path -LiteralPath $from)) {
+            if (-not (Test-Path -LiteralPath $from -PathType Leaf)) { throw 'Nested production state entries must be files.' }
+            [void](Get-Content -LiteralPath $from -Raw | ConvertFrom-Json -ErrorAction Stop)
+        }
+        if ($nestedFile -and (Test-Path -LiteralPath $to -PathType Container)) { throw 'Nested production state destination must be a file.' }
         if (Test-Path -LiteralPath $to) { Remove-Item -LiteralPath $to -Recurse -Force -ErrorAction Stop }
-        if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination $to -Recurse -Force -ErrorAction Stop }
+        if (Test-Path -LiteralPath $from) {
+            if ($nestedFile) {
+                $parent = Assert-UmiContainedPath $DestinationState (Split-Path -Parent $to)
+                Assert-UmiNoReparsePoint -Path $parent
+                [void][IO.Directory]::CreateDirectory($parent)
+            }
+            Copy-Item -LiteralPath $from -Destination $to -Recurse -Force -ErrorAction Stop
+        }
     }
 }
 
@@ -717,6 +730,15 @@ function Get-UmiAdminModeStatus {
     param([string]$SourceRoot)
     $result = [ordered]@{ mode = 'normal'; elevated = [bool](Test-UmiAdminToken); installed = $false; capability = 'available'; running = $false; version = $null; needsUpdate = $false; pending = $false }
     if (-not (Test-UmiAdministratorAccount)) { $result.capability = 'needs-admin-account' }
+    # Diagnostic receipt only. Windows token, protected manifest and task remain
+    # authoritative; a medium user cannot grant privileges through this file.
+    try {
+        $receipt = Get-Content -LiteralPath (Get-UmiConsentReceipt) -Raw -ErrorAction Stop | ConvertFrom-Json
+        if ($receipt.error -in @('uac_cancelled', 'privilege_failed') -and
+            ([DateTime]::UtcNow - [DateTime]::Parse($receipt.completedAt).ToUniversalTime()).TotalMinutes -lt 10) {
+            $result.error = [string]$receipt.error
+        }
+    } catch { }
     try {
         $sid = Get-UmiCurrentSid
         $result.pending = [bool](Test-UmiModePending $sid)
@@ -772,6 +794,13 @@ function Start-UmiMediumProcess {
 
 function Get-UmiPowerShell { return (Join-Path ([Environment]::GetFolderPath('System')) 'WindowsPowerShell\v1.0\powershell.exe') }
 function ConvertTo-UmiPsLiteral { param([string]$Value) return ("'" + $Value.Replace("'", "''") + "'") }
+function Get-UmiConsentReceipt { return (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) ('UmiBridge-consent-' + (Get-UmiCurrentSid) + '.json')) }
+function Write-UmiConsentReceipt {
+    param([string]$ErrorCode = '')
+    $path = Get-UmiConsentReceipt
+    Assert-UmiNoReparsePoint -Path $path
+    [IO.File]::WriteAllText($path, (@{ error = $ErrorCode; completedAt = [DateTime]::UtcNow.ToString('o') } | ConvertTo-Json -Compress))
+}
 
 function Request-UmiElevation {
     param([Parameter(Mandatory = $true)][string]$RequestedAction, [string]$Source)
@@ -797,6 +826,7 @@ function Request-UmiElevation {
         return $false
     }
     if (-not (Test-UmiAdministratorAccount)) { throw 'This Windows account has no administrator token. Sign in with an administrator account; authorizing a different account cannot provide persistent Admin mode for this user.' }
+    Write-UmiConsentReceipt
     $recoverPreparation = $false
     if ($RequestedAction -eq 'update') {
         $existing = Get-UmiManifest $sid
@@ -1447,7 +1477,11 @@ if (-not $LibraryOnly) {
     catch {
         try { if (Test-UmiAdminToken) { Write-UmiAdminError -RecordError $_ -Sid (Get-UmiCurrentSid) } } catch { }
         [Console]::Error.WriteLine($_.Exception.Message)
-        if ($_.Exception.Message -like 'Windows authorization was cancelled.*') { exit 1223 }
+        $cancelled = $_.Exception.Message -like 'Windows authorization was cancelled.*'
+        if ($ConsentBroker) {
+            try { Write-UmiConsentReceipt -ErrorCode $(if ($cancelled) { 'uac_cancelled' } else { 'privilege_failed' }) } catch { }
+        }
+        if ($cancelled) { exit 1223 }
         exit 1
     }
 }

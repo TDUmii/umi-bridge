@@ -7,9 +7,14 @@ param(
     [switch]$NoTunnelRepair,
     [switch]$LocalOnly,
     [switch]$TemporaryTunnel,
-    [switch]$Monitor
+    [switch]$Monitor,
+    [switch]$NoDashboard,
+    [switch]$KeepWatchdog
 )
 
+if ($PSVersionTable.PSVersion.Major -le 5) {
+    $env:PSModulePath = [IO.Path]::Combine([Environment]::GetFolderPath('System'), 'WindowsPowerShell\v1.0\Modules')
+}
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -131,7 +136,11 @@ function Invoke-PowerShellScript([string]$Path, [string[]]$Arguments = @(), [swi
 
 function Stop-Bridge {
     $stop = Join-Path $root 'scripts\windows\Stop-ChatGPT.ps1'
-    if (Test-Path -LiteralPath $stop) { Invoke-PowerShellScript $stop }
+    if (Test-Path -LiteralPath $stop) {
+        $stopArgs = @()
+        if ($Action -eq 'start' -or $KeepWatchdog) { $stopArgs += '-KeepWatchdog' }
+        Invoke-PowerShellScript $stop $stopArgs
+    }
 }
 
 function Test-DevTunnelLogin([string]$Cli, $Config) {
@@ -186,26 +195,29 @@ function Test-ProjectRuntime {
     $node = Get-UsableNode
     $sdk = Test-Path -LiteralPath (Join-Path $root 'node_modules\@modelcontextprotocol\sdk\package.json')
     $tokenizer = Test-Path -LiteralPath (Join-Path $root 'node_modules\js-tiktoken\package.json')
-    if (-not $node -or -not $sdk -or -not $tokenizer) { return $false }
+    if (-not $node -or -not $sdk -or -not $tokenizer) { Write-LauncherLog 'RUNTIME_MISSING node/sdk/tokenizer'; return $false }
     $windowsPython = Join-Path $root '.runtime\windows-tools\Scripts\python.exe'
     $windowsManifest = Join-Path $root '.runtime\windows-tools\umibridge-ready.json'
-    if (-not (Test-Path -LiteralPath $windowsPython) -or -not (Test-Path -LiteralPath $windowsManifest)) { return $false }
+    if (-not (Test-Path -LiteralPath $windowsPython) -or -not (Test-Path -LiteralPath $windowsManifest)) { Write-LauncherLog 'RUNTIME_MISSING windows-tools'; return $false }
     try {
         $installed = Get-Content -LiteralPath $windowsManifest -Raw | ConvertFrom-Json
         $lockHash = (Get-FileHash -LiteralPath (Join-Path $root 'scripts\windows-tools-requirements.txt') -Algorithm SHA256).Hash.ToLowerInvariant()
-        if ($installed.version -ne '0.8.8' -or $installed.lock_sha256 -ne $lockHash -or $installed.source_commit -ne 'e28abb5c6934cb3427190bdb970e02644c915ae3') { return $false }
-        if (-not (Test-Path -LiteralPath (Join-Path $root '.runtime\windows-mcp-source\src\windows_mcp\__main__.py'))) { return $false }
-    } catch { return $false }
+        if ($installed.version -ne '0.8.8' -or $installed.lock_sha256 -ne $lockHash -or $installed.source_commit -ne 'e28abb5c6934cb3427190bdb970e02644c915ae3') { Write-LauncherLog 'RUNTIME_MISMATCH windows-tools manifest'; return $false }
+        if (-not (Test-Path -LiteralPath (Join-Path $root '.runtime\windows-mcp-source\src\windows_mcp\__main__.py'))) { Write-LauncherLog 'RUNTIME_MISSING windows-mcp source'; return $false }
+    } catch { Write-LauncherLog ('RUNTIME_CHECK_FAILED ' + $_.Exception.Message); return $false }
     $npm = Join-Path (Split-Path -Parent $node) 'npm.cmd'
-    if (-not (Test-Path -LiteralPath $npm)) { return $false }
-    & $npm run build --silent *> $null
-    if ($LASTEXITCODE -ne 0) { return $false }
+    if (-not (Test-Path -LiteralPath $npm)) { Write-LauncherLog 'RUNTIME_MISSING npm.cmd'; return $false }
+    $preflightLog = Join-Path $stateDir 'launcher-preflight.log'
+    & $npm run build --silent *> $preflightLog
+    if ($LASTEXITCODE -ne 0) { Write-LauncherLog 'RUNTIME_BUILD_FAILED see launcher-preflight.log'; return $false }
     # Syntax-only checks cannot detect missing packages after a ZIP update.
-    & $node --input-type=module -e "await import('./scripts/local-web-gateway.mjs')" *> $null
+    & $node --input-type=module -e "await import('./scripts/local-web-gateway.mjs')" *>> $preflightLog
+    if ($LASTEXITCODE -ne 0) { Write-LauncherLog 'RUNTIME_IMPORT_FAILED see launcher-preflight.log' }
     return $LASTEXITCODE -eq 0
 }
 
 try {
+    if ($Action -eq 'stop' -and -not $KeepWatchdog) { [IO.File]::WriteAllText((Join-Path $stateDir 'launcher-stop'), [DateTime]::UtcNow.ToString('o')) }
     if ($Action -in @('admin', 'normal')) {
         $requestedMode = if ($Action -eq 'admin') { 'enable' } else { 'disable' }
         Invoke-PowerShellScript $adminHelper @('-Action', $requestedMode, '-SourceRoot', $root)
@@ -230,7 +242,7 @@ try {
         if ($privilegeMode.needsUpdate) { Write-Host 'A source update is available. Switch to Normal and authorize Admin again to update its protected copy.' -ForegroundColor Yellow }
         $script:stateDir = $protectedState
         $script:statusPath = Join-Path $stateDir 'web-status.json'
-        Start-Process ("http://127.0.0.1:{0}/admin" -f $port)
+        if (-not $NoDashboard) { Start-Process ("http://127.0.0.1:{0}/admin" -f $port) }
         if ($Monitor) { Watch-Requests }
         exit 0
     }
@@ -320,6 +332,7 @@ try {
 
     $start = Join-Path $root 'scripts\windows\Start-UmiBridge.ps1'
     $startArgs = @()
+    if ($NoDashboard) { $startArgs += '-NoDashboard' }
     if ($LocalOnly) { $startArgs += '-LocalOnly' }
     $previousDisableSavedTunnel = $env:DC_DISABLE_SAVED_TUNNEL
     try {
@@ -342,7 +355,7 @@ try {
     Write-Host 'UmiBridge is ready.' -ForegroundColor Green
     Write-Host ("Dashboard: http://127.0.0.1:{0}/admin" -f $port)
     Write-Host 'ChatGPT uses this gateway; there is no provider mode to choose.'
-    Write-Host 'The gateway runs in the background; this window now monitors received requests.'
+    Write-Host 'The gateway runs in the background. Use the UmiBridge tray icon to open, restart or exit.'
     if ($Monitor) { Watch-Requests }
 } catch {
     $message = $_.Exception.Message
