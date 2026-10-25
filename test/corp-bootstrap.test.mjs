@@ -17,6 +17,19 @@ async function fixture(t){
   const path=join(root,'corp.json');let corp=await createCorpRuntime(path,options);t.after(()=>corp.close());
   return {get corp(){return corp;},root,path,workspaces,poll:token=>corp.poll(token,{extensionVersion:'0.3.0'}),advance:ms=>now+=ms,restart:async()=>{await corp.close();corp=await createCorpRuntime(path,options);}};
 }
+
+test('bootstrap creates only selected specialist chats and pins their standards into the workflow',async t=>{
+  const f=await fixture(t),{token}=await f.corp.pair();await f.corp.settings({enabled:true});
+  const input={requestKey:randomUUID(),idea:'Ứng dụng giáo dục kiểm thử',reviewTeams:['accessibility','education-test'],productProfile:'education',productGoal:'Lớp 3 tự học',start:true};
+  const job=await f.corp.bootstrap(input),command=(await f.poll(token)).bootstrap;
+  await f.corp.bootstrapReport(token,{...command,kind:'project',projectUrl});
+  for(const roleId of [...companyRoles.map(role=>role.id),'accessibility','education-test']){
+    const phase=(await f.poll(token)).bootstrap;assert.equal(phase.roleId,roleId);await f.corp.bootstrapReport(token,{...phase,kind:'chat',roleId,chatUrl:`https://chatgpt.com/g/${projectId}/c/${roleId}`});
+  }
+  const saved=f.corp.snapshot().bootstraps.find(row=>row.id===job.id),run=f.corp.snapshot().runs.find(row=>row.id===saved.runId);
+  assert.equal(saved.chats.length,10);assert.equal(saved.status,'done');assert.equal(run.steps.length,15);assert.equal(run.idea.productGoal,input.productGoal);assert.ok(!saved.chats.some(row=>row.roleId==='game-test'));
+  await f.restart();assert.equal((await f.corp.bootstrap(input)).id,job.id);await assert.rejects(f.corp.bootstrap({...input,reviewTeams:[]}),/idea_request_conflict/);
+});
 test('new-project setup needs pairing, respects dispatch off, persists the idea locally, and never reissues an uncertain creation',async t=>{
   const f=await fixture(t),input={requestKey:randomUUID(),idea:'Ứng dụng sổ tay học tập với lịch học, nhắc nhở và quản lý bài tập cho học sinh',start:true};
   await assert.rejects(f.corp.bootstrap(input),/pair_corp_first/);

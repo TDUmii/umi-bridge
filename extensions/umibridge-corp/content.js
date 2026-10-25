@@ -67,9 +67,11 @@
     const input=await waitForValue(()=>composer());
     if(sending()||value(input).trim())throw Error('composer_busy');await bootstrapAuthorized(command);
     if(sending()||value(input).trim()||projectId()!==command.projectId)throw Error('composer_busy');
+    if(command.modelPreference)await UmiModelPicker.apply(command.modelPreference);
     fillInput(input,command.seed);
     const send=await waitForValue(()=>[...document.querySelectorAll('button')].find(el=>visible(el)&&!el.disabled&&(el.dataset.testid==='send-button'||el.id==='composer-submit-button'||/^(send|send message|send prompt|gửi|gửi tin nhắn|gửi lời nhắc)$/i.test(buttonText(el)))));
     await bootstrapAuthorized(command);
+    if(command.modelPreference&&!await UmiModelPicker.verify(command.modelPreference))throw Error('model_selection_unconfirmed');
     if(!sameDraft(input,command.seed)||projectId()!==command.projectId)throw Error('composer_busy');send.click();
     return waitForValue(()=>bootstrapInspect(command));
   }
@@ -169,6 +171,8 @@
       // Revalidate after the network round trip; never overwrite a draft typed during it.
       if (!matches(command)) return { ...base, kind: 'blocked', reason: 'chat_changed' };
       if (sending() || value(input).trim()) return { ...base, kind: 'blocked', reason: 'composer_busy' };
+      try{if(command.modelPreference)await UmiModelPicker.apply(command.modelPreference);}catch{return {...base,kind:'blocked',reason:'model_selection_unconfirmed'};}
+      if(!matches(command)||sending()||value(input).trim())return {...base,kind:'blocked',reason:'composer_busy'};
       input.focus();
       if (input instanceof HTMLTextAreaElement) {
         Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, command.prompt);
@@ -183,6 +187,8 @@
       const stillAllowed = await chrome.runtime.sendMessage({ ...command, type: 'authorize', prompt: undefined });
       if (!matches(command) || !input.isConnected || composer() !== input || !send.isConnected) return { ...base, kind: 'blocked', reason: 'chat_changed' };
       if (!stillAllowed?.allowed || sending() || send.disabled || !sameDraft(input, command.prompt)) return { ...base, kind: 'blocked', reason: 'composer_busy' };
+      if(command.modelPreference&&!await UmiModelPicker.verify(command.modelPreference))return {...base,kind:'blocked',reason:'model_selection_unconfirmed'};
+      if(!matches(command)||!input.isConnected||!sameDraft(input,command.prompt)||sending())return {...base,kind:'blocked',reason:'composer_busy'};
       send.click();
       for (let i = 0; i < 20; i++) {
         await new Promise(resolve => setTimeout(resolve, 400));
@@ -195,6 +201,10 @@
   }
   chrome.runtime.onMessage.addListener((command, sender, respond) => {
     if (sender.id !== chrome.runtime.id) return;
+    if(command.type==='model-catalog'){
+      if(dispatching||sending()||value(composer()).trim()){respond({models:[],error:'composer_busy'});return;}
+      dispatching=true;UmiModelPicker.scan().then(models=>respond({models}),error=>respond({models:[],error:error.message})).finally(()=>{dispatching=false;});return true;
+    }
     if(command.type==='bootstrap-inspect'){respond(bootstrapInspect(command.command));return;}
     if(command.type==='bootstrap-project'||command.type==='bootstrap-chat'){
       (command.type==='bootstrap-project'?setupProject(command):setupChat(command)).then(respond,error=>respond({kind:'blocked',reason:String(error.message||'bootstrap_unconfirmed').slice(0,150)}));return true;

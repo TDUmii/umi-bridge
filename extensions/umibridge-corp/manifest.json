@@ -1,12 +1,35 @@
 {
   "manifest_version": 3,
   "name": "UmiBridge - Corp & Arena Coordinator",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Connect scoped ChatGPT Projects to separate local UmiBridge Corp and Arena queues. No cookies or account credentials are read.",
-  "permissions": ["storage", "alarms"],
-  "host_permissions": ["http://127.0.0.1/*", "https://chatgpt.com/*", "https://chat.openai.com/*"],
-  "background": { "service_worker": "background.js" },
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "options_page": "options.html",
-  "action": { "default_title": "UmiBridge Corp & Arena settings" },
-  "content_scripts": [{ "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"], "js": ["content.js"], "run_at": "document_idle" }]
+  "action": {
+    "default_title": "UmiBridge Corp & Arena settings"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "model-picker.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
 }

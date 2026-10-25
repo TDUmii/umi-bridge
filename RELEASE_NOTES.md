@@ -1,4 +1,16 @@
-# UmiBridge Sakura Console - 1.3.0
+# UmiBridge Sakura Console - 1.4.0
+
+## Selectable review teams and verified web model controls
+
+Corp adds eight optional specialist review teams and seven product profiles with a target-purpose field. Chosen teams get independent chats and pre-repair/final checks; failed final verification blocks delivery. Bootstrap and idempotent retries retain selected standards. Existing workflows retain their saved plan.
+
+Settings scans actual ChatGPT Work model/effort controls through extension 0.5.0, restores the prior choice, and accepts only observed combinations. Before new Corp/Arena sends the adapter applies/verifies the saved choice, blocking on missing/unavailable controls. Opt-out keeps the web selection. No private API, API key, or prompt-only model substitution.
+
+Office removes the footer annotation, improves text size, fits the entire floor on initial display/resize, caps zoom to prevent floor clipping, and removes map scrolling. Asset license/source notices remain bundled.
+
+See docs/REVIEW-SOURCES.vi.md and docs/ACCEPTANCE-1.4.vi.md for sources, validation and limits.
+
+## Previous 1.3.0
 
 ## Living Corp office
 

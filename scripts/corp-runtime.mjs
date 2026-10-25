@@ -1,10 +1,12 @@
+import {modelCatalog,modelPreference} from './browser-models.mjs';
+import {reviewTeams,productProfiles,reviewConfig} from './corp-review-teams.mjs';
 import { mkdir, readFile, writeFile, rename, lstat, realpath, access, open, unlink, rmdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { dirname, resolve, join, relative, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { countTextTokens } from './local-admin.mjs';
-import { companyRoles, deliveryOrder, ideaStages, suggestCompanyTeam, buildIdeaWorkflow, readIdeaReport, arenaRubric } from './corp-company.mjs';
+import { companyRoles, staffRoles, deliveryOrder, ideaStages, suggestCompanyTeam, buildIdeaWorkflow, readIdeaReport, arenaRubric } from './corp-company.mjs';
 
 const hash = value => createHash('sha256').update(String(value)).digest();
 const copy = value => structuredClone(value);
@@ -99,10 +101,11 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     const arena = run.arenaId ? state.arenas.find(item => item.id === run.arenaId) : null;
     return Boolean(workspace && workspace.projectId === run.projectId && step.workspaceId === workspace.id && workspace.chats.some(chat => chat.chatId === step.chatId) && (!arena || arena.team.every(member => workspace.chats.some(chat => chat.chatId === member.chatId))));
   };
-  const summary = () => ({ enabled: state.enabled, office: state.office, autoResume: state.autoResume, resetGeneration:state.resetGeneration||null,
+  const bootstrapRoles=job=>[...companyRoles,...(job.mode==='plan'?[]:reviewTeams.filter(team=>(job.reviewTeams||[]).includes(team.id)).map(team=>({...team,brief:team.checks})))];
+  const summary = () => ({ enabled: state.enabled, office: state.office, autoResume: state.autoResume, resetGeneration:state.resetGeneration||null, modelPreference:state.modelPreference??null,modelCatalog:copy(state.modelCatalog||[]),modelScan:copy(state.modelScan||null),
     paired: Boolean(state.tokenHash), connected: lastSeen > 0 && clock() - lastSeen < 45_000,
     lastSeen: lastSeen ? new Date(lastSeen).toISOString() : null, connectedChats: [...connectedChats],extensionVersion,
-    runs: copy(state.runs), events: copy(state.events), teams:copy(state.teams), companyRoles:copy(companyRoles), deliveryOrder:[...deliveryOrder],
+    runs: copy(state.runs), events: copy(state.events), teams:copy(state.teams), companyRoles:copy(companyRoles),reviewTeams:copy(reviewTeams),productProfiles:copy(productProfiles), deliveryOrder:[...deliveryOrder],
     ideaStages:ideaStages.map(({id,roleId,title,requiresPass})=>({id,roleId,title,requiresPass:requiresPass===true})),
     ideaProjects:workspaces().filter(project=>project.kind==='project').map(project=>suggestCompanyTeam(project,state.teams.find(team=>team.workspaceId===project.id)?.members)),bootstraps:copy(state.bootstraps),arenas:state.arenas.map(arena => ({...copy(arena),matches:copy(arenaMatches(arena))})),projectsRoot });
   const authenticate = token => {
@@ -121,7 +124,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(existing){if(existing.requestDigest!==requestDigest)throw Error('run_request_conflict');return existing;}
     }
     if (state.runs.length >= 2100 || !options.arena && (state.runs.filter(run => !run.arenaId).length >= 100 || state.runs.length + reservedArenaRuns() >= 2100)) throw Error('corp_run_capacity');
-    if (!Array.isArray(input.steps) || input.steps.length < 1 || input.steps.length > 12) throw Error('invalid_steps');
+    if (!Array.isArray(input.steps) || input.steps.length < 1 || input.steps.length > (options.idea?32:12)) throw Error('invalid_steps');
     const known = workspaces();
     const run = { id:randomUUID(),title:text(input.title,180)||'Nhiệm vụ Corp',...(customerName?{customerName}:{}),status:'paused',createdAt:new Date(clock()).toISOString(),steps:[], ...(options.arena ? {arenaId: options.arena.id, arenaKind: options.kind, arenaRound: options.round, arenaMatchId: options.matchId, arenaCandidateId: options.candidateId} : {}) };
     if (input.workspaceId) {
@@ -132,7 +135,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       const workspace=known.find(row=>row.id===item.workspaceId);if(!workspace)throw Error('workspace_not_found');
       if(workspace.kind==='project'&&run.workspaceId!==workspace.id||run.workspaceId&&workspace.id!==run.workspaceId)throw Error('chat_outside_project');
       const member=workspace.kind==='project'?workspace.chats.find(row=>row.chatId===item.chatId):workspace;if(!member)throw Error('chat_not_in_project');
-      const chat=chatId(member.chatUrl),prompt=text(item.prompt,options.arena ? 20000 : 12000);if(!prompt)throw Error('prompt_required');
+      const chat=chatId(member.chatUrl),prompt=text(item.prompt,options.arena||options.idea ? 20000 : 12000);if(!prompt)throw Error('prompt_required');
       if (options.arena && (typeof item.prompt !== 'string' || item.prompt.trim().length > 20000)) throw Error('invalid_prompt');
       return {id:randomUUID(),workspaceId:workspace.id,...(run.projectId?{projectId:run.projectId}:{}),chatId:chat.id,chatUrl:chat.url,
         role:text(item.role,80)||member.name,prompt,status:'queued',attempt:randomUUID(),sent:false,issuedAt:null,resetAt:null,limitText:null,result:null,reason:null};
@@ -141,18 +144,20 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     state.runs.push(run);event('created',run);return run;
   };
   const createIdeaRun = input => {
+    const config=reviewConfig(input);
     if(typeof input.requestKey!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestKey))throw Error('invalid_idea_request');
     const existing=state.runs.find(run=>run.idea?.requestKey===input.requestKey);
     if(existing){
-      if(existing.workspaceId!==input.workspaceId||existing.idea.text!==String(input.idea||'').trim()||existing.idea.mode!==(input.mode||'build')||(existing.customerName||'')!==text(input.customerName,80))throw Error('idea_request_conflict');
+      if(existing.workspaceId!==input.workspaceId||existing.idea.text!==String(input.idea||'').trim()||existing.idea.mode!==(input.mode||'build')||(existing.customerName||'')!==text(input.customerName,80)||JSON.stringify(reviewConfig(existing.idea))!==JSON.stringify(config))throw Error('idea_request_conflict');
       return existing;
     }
     if(input.start===true&&!state.enabled)throw Error('enable_corp_first');
     const project=workspaces().find(item=>item.id===input.workspaceId&&item.kind==='project');
-    const plan=buildIdeaWorkflow({project,members:state.teams.find(team=>team.workspaceId===project?.id)?.members,idea:input.idea,mode:input.mode,requestKey:input.requestKey});
-    const run=createRun({...plan,customerName:input.customerName});run.idea={...plan.idea,repairRounds:1};
+    const stateTeamBefore=state.teams.find(team=>team.workspaceId===project?.id)?.members;
+    const plan=buildIdeaWorkflow({project,members:stateTeamBefore,idea:input.idea,mode:input.mode,requestKey:input.requestKey,...config});
+    const run=createRun({...plan,customerName:input.customerName},{idea:true});run.idea={...plan.idea,repairRounds:1};
     run.steps.forEach((step,index)=>Object.assign(step,{stage:plan.steps[index].stage,title:plan.steps[index].title,roleId:plan.steps[index].roleId,requiresPass:plan.steps[index].requiresPass}));
-    state.teams=state.teams.filter(team=>team.workspaceId!==project.id);state.teams.push({workspaceId:project.id,members:plan.team});
+    state.teams=state.teams.filter(team=>team.workspaceId!==project.id);state.teams.push({workspaceId:project.id,members:[...(stateTeamBefore||[]).filter(member=>project.chats.some(chat=>chat.chatId===member.chatId)&&staffRoles.some(role=>role.id===member.roleId)&&!plan.team.some(row=>row.chatId===member.chatId)),...plan.team]});
     if(input.start===true){run.status='running';event('start',run,run.steps[0]);}return run;
   };
   const arenaForRun = run => run?.arenaId ? state.arenas.find(arena => arena.id === run.arenaId) : null;
@@ -331,6 +336,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(!createWorkspace||!syncProject)throw Error('bootstrap_unavailable');if(!state.tokenHash)throw Error('pair_corp_first');
       if(typeof input.idea!=='string'||input.idea.trim().length<4||input.idea.trim().length>8000)throw Error('invalid_idea');
       if(!['build','plan'].includes(input.mode||'build'))throw Error('invalid_idea_mode');
+      const config=reviewConfig(input);
       const kind=input.kind||'idea';if(!['idea','arena'].includes(kind))throw Error('invalid_bootstrap_kind');
       if(kind==='arena'&&input.workspaceId!==undefined)throw Error('arena_new_project_required');
       const count=kind==='arena'?input.count:null;if(kind==='arena'&&!([20,50,100].includes(count)))throw Error('invalid_arena_count');
@@ -345,7 +351,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(existing){
         let parent;try{parent=await realpath(requestedParent);}catch{throw Error('parent_folder_unavailable');}
         const savedParent=existing.parentRoot??await realpath(dirname(existing.root));
-        if(existing.idea!==input.idea.trim()||existing.mode!==(input.mode||'build')||(existing.kind||'idea')!==kind||(existing.count??null)!==count||kind==='arena'&&(existing.format??'knockout')!==(input.format??'knockout')||relative(savedParent,parent)!==''||(existing.customerName||'')!==text(input.customerName,80))throw Error('idea_request_conflict');return copy(existing);
+        if(existing.idea!==input.idea.trim()||existing.mode!==(input.mode||'build')||(existing.kind||'idea')!==kind||(existing.count??null)!==count||kind==='arena'&&(existing.format??'knockout')!==(input.format??'knockout')||relative(savedParent,parent)!==''||(existing.customerName||'')!==text(input.customerName,80)||JSON.stringify(reviewConfig(existing))!==JSON.stringify(config))throw Error('idea_request_conflict');return copy(existing);
       }
       if(state.bootstraps.length>=100)throw Error('corp_run_capacity');
       if(kind==='arena'&&(state.runs.length+reservedArenaRuns()+arenaRunCount(input)>2100||state.arenas.filter(arena=>!['done','cancelled'].includes(arena.status)).length+state.bootstraps.filter(job=>job.kind==='arena'&&!['done','cancelled'].includes(job.status)).length>=10))throw Error('corp_arena_capacity');
@@ -370,7 +376,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(!delta||delta==='..'||delta.startsWith('..\\')||delta.startsWith('../')||isAbsolute(delta)||(await lstat(root)).isSymbolicLink())throw Error('invalid_parent_root');
       const contents=`# ${name}\n\n${input.idea.trim()}\n`,ideaHandle=await open(ideaFile,'wx');ideaCreated=true;
       try{await ideaHandle.writeFile(contents,'utf8');}finally{await ideaHandle.close();}
-      const job={id:input.requestKey,customerName:text(input.customerName,80),idea:input.idea.trim(),name,parentRoot,root,kind,count,...(kind==='arena'?{format:input.format??'knockout'}:{}),mode:input.mode||'build',runAfterSetup:kind==='arena'?false:input.runAfterSetup!==false,
+      const job={id:input.requestKey,...config,customerName:text(input.customerName,80),idea:input.idea.trim(),name,parentRoot,root,kind,count,...(kind==='arena'?{format:input.format??'knockout'}:{}),mode:input.mode||'build',runAfterSetup:kind==='arena'?false:input.runAfterSetup!==false,
         status:input.start===true&&state.enabled?'running':'paused',createdAt:new Date(clock()).toISOString(),projectUrl:null,projectId:null,workspaceId:null,chats:[],attempt:null,issuedAt:null,reason:null,runId:null};
       state.bootstraps.push(job);return copy(job);
   };
@@ -384,12 +390,16 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(!Array.isArray(input.members)||input.members.length>100)throw Error('invalid_team');
       const seen=new Set();
       const members=input.members.map(member=>{
-        if(!companyRoles.some(role=>role.id===member.roleId)||!project.chats.some(chat=>chat.chatId===member.chatId))throw Error('invalid_team_member');
+        if(!staffRoles.some(role=>role.id===member.roleId)||!project.chats.some(chat=>chat.chatId===member.chatId))throw Error('invalid_team_member');
         if(seen.has(member.chatId))throw Error('duplicate_team_chat');seen.add(member.chatId);
         return {chatId:member.chatId,roleId:member.roleId};
       });
       state.teams=state.teams.filter(team=>team.workspaceId!==project.id);state.teams.push({workspaceId:project.id,members});
       return summary();
+    }),
+    models:(token,input)=>transaction(()=>{
+      authenticate(token);if(!state.modelScan||input.id!==state.modelScan.id||state.modelScan.status!=='pending')throw Error('stale_model_scan');
+      state.modelCatalog=modelCatalog(input.models||[]);state.modelScan={...state.modelScan,status:input.error?'error':'done',error:text(input.error,100)||null,at:new Date(clock()).toISOString()};return {ok:true};
     }),
     authenticate,
     authorize: (token, input) => serial(() => {
@@ -398,6 +408,8 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       return { allowed: Boolean(state.enabled && run.status === 'running' && step?.id === input.stepId && step.attempt === input.attempt && inScope(run, step) && (!run.workspaceId || input.chatId === step.chatId && input.projectId === step.projectId) && step.status === 'dispatching' && clock() - step.issuedAt < 90_000) };
     }),
     settings: input => transaction(() => {
+      if(input.modelPreference!==undefined)state.modelPreference=modelPreference(input.modelPreference,state.modelCatalog||[]);
+      if(input.scanModels===true)state.modelScan={id:randomUUID(),status:'pending',at:new Date(clock()).toISOString()};
       for (const key of ['enabled', 'office', 'autoResume']) if (typeof input[key] === 'boolean') state[key] = input[key];
       return summary();
     }),
@@ -459,17 +471,17 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         if(existing&&(existing.root!==job.root||existing.name!==job.name))throw Error('bootstrap_project_conflict');
         const workspace=existing||await createWorkspace({name:job.name,root:job.root,chatUrl:link.projectUrl});Object.assign(job,link,{workspaceId:workspace.id});
       }else if(input.kind==='chat'&&job.projectId){
-        const role=companyRoles[job.chats.length];if(!role||input.roleId!==role.id)throw Error('bootstrap_role_mismatch');
+        const role=bootstrapRoles(job)[job.chats.length];if(!role||input.roleId!==role.id)throw Error('bootstrap_role_mismatch');
         const chat=chatId(input.chatUrl),path=new URL(chat.url).pathname;
         if(!path.startsWith(`/g/${job.projectId}/c/`)||job.chats.some(item=>item.chatId===chat.id))throw Error('chat_outside_project');
         const chats=[...job.chats,{roleId:role.id,chatId:chat.id,name:role.name,chatUrl:chat.url}];
         const workspace=workspaces().find(item=>item.id===job.workspaceId);if(!workspace)throw Error('project_not_found');
         await syncProject({workspaceId:workspace.id,projectUrl:job.projectUrl,requested:workspace.sync.requested,status:'partial',chats:chats.map(({name,chatUrl})=>({name,chatUrl}))});job.chats=chats;
-        if(chats.length===companyRoles.length){
+        if(chats.length===bootstrapRoles(job).length){
           state.teams=state.teams.filter(team=>team.workspaceId!==job.workspaceId);state.teams.push({workspaceId:job.workspaceId,members:chats.map(({chatId,roleId})=>({chatId,roleId}))});
           const created=job.kind==='arena'
             ? await createArena({workspaceId:job.workspaceId,idea:job.idea,count:job.count,mode:job.mode,format:job.format,requestKey:job.id})
-            : createIdeaRun({workspaceId:job.workspaceId,customerName:job.customerName,idea:job.idea,mode:job.mode,requestKey:job.id,start:job.runAfterSetup&&state.enabled&&job.status==='running'});
+            : createIdeaRun({workspaceId:job.workspaceId,customerName:job.customerName,...reviewConfig(job),idea:job.idea,mode:job.mode,requestKey:job.id,start:job.runAfterSetup&&state.enabled&&job.status==='running'});
           if(job.kind==='arena')job.arenaId=created.id;
           job.runId=created.id;job.status='done';
         }
@@ -504,6 +516,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       extensionVersion=typeof input.extensionVersion==='string'&&/^\d+\.\d+\.\d+$/.test(input.extensionVersion)?input.extensionVersion:null;
       connectedChats = Array.isArray(input.chats) ? input.chats.filter(id => /^[a-zA-Z0-9-]{1,120}$/.test(id)).slice(0, 100) : [];
       const before = copy(state);
+      if(state.modelPreference&&!extensionVersion?.match(/^(?:[1-9]\d*\.|0\.(?:[5-9]|[1-9]\d)\.)/))return {monitors:[],command:null,bootstrap:null};
       const monitors = [];
       let command = null;
       let bootstrap = null;
@@ -512,7 +525,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         for(const job of state.bootstraps){
           if(job.status!=='running')continue;
           if(job.issuedAt!==null){if(clock()-job.issuedAt>120000){job.status='blocked';job.reason='bootstrap_unconfirmed';}continue;}
-          if(!state.enabled||bootstrap||!bootstrapSupported())continue;job.attempt=randomUUID();job.issuedAt=clock();const role=companyRoles[job.chats.length];
+          if(!state.enabled||bootstrap||!bootstrapSupported())continue;job.attempt=randomUUID();job.issuedAt=clock();const role=bootstrapRoles(job)[job.chats.length];
           bootstrap={jobId:job.id,attempt:job.attempt,type:job.projectId?'bootstrap-chat':'bootstrap-project',projectName:job.name,projectUrl:job.projectUrl,projectId:job.projectId,
             ...(job.projectId?{roleId:role.id,roleName:role.name,seed:`[UmiBridge setup ${job.id}:${role.id}]\nBạn là bộ phận ${role.department}, vai trò ${role.name}. Thư mục dự án local: ${job.root}. Chờ nhiệm vụ riêng do Corp gửi sau. Không tự tạo việc hoặc thao tác tệp lúc khởi tạo. Chỉ trả lời ngắn gọn: UMI_READY ${role.id}.`}:{})};
         }
@@ -634,7 +647,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       } else if (input.kind === 'blocked') {
         step.sent ||= input.sent === true;
         recordUsage(run, step, 'error');
-        step.status = 'blocked'; step.reason = ['composer_busy', 'composer_missing', 'send_unconfirmed', 'chat_changed', 'response_too_large', 'response_unavailable'].includes(input.reason) ? input.reason : 'browser_unavailable';
+        step.status = 'blocked'; step.reason = ['composer_busy', 'composer_missing', 'send_unconfirmed', 'chat_changed', 'response_too_large', 'response_unavailable','model_selection_unconfirmed'].includes(input.reason) ? input.reason : 'browser_unavailable';
         markArenaBlocked(run, step.reason);
         event('blocked', run, step);
       } else throw Error('invalid_report');

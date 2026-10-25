@@ -1,4 +1,4 @@
-# UmiBridge 1.3.0 dashboard design
+# UmiBridge 1.4.0 dashboard design
 
 Scope: desktop/laptop dashboard with independent Corp and Arena workspaces, existing tools/settings and token analytics. Layout targets are 1600x1000 and 1366x768. Synthetic fixtures and live provider operation remain distinct evidence.
 
@@ -32,7 +32,7 @@ Lịch sử shows recorded setup, dispatch, product/revision, judging, pause, re
 
 Corp keeps Văn phòng, Từ ý tưởng and Hàng đợi. Office title, connection, visibility and dispatch controls remain compact. Manual task/team drawers live in Queue; switching views preserves drafts. The existing idea workflow keeps eight department chats, fixed stages and its report gates. Arena is absent from Corp tabs, forms, employee state and queue cards.
 
-The office uses locally bundled Pixel Agents sprites and a light jade/cream room with restrained graphite controls. Logical room layout balances desks across centered rows, preserves a corridor below the lounge and expands with the pane. Manual zoom remains 50-200%; the main Corp office computes Fit on request. Xem đôi embeds the same office with ?compact=1, hides the roster behind an overlay toggle and computes one initial Fit when a visible populated pane appears; subsequent snapshots retain manual zoom. Resize and expansion retain zoom; Escape exits expanded mode. Names/statuses use crisp DOM tooltips and roster entries. Work and handoff motion follow recorded tasks. Optional decorative rest, snack and courier events are clearly distinguished from work; hidden views stop animation and reduced motion stays static.
+The office uses locally bundled Pixel Agents sprites and a light jade/cream room with restrained graphite controls. Logical room layout balances desks across centered rows, preserves a corridor below the lounge and expands with the pane. The whole floor fits initially and on resize; the scene never scrolls vertically. Zoom-in is capped at the complete-floor bound. Xem đôi embeds the same office with ?compact=1, hides the roster behind an overlay toggle and computes one initial Fit when a visible populated pane appears; subsequent snapshots retain manual zoom. Resize and expansion retain zoom; Escape exits expanded mode. Names/statuses use crisp DOM tooltips and roster entries. Work and handoff motion follow recorded tasks. Optional decorative rest, snack and courier events are clearly distinguished from work; hidden views stop animation and reduced motion stays static.
 
 The direct brief form selects a chat already registered in the current Corp scope and accepts one free-form request. It creates one run; dispatch-off saves paused, while dispatch-on requests start. Pending submission disables conflicting scope controls. Lost create acknowledgements reuse a stable request key, and a failed start retains the created run ID for reconciliation. Existing multistep Queue and Idea workflows remain available. Common idea acceptance covers functionality, UX/accessibility, evidence, security, performance, maintainability and local delivery. Desktop and laptop QA captures the filled direct-brief form as well as the office, Arena and split layouts.
 
@@ -52,7 +52,7 @@ After an explicitly requested project-data reset, Requests and Overview show new
 
 ## Validation boundaries
 
-Browser checks use temporary state and simulated provider pages unless explicitly marked as real-account operation. The adapter prompt requests GPT-6.1 Sol; no UI model-selection guarantee follows. Local evidence and SHA-256 checks protect recorded artifact identity, not complete semantic correctness. Current test totals and release verification belong in the release acceptance record once run; historical acceptance records do not certify 1.2.0. See docs/ACCEPTANCE-1.2.vi.md for the current release checks.
+Browser checks use temporary state and simulated provider pages unless explicitly marked as real-account operation. Model settings are opt-in and sourced from the actual web picker. The adapter applies and verifies a saved model/effort before sending, failing closed on missing controls; UI verification does not certify server-side routing. Local evidence and SHA-256 checks protect recorded artifact identity, not complete semantic correctness. Current test totals and release verification belong in the release acceptance record once run; historical acceptance records do not certify 1.2.0. See docs/ACCEPTANCE-1.2.vi.md for the current release checks.
 
 ## Arena pixel artwork 1.2.1
 
@@ -65,3 +65,9 @@ Warm jade walls and pale wood floor divide reception, pantry, centered work isla
 Optional customerName metadata is accepted by manual runs, direct briefs and Idea/bootstrap. Queue cards and office reception list customer names alongside work titles, scoped to the selected Project. Missing legacy names remain explicitly unnamed. Names persist through restart and idempotent creation; conflicting retries cannot rename existing requests.
 
 Ambient controls never dispatch work. Xem mẫu temporarily displays eight synthetic staff and three synthetic customers under MINH HỌA, with chat links disabled; exiting restores the latest real snapshot or an empty office. Normal polling preserves choreography. Reduced motion, hidden panes, errors and scope changes stop/reset spatial animation. Fit and manual zoom cover desktop/laptop and split panes.
+
+## Review teams and browser model settings 1.4.0
+
+Idea keeps its eight core departments and adds eight optional specialist teams. A compact disclosure holds product profile, target purpose, toggles and each team checklist. Selected teams appear in readiness and the stage list; creation freezes all inputs. Bootstrap creates only selected extra chats. Each extra team reviews before repair and has a mandatory final verification after core QA. Standards/config are pinned to run/bootstrap and conflict-checked across retries. Plan-only mode disables tests.
+
+Settings presents only models/efforts observed by paired extension 0.5.0. Explicit scan traverses public picker controls and restores the original selection. Unknown, locked, unsupported and unrecognized UI choices are excluded. Corp and Arena retain independent task/project state while sharing this user-selected browser preference. No preference preserves current web model. A configured preference blocks dispatch through older adapters. Settings save applies to new turns; before submitting, the adapter changes the actual model/effort controls and verifies them. Missing or changed UI blocks sending, preserves drafts, and requires reconciliation. No account tokens, private endpoints or API keys are used.

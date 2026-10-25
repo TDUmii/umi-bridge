@@ -7,6 +7,7 @@
   const labels = { queued:'Chờ giao việc', dispatching:'Đang gửi', running:'Chờ phản hồi', limit_wait:'Chờ reset hạn mức', blocked:'Cần kiểm tra', paused:'Tạm dừng', done:'Hoàn thành', cancelled:'Đã hủy' };
   const reasons = { send_unconfirmed:'Chưa xác nhận đã gửi. Mở chat kiểm tra trước khi thử lại.', composer_busy:'Chat đang trả lời hoặc còn bản nháp. Corp giữ nguyên bản nháp.', composer_missing:'Chưa thấy ô nhập. Kiểm tra đăng nhập và giao diện chat.', chat_changed:'Chat đã thay đổi hoặc có lượt gửi khác. Kiểm tra trước khi tiếp tục.', browser_unavailable:'Không kết nối được tab chat.', response_timeout:'Chưa xác nhận kết quả sau 45 phút. Mở chat kiểm tra.', response_too_large:'Kết quả vượt 48.000 ký tự. Chia nhiệm vụ nhỏ hơn.', limit_time_unknown:'Có thông báo hạn mức nhưng không đọc được giờ reset. Cần kiểm tra thủ công.' };
   const node = (tag, value, className) => { const el = document.createElement(tag); if (value !== undefined) el.textContent = value; if (className) el.className = className; return el; };
+  reasons.model_selection_unconfirmed='Chưa chọn/xác minh được model và mức suy nghĩ. Kiểm tra Cài đặt và model picker trên ChatGPT trước khi thử lại.';
   reasons.response_unavailable = 'ChatGPT không tải được phản hồi. Kiểm tra kết quả công cụ và chat; không tự chạy lại phần đã thực hiện.';
   reasons.idea_report_invalid='Chat trả lời thiếu báo cáo hoặc bằng chứng cần thiết. Mở chat để kiểm tra, sau đó chuẩn bị thử lại.';
   reasons.idea_stage_blocked='Bộ phận báo chưa thể tiếp tục. Xem báo cáo để bổ sung thông tin hoặc kết nối công cụ.';
@@ -17,7 +18,7 @@
   const scopedChats = () => selectedProject()?.chats || (data?.workspaces || []).filter(item => item.kind !== 'project');
   const scopedRuns = () => (data?.runs||[]).filter(run => selectedProject() ? run.workspaceId === selectedProject().id : !run.workspaceId);
   const teamMembers = () => data?.teams?.find(team=>team.workspaceId===selectedProject()?.id)?.members || [];
-  const staffRole = chatId => data?.companyRoles?.find(role=>role.id===teamMembers().find(member=>member.chatId===chatId)?.roleId);
+  const staffRole = chatId => [...(data?.companyRoles||[]),...(data?.reviewTeams||[])].find(role=>role.id===teamMembers().find(member=>member.chatId===chatId)?.roleId);
   function error(value) { $('corpError').textContent = value; $('corpError').hidden = !value; }
   async function api(path, body) {
     const response = await fetch('/admin/api/corp' + path, body === undefined ? { cache:'no-store' } : { method:'POST', headers:{ 'Content-Type':'application/json', 'X-DC-Admin-Action':'1' }, body:JSON.stringify(body) });
@@ -90,14 +91,24 @@
   }
   function renderIdea(){
     if(!data)return;
+    if(!$('corpReviewTeams').children.length){
+      for(const row of data.productProfiles||[])$('corpProductProfile').add(new Option(row.name,row.id));
+      for(const team of data.reviewTeams||[]){const label=node('label'),input=document.createElement('input'),words=node('span',team.department),small=node('small',team.checks);input.type='checkbox';input.value=team.id;input.onchange=renderIdea;words.append(small);label.append(input,words);$('corpReviewTeams').append(label);}
+    }
+    $('corpProductStandard').textContent=data.productProfiles?.find(row=>row.id===$('corpProductProfile').value)?.standard||'';
+    for(const input of $('corpReviewTeams').querySelectorAll('input'))input.disabled=ideaSending||$('corpIdeaMode').value==='plan';
+    $('corpProductProfile').disabled=$('corpProductGoal').readOnly=ideaSending;
     window.umiFolderDialog.initialize('corpIdeaParentRoot',data.projectsRoot);
     const project=selectedProject(),mode=$('corpIdeaMode').value,isNew=$('corpIdeaTarget').value==='new';
-    const stages=(data.ideaStages||[]).filter((stage,index)=>mode==='build'||index<3);
-    const required=isNew?(data.companyRoles||[]).map(role=>role.id):[...new Set(stages.map(stage=>stage.roleId))];
-    const ready=data.ideaProjects?.find(item=>item.workspaceId===project?.id),members=ready?.members||[];
+    const chosenReviews=[...$('corpReviewTeams').querySelectorAll('input:checked')].map(input=>input.value);
+    const extras=(data.reviewTeams||[]).filter(row=>chosenReviews.includes(row.id)).map(row=>({id:'review-'+row.id,roleId:row.id,title:row.department}));
+    const stages=(data.ideaStages||[]).filter((stage,index)=>mode==='build'||index<3).flatMap(stage=>stage.id==='repair'?[...extras,stage]:stage.id==='qa-final'?[stage,...extras.map(row=>({...row,id:row.id+'-final',title:row.title+' - nghiệm thu'}))]:[stage]);
+    const required=[...new Set([...stages.map(stage=>stage.roleId),...($('corpIdeaMode').value==='build'?chosenReviews:[])])];
+    const ready=data.ideaProjects?.find(item=>item.workspaceId===project?.id),members=[...(ready?.members||[])];
+    for(const member of teamMembers())if(!members.some(row=>row.chatId===member.chatId))members.push(member);
     const version=data.extensionVersion?.split('.').map(Number),supported=!!version&&(version[0]>0||version[1]>=3);
     const missing=required.filter(id=>!members.some(member=>member.roleId===id));
-    $('corpIdeaProject').textContent=isNew?'Tự tạo Project mới, 8 chat và phân công bộ phận.':project?'Project: '+project.name:'Chọn Project ở thanh phía trên để bắt đầu.';
+    $('corpIdeaProject').textContent=isNew?`Tự tạo Project mới, ${8+(mode==='build'?chosenReviews.length:0)} chat và phân công bộ phận.`:project?'Project: '+project.name:'Chọn Project ở thanh phía trên để bắt đầu.';
     $('corpIdeaProject').hidden=isNew;
     $('corpIdeaRoot').textContent=project?.root||'Chưa có thư mục làm việc.';$('corpIdeaRoot').hidden=isNew;$('corpIdeaFolder').hidden=!isNew;
     $('corpIdeaParentRoot').readOnly=ideaSending||folderPicking==='corpIdeaParentRoot';$('corpIdeaBrowse').disabled=ideaSending||!!folderPicking;
@@ -106,7 +117,7 @@
     const signature=JSON.stringify([isNew,project?.id,required,members,project?.chats]);
     if($('corpIdeaTeam').dataset.signature!==signature){
       $('corpIdeaTeam').dataset.signature=signature;$('corpIdeaTeam').replaceChildren();
-      for(const id of required){const role=data.companyRoles.find(role=>role.id===id),member=members.find(member=>member.roleId===id);
+      for(const id of required){const role=[...(data.companyRoles||[]),...(data.reviewTeams||[])].find(role=>role.id===id),member=members.find(member=>member.roleId===id);
         const row=node('div'),name=node('dt',role.department),chat=node('dd',isNew?role.name:member?(project.chats.find(chat=>chat.chatId===member.chatId)?.name.split('\n')[0]||member.chatId):'Chưa có chat');
         if(!isNew&&!member)row.className='missing';if(!isNew&&member?.suggested)chat.append(node('small','Gợi ý theo tên chat'));row.append(name,chat);$('corpIdeaTeam').append(row);
       }
@@ -130,7 +141,7 @@
     const reasons={bootstrap_unconfirmed:'Chưa xác nhận được thao tác tạo. Kiểm tra tab ChatGPT trước khi tiếp tục.',bootstrap_recovery_required:'Không còn tab khởi tạo cũ. Kiểm tra Project/chat đã tạo; hệ thống giữ tiến độ để tránh tạo trùng.',project_create_ui_missing:'Chưa thấy nút tạo Project. Kiểm tra đã đăng nhập ChatGPT và tải lại extension.',bootstrap_ui_timeout:'ChatGPT chưa phản hồi đúng giao diện trong thời gian chờ. Kiểm tra tab khởi tạo.',project_dialog_busy:'Hộp thoại tạo Project đang có nội dung khác. Kiểm tra rồi thử tiếp.',composer_busy:'Chat có bản nháp hoặc đang trả lời. Hoàn tất trước khi tiếp tục.',bootstrap_content_unavailable:'Chưa kết nối được trang ChatGPT. Tải lại extension và tab ChatGPT.',bootstrap_stopped:'Khởi tạo đã dừng theo lựa chọn điều phối.',bootstrap_project_changed:'Tab đã chuyển khỏi Project khởi tạo. Kiểm tra trước khi tiếp tục.'};
     for(const job of jobs){
       const row=node('article',undefined,'corp-bootstrap');row.append(node('strong',job.name));
-      row.append(node('p',`${{running:'Đang khởi tạo',paused:'Tạm dừng',blocked:'Cần kiểm tra'}[job.status]} · ${job.projectId?'Đã tạo Project':'Đang chuẩn bị Project'} · ${job.chats.length}/8 chat bộ phận`));
+      row.append(node('p',`${{running:'Đang khởi tạo',paused:'Tạm dừng',blocked:'Cần kiểm tra'}[job.status]} · ${job.projectId?'Đã tạo Project':'Đang chuẩn bị Project'} · ${job.chats.length}/${8+(job.mode==='plan'?0:(job.reviewTeams||[]).length)} chat bộ phận`));
       if(job.reason)row.append(node('p',reasons[job.reason]||'Khởi tạo bị chặn: '+job.reason,'corp-reason'));
       const actions=node('div',undefined,'actions');
       if(job.status!=='running'){const start=button(job.status==='blocked'?'Kiểm tra và tiếp tục':'Bắt đầu',()=>act('/projects/'+job.id+'/start'));start.disabled=!data.enabled;actions.append(start);}
@@ -145,11 +156,11 @@
     const drafts=new Map(preserve&&$('corpTeam').dataset.project===project?.id?[...root.querySelectorAll('select')].map(select=>[select.dataset.chat,select.value]):[]);
     root.replaceChildren();$('corpTeam').dataset.project=project?.id||'';$('corpTeam').dataset.members=JSON.stringify(scopedChats().map(chat=>chat.chatId));
     if(!project){$('corpTeamSummary').textContent='Chọn Project để phân công bộ phận.';return;}
-    const roles=data.companyRoles||[], members=teamMembers();
+    const roles=[...(data.companyRoles||[]),...(data.reviewTeams||[])], members=teamMembers();
     const staffed=new Set(members.filter(member=>project.chats.some(chat=>chat.chatId===member.chatId)).map(member=>member.roleId));
     $('corpTeamSummary').textContent=`${staffed.size}/${roles.length} bộ phận có nhân viên · ${project.chats.length} chat`;
     const departments=node('div',undefined,'corp-departments');
-    for(const role of roles){const row=node('div');row.append(node('strong',role.department),node('span',staffed.has(role.id)?'Đã phân công':'Chưa có nhân viên'));row.title=role.brief;departments.append(row);}
+    for(const role of roles){const row=node('div');row.append(node('strong',role.department),node('span',staffed.has(role.id)?'Đã phân công':'Chưa có nhân viên'));row.title=role.brief||role.checks;departments.append(row);}
     root.append(departments);
     for(const chat of project.chats){const label=node('label',chat.name.split('\n')[0]),select=document.createElement('select');select.dataset.chat=chat.chatId;select.add(new Option('Chưa phân công',''));for(const role of roles)select.add(new Option(`${role.department} · ${role.name}`,role.id));select.value=drafts.get(chat.chatId)??members.find(member=>member.chatId===chat.chatId)?.roleId??'';label.append(select);root.append(label);}
   }
@@ -182,7 +193,7 @@
       if(role){agent.roleId=role.id;agent.department=role.department;agent.role=role.name;agent.roles=[role.name];}
       else agent.department='Chưa phân công';
     }
-    const order=data.companyRoles?.map(role=>role.id)||[];
+    const order=[...(data.companyRoles||[]),...(data.reviewTeams||[])].map(role=>role.id);
     const handoffs = data.events.filter(event => event.type === 'handoff' && runs.some(run => run.id === event.runId)).map(event => ({ id:event.id, from:event.from, to:event.to, task:event.task, at:event.at }));
     return { project:selectedProject()?.id || 'umibridge-corp', name:selectedProject()?.name || 'UmiBridge Corp', coordinator:data.enabled, office:data.office, agents:[...agents.values()].sort((a,b)=>(order.indexOf(a.roleId)<0?99:order.indexOf(a.roleId))-(order.indexOf(b.roleId)<0?99:order.indexOf(b.roleId))), handoffs, customers:runs.filter(run=>!['done','cancelled'].includes(run.status)).map(run=>({id:run.id,name:run.customerName||'Chưa đặt tên',title:run.title,status:run.status})), baseline:first };
   }
@@ -279,13 +290,14 @@
   $('corpIdeaClose').onclick=()=>setCorpTab('office',true);
   $('corpIdeaConfigure').onclick=()=>team(true);
   $('corpIdeaMode').onchange=renderIdea;
+  $('corpProductProfile').onchange=renderIdea;
   $('corpIdeaTarget').onchange=renderIdea;
   $('corpIdeaBrowse').onclick=()=>window.umiFolderDialog.open('corpIdeaParentRoot','corpIdeaBrowse','corpIdeaFolderStatus');
   $('corpIdeaParentRoot').oninput=()=>window.umiFolderDialog.remember($('corpIdeaParentRoot'));
   window.addEventListener('umibridge-folder-dialog',event=>{if(event.detail.inputId==='corpIdeaParentRoot'){folderPicking=event.detail.open?'corpIdeaParentRoot':null;renderIdea();}});
   $('corpIdeaForm').onsubmit=async event=>{
     event.preventDefault();if(ideaSending||directSending||folderPicking)return;const project=selectedProject(),isNew=$('corpIdeaTarget').value==='new';if(!isNew&&!project)return;
-    const value={...(isNew?{parentRoot:$('corpIdeaParentRoot').value.trim()}:{workspaceId:project.id}),customerName:$('corpIdeaCustomer').value.trim(),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked}:{})};
+    const value={...(isNew?{parentRoot:$('corpIdeaParentRoot').value.trim()}:{workspaceId:project.id}),customerName:$('corpIdeaCustomer').value.trim(),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,productProfile:$('corpProductProfile').value||'general',productGoal:$('corpProductGoal').value.trim(),reviewTeams:[...$('corpReviewTeams').querySelectorAll('input:checked')].map(input=>input.value),start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked}:{})};
     if(isNew)window.umiFolderDialog.remember($('corpIdeaParentRoot'));
     const signature=JSON.stringify(value);if(ideaRequest?.signature!==signature)ideaRequest={signature,key:crypto.randomUUID()};
     ideaSending=true;$('corpIdeaForm').setAttribute('aria-busy','true');$('corpIdeaText').readOnly=true;$('corpIdeaCustomer').readOnly=true;$('corpIdeaMode').disabled=true;$('corpIdeaTarget').disabled=true;$('corpProject').disabled=true;renderIdea();$('corpIdeaError').hidden=true;

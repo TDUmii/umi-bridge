@@ -12,7 +12,7 @@
   let visible = false, raf = 0, selected = null, sceneHeight = 420, last = 0, now = 0, error = false;
   let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let pending = [], delivery = null, lastRoster = '', lastRoles = '';
-  let zoom = 1, fit = false, sceneWidth = 640, columns = 3, tooltipAgent = null, viewScale = 1, tooltipTimer;
+  let zoom = 1, fit = true, sceneWidth = 640, columns = 3, tooltipAgent = null, viewScale = 1, tooltipTimer;
   let deskRows = 0, seatCount = 0, firstRow = 244, rowGap = 120;
   const qaMode=new URLSearchParams(location.search).get('qa')==='1';let frameDraws=[];
   const compact=new URLSearchParams(location.search).get('compact')==='1';let compactFitted=false;
@@ -20,15 +20,18 @@
   life.configure(sceneWidth,sceneHeight);
   const statusTone = status => ({DISPATCHED:'sending',WAITING:'waiting',COMPLETED:'review',REVIEW:'review',LIMIT:'limit',BLOCKED:'blocked',DONE:'sending'}[status] || 'idle');
   function geometry(scale, fillHeight=true) {
-    const width=Math.max(640,Math.floor(($('scene').clientWidth-16)/scale));
+    const width=Math.max(640,Math.min(1280,Math.floor($('scene').clientWidth-16)));
     const count=[...people.values()].filter(p=>!p.boss).length,capacity=Math.max(2,Math.min(4,Math.floor((width-56)/140)));
     const rows=Math.ceil(count/capacity),cols=rows?Math.ceil(count/rows):2;
     const top=[...people.values()].some(p=>p.boss)?300:280;
     const contentHeight=Math.max(620,top+Math.max(0,rows-1)*120+180);
-    const height=Math.max(contentHeight,fillHeight?Math.floor(($('scene').clientHeight-16)/scale):0);
+    const height=contentHeight;
     return {width,cols,rows,count,height,first:top,gap:rows>1?Math.max(120,(height-180-top)/(rows-1)):120};
   }
   function resizeView() {
+    if($('scene').clientWidth<=16||$('scene').clientHeight<=16)return;
+    const g=geometry(1,false);const maxZoom=Math.max(.1,Math.min(2,($('scene').clientWidth-16)/g.width,($('scene').clientHeight-16)/g.height));
+    zoom=fit?maxZoom:Math.min(zoom,maxZoom);
     const next = geometry(zoom), changed = sceneWidth !== next.width || sceneHeight !== next.height || columns !== next.cols ||
       deskRows !== next.rows || seatCount !== next.count || firstRow !== next.first || rowGap !== next.gap;
     if (changed || viewScale !== zoom) hideTooltip();
@@ -47,8 +50,8 @@
     $('stage').style.height = `${sceneHeight * zoom}px`;
     $('zoom-value').textContent = `${Math.round(zoom * 100)}%`;
     $('zoom-fit').setAttribute('aria-pressed', String(fit));
-    $('zoom-out').disabled = zoom <= .5;
-    $('zoom-in').disabled = zoom >= 2;
+    $('zoom-out').disabled = zoom <= .25;
+    $('zoom-in').disabled = zoom >= maxZoom-.01;
     for (const label of $('seat-labels').children) {
       const p = people.get(label.dataset.agent);
       if (!p) continue;
@@ -62,14 +65,7 @@
     $('lounge-sign').style.top = `${(sceneHeight-120) * zoom}px`;
     draw();
   }
-  function fitRoom() {
-    fit = true; zoom = .5;
-    for (let candidate=1.5;candidate>=.5;candidate-=.05) {
-      const value = Math.round(candidate * 100) / 100, g = geometry(value,false);
-      if (g.width * value <= $('scene').clientWidth - 16 && g.height * value <= $('scene').clientHeight - 16) { zoom=value;break; }
-    }
-    resizeView();
-  }
+  function fitRoom() {fit=true;resizeView();}
   function hideTooltip() {
     clearTimeout(tooltipTimer);
     tooltipAgent = null; $('employee-tooltip').hidden = true;
@@ -100,6 +96,7 @@
     if (image?.complete && image.naturalWidth) ctx.drawImage(image, Math.round(x), Math.round(y), image.width*scale, image.height*scale);
   }
   function text(value,x,y,color='#314d49',size=11,align='center') {
+    size=Math.max(size,12/Math.max(.25,zoom));
     ctx.fillStyle=color;ctx.font=`${size}px "Segoe UI", sans-serif`;ctx.textAlign=align;ctx.fillText(value,x,y);
   }
   function rect(x,y,w,h,fill) {ctx.fillStyle=fill;ctx.fillRect(x,y,w,h);}
@@ -332,14 +329,14 @@
       renderUI();draw();schedule();
       if(compact&&visible&&people.size&&!compactFitted){compactFitted=true;fitRoom();}
     },
-    setVisible(value){if(!value)compactFitted=false;visible=value;document.body.dataset.visible=String(value);if(!value){cancelAnimationFrame(raf);raf=0;last=0;clearMovement();}else{if(compact&&people.size&&!compactFitted){compactFitted=true;fitRoom();}schedule();}},
+    setVisible(value){if(!value)compactFitted=false;visible=value;document.body.dataset.visible=String(value);if(!value){cancelAnimationFrame(raf);raf=0;last=0;clearMovement();}else{resizeView();if(compact&&people.size&&!compactFitted){compactFitted=true;fitRoom();}schedule();}},
     setError(){error=true;clearMovement();renderUI();draw();},
     inspect(){return{life:life.inspect(),frameDraws:qaMode?frameDraws:undefined,preview,assetsReady:assets.every(name=>images[name]?.naturalWidth),ambient,agents:people.size,pending:pending.length,delivery:delivery?.event.id??null,visible,reduced,error,framesActive:!!raf,project:model.project,bridgeReady:!!bridge,zoom,fit,sceneWidth,columns,sceneHeight,deskRows,firstRow,rowGap,tooltipAgent};}
   };
   $('ambient').onclick=()=>{ambient=!ambient;$('ambient').textContent='Sinh hoạt: '+(ambient?'Bật':'Tắt');$('ambient').setAttribute('aria-pressed',String(ambient));if(!ambient)for(const p of people.values())life.interrupt(p);};
   $('preview').onclick=()=>{preview=!preview;$('preview').textContent=preview?'Thoát mẫu':'Xem mẫu';$('preview').setAttribute('aria-pressed',String(preview));if(preview){window.office.setSnapshot({illustration:true,project:'office-demo',name:'MINH HỌA - Văn phòng',baseline:true,coordinator:true,handoffs:[],customers:['Khách mẫu An','Khách mẫu Bình','Khách mẫu Chi'].map((name,index)=>({id:'demo-client-'+index,name,title:'Sản phẩm minh họa'})),agents:['Điều hành','Sản phẩm','Thiết kế','Kỹ thuật','QA','Bảo mật','DevOps','Tài liệu'].map((role,index)=>({id:'demo-staff-'+index,role,roleId:index===0?'ceo':String(index),roles:[role],status:index<2?'WAITING':'IDLE',pose:index<2?'type':'idle',count:index<2?1:0,can_open:false}))});}else window.office.setSnapshot(latestSnapshot?{...latestSnapshot,baseline:true}:{project:null,name:'',baseline:true,coordinator:false,handoffs:[],customers:[],agents:[]});};
   if(qaMode)window.office.advanceForTest=seconds=>{for(let elapsed=0;elapsed<seconds;elapsed+=1/30)advance(Math.min(1/30,seconds-elapsed));draw();return life.inspect();};
-  $('zoom-out').onclick=()=>{fit=false;zoom=Math.max(.5,Math.round((zoom-.25)*100)/100);resizeView();};
+  $('zoom-out').onclick=()=>{fit=false;zoom=Math.max(.25,Math.round((zoom-.25)*100)/100);resizeView();};
   $('zoom-in').onclick=()=>{fit=false;zoom=Math.min(2,Math.round((zoom+.25)*100)/100);resizeView();};
   $('zoom-fit').onclick=fitRoom;
   $('expand').onclick=()=>parent.postMessage({type:'corp-office-expand'},location.origin);

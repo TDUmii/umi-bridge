@@ -147,3 +147,15 @@ Tên khách hàng là trường tùy chọn trong tạo công việc, brief tr�
 Dùng **Xem mẫu** để xem tám nhân viên và ba khách minh họa khi chưa có đội ngũ. Nhãn MINH HỌA và liên kết chat bị tắt giúp phân biệt dữ liệu mẫu; **Thoát mẫu** trở về dữ liệu thật. **Sinh hoạt: Bật/Tắt** điều khiển các chuyến nghỉ mới; chuyến đang diễn ra thu dọn và trở về. **Giảm chuyển động** giữ cảnh tĩnh. **Vừa khung**, zoom 50-200% và **Mở rộng** hỗ trợ desktop/laptop, cả Xem đôi.
 
 Kiểm hoạt cảnh có thể chạy bằng `npm run office:qa` khi PLAYWRIGHT_MODULE trỏ tới Playwright đã cài và máy có Microsoft Edge. Fixture dùng gateway tạm, không tài khoản thật. `OFFICE_CAPTURE_ANIMATION=1` xuất thêm 450 ảnh minh họa tại .impeccable/review/office-life/animation-frames.
+
+## Đội kiểm thử tùy chọn - 1.4.0
+
+Trong Từ ý tưởng mở **Đội kiểm thử & mục tiêu**. Chọn một trong bảy hồ sơ sản phẩm, ghi mục đích và bật đội chuyên trách cần dùng. Tám bộ phận nền tảng giữ quy trình hiện có; tám đội tùy chọn là kiến trúc, UX/tiếp cận, API/tích hợp, hiệu năng, dữ liệu, desktop, giáo dục và game. Mỗi đội có quy chuẩn hiển thị cạnh lựa chọn. Đội được chọn có lượt rà trước sửa và nghiệm thu sau sửa; kiểm cuối chưa đạt dừng quy trình. Không chọn đội thì không tạo chat/bước riêng cho đội đó. Project đã có cần phân công vai trò tương ứng. Cấu hình được ghim khi tạo và không viết lại run cũ.
+
+## Model & mức suy nghĩ
+
+Nạp lại extension **0.5.0** và tab ChatGPT. Mở tab ở chế độ **Công việc**, giữ ô nhập trống. Trong **Cài đặt → Model & mức suy nghĩ**, bấm **Quét từ ChatGPT**; quét đọc điều khiển công khai và khôi phục lựa chọn ban đầu. Chọn model và effort được liệt kê rồi **Lưu lựa chọn**. Áp dụng cho lượt gửi mới Corp/Arena, cả seed chat mới; không phát nhiệm vụ khi lưu/quét. **Giữ lựa chọn hiện tại** tắt việc đổi model. Nếu quét lỗi, kiểm tab Công việc và quét lại; không nhập tên model tùy ý.
+
+Adapter chọn và xác minh lại trước gửi; không tìm thấy model/mức hoặc UI đổi thì chặn, không thay bằng model khác hay câu yêu cầu trong prompt. Đây là xác minh UI, không phải chứng nhận routing nội bộ hoặc usage billing. Phiên bản extension cũ không được nhận lệnh mới khi đang bật preference.
+
+Văn phòng 1.4 tự vừa khung cả khi đổi kích thước; bản đồ không cuộn. Zoom được giới hạn để giữ đủ sàn; tên/trạng thái dùng roster và tooltip rõ nét. Dòng chú thích 1.3 đã bỏ, nguồn/giấy phép vẫn kèm source.

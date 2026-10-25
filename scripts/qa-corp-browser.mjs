@@ -78,7 +78,7 @@ try {
   assert.equal(await page.locator('.nav-link[data-view="corp"] use').getAttribute('href'),'#i-building');
   assert.equal(await office.locator('#room-sign').innerText(),'UMIBRIDGE / CORP');
   const beforeZoom=await office.locator('#zoom-value').innerText();
-  await office.locator('#zoom-in').click();assert.notEqual(await office.locator('#zoom-value').innerText(),beforeZoom);
+  await office.locator('#zoom-out').click();assert.notEqual(await office.locator('#zoom-value').innerText(),beforeZoom);
   await office.locator('#zoom-fit').click();assert.equal(await office.locator('#zoom-fit').getAttribute('aria-pressed'),'true');
   const fitted=await office.locator('body').evaluate(()=>window.office.inspect());
   const workspaceBefore=await page.locator('.corp-workspace').boundingBox();
@@ -86,7 +86,7 @@ try {
   assert.equal(await page.locator('.corp-queue').isVisible(),false);
   await until(async()=>await office.locator('body').evaluate((el,width)=>window.office.inspect().sceneWidth>=width,fitted.sceneWidth),'expanded room retains full available width');
   const expanded=await office.locator('body').evaluate(()=>window.office.inspect());
-  assert.equal(expanded.zoom,fitted.zoom,'expanding preserves zoom even after Fit');
+  assert.ok(expanded.zoom>=fitted.zoom-.01,'Fit remains within expanded pane');
   assert.ok(expanded.columns>=fitted.columns,'expansion retains balanced desk columns for small teams');
   assert.equal((await page.locator('.corp-workspace').boundingBox()).height,workspaceBefore.height,'expansion keeps workspace height');
   if(!process.env.CORP_SKIP_CAPTURES)await page.screenshot({path:join(screenshots,'office-expanded.png'),animations:'disabled'});
@@ -128,7 +128,7 @@ try {
   assert.equal((await page.locator('#corpRuns').innerText()).includes('Draft guard'),false,'Project queue excludes standalone run');
   assert.equal(await office.locator('#roster button').count(),2,'Office excludes standalone employee');
   await page.locator('#corpTeamToggle').click();await page.locator('#corpTeam').waitFor();
-  assert.equal(await page.locator('.corp-departments>div').count(),8);
+  assert.equal(await page.locator('.corp-departments>div').count(),16);
   await page.locator('#corpTeamMembers select[data-chat="fixture-boss"]').selectOption('design');
   await page.locator('#corpTeamMembers select[data-chat="fixture-builder"]').selectOption('qa');
   await page.locator('#corpTeamForm button[type="submit"]').click();await page.locator('#corpTeam').waitFor({state:'hidden'});
@@ -166,7 +166,7 @@ try {
   const balanced=await largeOffice.evaluate(()=>window.office.inspect());
   assert.equal(balanced.columns,4,'eight employees form two balanced rows on a wide floor');
   assert.equal(balanced.deskRows,2);
-  assert.ok(balanced.rowGap>120,'desks use spare vertical floor space');
+  assert.ok(balanced.rowGap>=120,'desk corridors retain safe spacing');
   assert.ok(balanced.firstRow-68>=170,'first monitors stay below the lounge corridor');
   assert.equal(await largeOffice.locator('.seat-label').first().evaluate(el=>{
     const seat=el.getBoundingClientRect(),dot=el.querySelector('.status-dot').getBoundingClientRect();
@@ -183,8 +183,8 @@ try {
   await largeOffice.setViewportSize({width:856,height:550});
   await largeOffice.evaluate(()=>{window.office.setSnapshot({project:'illustrated-large-office',name:'MINH HỌA - 24 nhân viên',coordinator:false,baseline:true,handoffs:[],agents:Array.from({length:24},(_,i)=>({id:'illustration-'+i,role:'MINH HỌA - Nhân viên kiểm thử tiếng Việt '+(i+1),roles:['Kiểm thử'],status:'IDLE',pose:'idle',count:0,can_open:false}))});window.office.setVisible(true);});
   assert.equal(await largeOffice.locator('.seat-label').count(),24);
-  assert.equal(await largeOffice.locator('#scene').evaluate(el=>el.scrollHeight>el.clientHeight),true,'many employees add rows and scroll');
-  await largeOffice.locator('#zoom-in').click();await largeOffice.locator('#zoom-in').click();
+  assert.equal(await largeOffice.locator('#scene').evaluate(el=>el.scrollHeight>el.clientHeight+1),false,'all employee rows fit without map scrolling');
+  await largeOffice.locator('#zoom-out').click();await largeOffice.locator('#zoom-fit').click();
   await largeOffice.locator('#seat-labels button').last().focus();
   await largeOffice.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   assert.equal(await largeOffice.locator('#employee-tooltip').isVisible(),true,'keyboard focus exposes employee name');

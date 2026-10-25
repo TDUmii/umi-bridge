@@ -1,5 +1,6 @@
 /* The credential stays in the extension worker. Page scripts never receive it. */
 let busy = false;
+let lastModelScan=null;
 const validOrigin = value => {
   const url = new URL(value);
   if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw Error('Chỉ dùng địa chỉ http://127.0.0.1:PORT');
@@ -96,6 +97,10 @@ async function tick() {
     for(const channel of ['corp','arena'])try{
     const response = await api('poll', { channel,extensionVersion:chrome.runtime.getManifest().version,chats, projectChats: tabs.filter(tab => conversation(tab.url) && project(tab.url)).map(tab => ({chatId:conversation(tab.url), projectId:project(tab.url)})) });
     await reconcileReset(response.resetGeneration);
+    if(channel==='corp'&&response.modelScan?.status==='pending'&&lastModelScan!==response.modelScan.id){
+      const tab=tabs.find(tab=>!conversation(tab.url))||tabs[0];
+      if(tab){lastModelScan=response.modelScan.id;try{const result=await chrome.tabs.sendMessage(tab.id,{type:'model-catalog'});await api('models',{id:lastModelScan,...result},'corp');}catch{lastModelScan=null;}}
+    }
     for (const scope of response.projects || []) {
       const home = tabs.find(tab => project(tab.url) === scope.projectId && /\/project\/?$/.test(new URL(tab.url).pathname));
       if (!home) continue;

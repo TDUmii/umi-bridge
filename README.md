@@ -2,7 +2,7 @@
 
 UmiBridge kết nối ChatGPT với máy Windows của bạn: đọc và sửa tệp, chạy PowerShell, quan sát và điều khiển cửa sổ. Dashboard local quản lý quyền công cụ, lịch sử, thiết bị, thống kê token và điều phối nhiều chat trong một ChatGPT Project.
 
-**Bản 1.3.0.** Giao diện dành cho máy tính để bàn và laptop. Văn phòng Corp có quầy khách, pantry, sofa, góc nghỉ và hoạt cảnh sinh hoạt.
+**Bản 1.4.0.** Giao diện dành cho máy tính để bàn và laptop. Văn phòng Corp có quầy khách, pantry, sofa, góc nghỉ và hoạt cảnh sinh hoạt.
 
 [Tải bản chính thức mới nhất](https://github.com/TDUmii/umi-bridge/releases/latest) · [Thay đổi từng bản](RELEASE_NOTES.md) · [Hướng dẫn Corp](docs/CORP.vi.md) · [Hướng dẫn Arena](docs/ARENA.vi.md)
 
@@ -148,7 +148,7 @@ Mở **Arena** trên thanh điều hướng chính. Arena tạo **một Project 
 
 Trước mỗi vòng chấm tiếp theo, **mọi thí sinh đi tiếp phải sửa source theo phản hồi và chạy lại build/test/run**. Thiếu source, README, ba kiểm tra đạt hoặc tệp bằng chứng thì bị chặn. Phiên bản được chấp nhận lưu source, README và bằng chứng riêng với manifest cùng SHA-256; bản lịch sử không được ghi đè. Arena mới dùng rubric v2 tổng 100: chức năng 30, UX/khả năng tiếp cận 15, bằng chứng 20, bảo mật 10, hiệu năng/ổn định 10, khả năng bảo trì 5, local/tài liệu 10. Arena cũ giữ rubric v1 và điểm/prompt đã lưu. Công bằng là quy tắc chấm chung, không phải một điểm sản phẩm.
 
-Prompt yêu cầu **GPT-6.1 Sol**; adapter không bảo đảm model thực tế đang được chọn trên giao diện ChatGPT. Kiểm tra model và quyền công cụ trong ChatGPT trước khi bắt đầu. Hủy hoặc xóa khỏi danh sách giữ Project/chat và tệp sản phẩm; không tự dừng lệnh hệ điều hành đã gửi. Chưa có xác nhận hoàn tất toàn bộ giải bằng tài khoản ChatGPT thật. Xem [hướng dẫn Arena](docs/ARENA.vi.md) để biết phục hồi, phiên bản và giới hạn.
+Trong **Cài đặt → Model & mức suy nghĩ**, quét danh sách thật từ ChatGPT Công việc bằng extension 0.5.0 rồi lưu lựa chọn. Adapter chọn và xác minh lại model/effort trước lượt gửi mới của Corp/Arena; không có lựa chọn phù hợp thì chặn gửi. Giữ lựa chọn hiện tại không đổi model. Đây là xác nhận điều khiển UI, không chứng nhận model xử lý phía máy chủ. Hủy hoặc xóa khỏi danh sách giữ Project/chat và tệp sản phẩm; không tự dừng lệnh hệ điều hành đã gửi. Chưa có xác nhận hoàn tất toàn bộ giải bằng tài khoản ChatGPT thật. Xem [hướng dẫn Arena](docs/ARENA.vi.md) để biết phục hồi, phiên bản và giới hạn.
 
 ## Giao việc cho các chat
 
@@ -171,7 +171,7 @@ Viết yêu cầu kèm thư mục, phạm vi được sửa, đầu ra và tiêu
 | **Đã kiểm tra chat - chuẩn bị thử lại** | Chuẩn bị lần thử sau khi bạn đã đối chiếu tình trạng gửi; vẫn cần bấm Bắt đầu. |
 | **Xóa khỏi hàng đợi** | Bỏ nhiệm vụ đã kết thúc khỏi danh sách; không xóa chat hoặc số liệu usage đã ghi. |
 
-Corp giữ bản nháp hiện có, không chen vào chat đang phản hồi, không tự đổi tài khoản/model. Nếu không xác nhận được lần gửi, Corp chặn để kiểm tra trước khi thử lại. Mỗi chat nhận tối đa một bước đang thực hiện; những chat khác có thể nhận nhiệm vụ riêng.
+Corp giữ bản nháp hiện có, không chen vào chat đang phản hồi, không tự đổi tài khoản; model chỉ đổi theo lựa chọn đã lưu trong Cài đặt. Nếu không xác nhận được lần gửi, Corp chặn để kiểm tra trước khi thử lại. Mỗi chat nhận tối đa một bước đang thực hiện; những chat khác có thể nhận nhiệm vụ riêng.
 
 ## Hết limit thì chuyện gì xảy ra?
 
@@ -336,3 +336,9 @@ MIT. Dự án độc lập; không sửa upstream DesktopCommanderMCP. Xem [LICE
 ### Arena pixel sprites
 
 Bản 1.2.1 dùng chiến binh Gladiator SMS của Chasersgaming (CC0), có năm bảng màu, frame animation và portrait giám khảo. Asset chạy local, giữ pixel nét và cùng đường chân trong Arena/Xem đôi. [Nguồn và cách căn sprite](docs/ARENA-PIXEL-ASSETS.vi.md), [ghi công](THIRD_PARTY_NOTICES.md).
+
+### Đội kiểm thử chuyên trách - 1.4.0
+
+Corp → Từ ý tưởng → Quy trình & đội kiểm thử → Đội kiểm thử & mục tiêu cho chọn hồ sơ sản phẩm, mục đích và tám đội tùy chọn. Kiến trúc, UX/tiếp cận, API/tích hợp, hiệu năng, dữ liệu, desktop, giáo dục và game có quy chuẩn riêng. Mỗi đội được chọn thêm một chat khi tạo Project và hai lượt kiểm trước/sau sửa; kiểm cuối là bắt buộc để bàn giao. Dùng Project có sẵn cần phân công các vai trò đã chọn trong Bộ phận. Quy trình cũ giữ nguyên; chế độ chỉ lập kế hoạch không chạy đội kiểm thử. Nguồn và giới hạn: [docs/REVIEW-SOURCES.vi.md](docs/REVIEW-SOURCES.vi.md).
+
+Văn phòng tự vừa khung và không cuộn bản đồ. Phóng to chỉ tới mức còn nhìn đủ phòng; thu nhỏ và tooltips/roster vẫn dùng được. Dòng chú thích dưới bản đồ đã bỏ; giấy phép và nguồn asset nằm trong THIRD_PARTY_NOTICES.md.
