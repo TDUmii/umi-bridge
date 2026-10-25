@@ -2,7 +2,7 @@
 
 UmiBridge kết nối ChatGPT với máy Windows của bạn: đọc và sửa tệp, chạy PowerShell, quan sát và điều khiển cửa sổ. Dashboard local quản lý quyền công cụ, lịch sử, thiết bị, thống kê token và điều phối nhiều chat trong một ChatGPT Project.
 
-**Bản 1.2.0.** Giao diện dành cho máy tính để bàn và laptop.
+**Bản 1.2.1.** Giao diện dành cho máy tính để bàn và laptop.
 
 [Tải bản chính thức mới nhất](https://github.com/TDUmii/umi-bridge/releases/latest) · [Thay đổi từng bản](RELEASE_NOTES.md) · [Hướng dẫn Corp](docs/CORP.vi.md) · [Hướng dẫn Arena](docs/ARENA.vi.md)
 
@@ -332,3 +332,7 @@ QA trình duyệt dùng extension thật, state tạm và trang nhà cung cấp 
 ## License
 
 MIT. Dự án độc lập; không sửa upstream DesktopCommanderMCP. Xem [LICENSE](LICENSE) và [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+### Arena pixel sprites
+
+Bản 1.2.1 dùng chiến binh Gladiator SMS của Chasersgaming (CC0), có năm bảng màu, frame animation và portrait giám khảo. Asset chạy local, giữ pixel nét và cùng đường chân trong Arena/Xem đôi. [Nguồn và cách căn sprite](docs/ARENA-PIXEL-ASSETS.vi.md), [ghi công](THIRD_PARTY_NOTICES.md).

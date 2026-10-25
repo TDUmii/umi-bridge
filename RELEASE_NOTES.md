@@ -1,4 +1,14 @@
-# UmiBridge Sakura Console - 1.2.0
+# UmiBridge Sakura Console - 1.2.1
+
+## Pixel gladiators
+
+Arena and split observation replace CSS placeholder figures with locally bundled **Gladiator SMS** pixel sprites by Chasersgaming (CC0 1.0). Four-frame strips share a fixed crop and foot origin, rendered at exactly 2x with crisp pixels. Five cloth/helmet palettes distinguish seats. Only the recorded active contestant cycles the run strip; paused, hidden and reduced-motion scenes remain static. Judge uses the included avatar portrait.
+
+Scene spacing keeps all twenty sprites and status labels within desktop/laptop panes, with a separate focus band and judge area. Local-admin asset serving and same-origin image CSP avoid external artwork requests. Artist credit, full license, hashes, modifications and a reproducible preparation script ship with source. Asset research and selection: docs/ARENA-PIXEL-ASSETS.vi.md.
+
+Validation: syntax build, Arena HTTP gateway test, Arena and split-view browser fixtures at 1600x1000 and 1366x768. PNG dimensions/load, visibility, reduced motion, scope and zero external requests are checked. Full Windows CI is recorded against the release commit.
+
+## Previous 1.2.0
 
 ## Split observation and clearer Corp briefs
 

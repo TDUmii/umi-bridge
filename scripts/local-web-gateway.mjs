@@ -334,7 +334,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     };
     app.get('/', localAdmin, (_req, res) => res.redirect('/admin'));
     app.get('/admin', localAdmin, (_req, res) => {
-      res.set('Content-Security-Policy', "default-src 'none'; img-src data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'");
+      res.set('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'");
       res.type('html').send(renderAdminPage());
     });
     app.get('/admin/i18n.js', localAdmin, (_req, res) => {
@@ -426,6 +426,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       res.set('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'");
       next();
     }, express.static(resolve(ROOT, 'scripts/corp-office'), { dotfiles: 'deny', index: 'index.html' }));
+    app.use('/admin/arena/assets', localAdmin, express.static(resolve(ROOT, 'scripts/arena-assets'), {dotfiles:'deny', index:false}));
     for (const asset of ['corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'watch-dashboard.js', 'watch-dashboard.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
       app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
     }

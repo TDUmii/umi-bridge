@@ -1,0 +1,67 @@
+{
+  "title": "RPG Asset Character 'Gladiator' SMS",
+  "author": "Chasersgaming",
+  "license": "CC0-1.0",
+  "source": "https://opengameart.org/content/rpg-asset-character-gladiator-sms",
+  "download": "https://opengameart.org/sites/default/files/sms_gladiator_toby_orbon_free_files.zip",
+  "archiveSha256": "24f9143ebc6749698d5f9444d67ffd6a084208c0022929a35b2c6272c9ce32bc",
+  "originalFiles": [
+    {
+      "path": "SMS Gladiator Toby Orbon FREE Files/SMS Free Files/Idle/Idle_South_frame_0.png",
+      "sha256": "15df33bbe2627be2d680701f682373dfb21269ea7b6453c326b1380b15f0e866"
+    },
+    {
+      "path": "SMS Gladiator Toby Orbon FREE Files/SMS Free Files/Idle/Idle_South_frame_1.png",
+      "sha256": "a651e656ea992c74d878d1e69757ec84373529a38773bb5029083e31888f49e1"
+    },
+    {
+      "path": "SMS Gladiator Toby Orbon FREE Files/SMS Free Files/Idle/Idle_South_frame_2.png",
+      "sha256": "3ee202eef95c427ba371230d366d6742b6734b56baaf3ab8acea58c9df517e2f"
+    },
+    {
+      "path": "SMS Gladiator Toby Orbon FREE Files/SMS Free Files/Idle/Idle_South_frame_3.png",
+      "sha256": "a651e656ea992c74d878d1e69757ec84373529a38773bb5029083e31888f49e1"
+    },
+    {
+      "path": "SMS Gladiator Toby Orbon FREE Files/SMS Free Files/Run/Run_South_frame_0.png",
+      "sha256": "3df29fd87e89a1ff9c2d842a5b9811b02aabccafe27872a8fdc0f60cd9e69ff6"
+    },
+    {
+      "path": "SMS Gladiator Toby Orbon FREE Files/SMS Free Files/Run/Run_South_frame_1.png",
+      "sha256": "c0baa0dd9893b952d092bf3256a490345f5781d433a6312deca00457e1123e5c"
+    },
+    {
+      "path": "SMS Gladiator Toby Orbon FREE Files/SMS Free Files/Run/Run_South_frame_2.png",
+      "sha256": "3df29fd87e89a1ff9c2d842a5b9811b02aabccafe27872a8fdc0f60cd9e69ff6"
+    },
+    {
+      "path": "SMS Gladiator Toby Orbon FREE Files/SMS Free Files/Run/Run_South_frame_3.png",
+      "sha256": "6355c7bd5950f41866a9ba4fd3210e90e65cd0a19c3c6bdd14edb725b1ed7872"
+    },
+    {
+      "path": "SMS Gladiator Toby Orbon FREE Files/SMS Free Files/Avatar/Avatar.png",
+      "sha256": "640c3032b6729ea0b9dacc7fc9b927555801468dbd983a1a0e5b841e6a72aeb1"
+    }
+  ],
+  "changes": "Fixed crop (3,8)-(21,32), four-frame strips; five cloth/helmet palettes; softened outlines. Avatar head crop. No frame interpolation.",
+  "frame": {
+    "width": 18,
+    "height": 24,
+    "count": 4,
+    "paletteRows": 5
+  },
+  "outputs": [
+    {
+      "file": "gladiator-idle.png",
+      "sha256": "05570fc198b2e92f1b463a8638ca634f42411bacb60ee6a957c343eafb081545"
+    },
+    {
+      "file": "gladiator-run.png",
+      "sha256": "1e4d679cd8b6c36197324f5efd3821e2227fd69405a3e762cd993c212a9d0455"
+    },
+    {
+      "file": "judge-portrait.png",
+      "sha256": "1b469a9aec4f40ab8f2b80d0430353ca7f32ba9851b6d51cfe0f3029b4cd01c9"
+    }
+  ]
+}

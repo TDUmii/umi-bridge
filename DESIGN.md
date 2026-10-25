@@ -1,4 +1,4 @@
-# UmiBridge 1.2.0 dashboard design
+# UmiBridge 1.2.1 dashboard design
 
 Scope: desktop/laptop dashboard with independent Corp and Arena workspaces, existing tools/settings and token analytics. Layout targets are 1600x1000 and 1366x768. Synthetic fixtures and live provider operation remain distinct evidence.
 
@@ -53,3 +53,7 @@ After an explicitly requested project-data reset, Requests and Overview show new
 ## Validation boundaries
 
 Browser checks use temporary state and simulated provider pages unless explicitly marked as real-account operation. The adapter prompt requests GPT-6.1 Sol; no UI model-selection guarantee follows. Local evidence and SHA-256 checks protect recorded artifact identity, not complete semantic correctness. Current test totals and release verification belong in the release acceptance record once run; historical acceptance records do not certify 1.2.0. See docs/ACCEPTANCE-1.2.vi.md for the current release checks.
+
+## Arena pixel artwork 1.2.1
+
+Use bundled Chasersgaming Gladiator SMS CC0 sprites in scripts/arena-assets, shared by Arena and Xem đôi. Frames are 18x24, displayed at integer 2x (36x48) with nearest-neighbor pixels; fixed crop (3,8)-(21,32) retains feet in every frame. Five cloth/helmet palettes identify seats. Active step uses four-frame run; idle, paused, hidden and reduced motion remain static. Judge uses the supplied avatar portrait. Status labels stay DOM, >=11px; versions remain in accessible seat labels and product details. Focus copy occupies its own pale inset band. Native short panes lift judge clear of the first row; bottom spacing keeps both roster rows and source credit inside the scene. Source, license and hashes are retained with sprites.

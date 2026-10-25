@@ -14,6 +14,11 @@ test('Arena HTTP API has local/CSRF guards, shared pairing and independent Proje
   const request=(path,body,headers={})=>fetch(base+path,{method:body===undefined?'GET':'POST',headers:{'x-local-admin':'1',...(body===undefined?{}:{'content-type':'application/json','x-dc-admin-action':'1'}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
   const json=async(path,body,headers)=>{const response=await request(path,body,headers);assert.equal(response.status,200,`${path}: ${response.status} ${response.status===200?'':await response.text()}`);return response.json();};
   assert.equal((await fetch(base+'/admin/api/arena')).status,404);
+  const sprite='/admin/arena/assets/gladiator-idle.png';
+  assert.equal((await fetch(base+sprite)).status,404,'Arena artwork stays local-admin only');
+  const image=await request(sprite);assert.equal(image.status,200);assert.match(image.headers.get('content-type'),/image\/png/);
+  assert.deepEqual([...new Uint8Array(await image.arrayBuffer()).slice(0,8)],[137,80,78,71,13,10,26,10]);
+  assert.match((await request('/admin')).headers.get('content-security-policy'),/img-src 'self' data:/);
   for(const path of ['/admin/api/arena/settings','/admin/api/arena/arenas','/admin/api/arena/arenas/unknown/setup','/admin/api/arena/arenas/unknown/start']){
     assert.equal((await request(path,{}, {'x-dc-admin-action':'0'})).status,403,path+' requires write header');
     assert.equal((await fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:'{}'})).status,404,path+' is local only');

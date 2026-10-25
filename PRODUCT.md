@@ -1,4 +1,4 @@
-# UmiBridge 1.2.0
+# UmiBridge 1.2.1
 
 Local Windows gateway exposing authorized file, PowerShell and desktop tools to ChatGPT through MCP, with a private dashboard for desktop and laptop.
 

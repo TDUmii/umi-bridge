@@ -75,10 +75,11 @@
       const item=roster[index],state=!item?'empty':item.id===arena.winnerId?'winner':item.id===candidate?.id?(running?'active':active?.status==='blocked'?'blocked':item.status||'waiting'):item.status||'waiting';
       const seat=node('li',undefined,'arena-contestant');seat.dataset.state=state;seat.style.setProperty('--seat-arc',String(Math.abs((index%10)-4.5)));seat.style.setProperty('--seat-index',String(index));
       const name=item?.label||`Vị trí ${String(index+1).padStart(2,'0')}`,stateText=state==='empty'?'Trống':state==='winner'?'Thắng':state==='active'?'Đang làm':labels[state]||state;
-      seat.title=`${name} · ${stateText} · ${item?.versions?.length||0} phiên bản`;seat.setAttribute('aria-label',seat.title);
-      const figure=node('span',undefined,'arena-contestant-figure');figure.setAttribute('aria-hidden','true');figure.append(node('i'),node('b'));seat.append(figure,node('strong',String(index+1).padStart(2,'0')),node('span',stateText),node('small',item?.versions?.length?`${item.versions.length} bản`:''));seats.append(seat);
+      seat.title=`${name} · ${stateText} · ${item?.versions?.length||0} phiên bản`;seat.setAttribute('aria-label',seat.title);if(item)seat.tabIndex=0;
+      const figure=node('span',undefined,'arena-contestant-figure');figure.setAttribute('aria-hidden','true');figure.style.setProperty('--palette-row',String(index%5));seat.append(figure,node('strong',String(index+1).padStart(2,'0')),node('span',stateText),node('small',item?.versions?.length?`${item.versions.length} bản`:''));seats.append(seat);
     }world.append(seats);
     const legend=node('footer',undefined,'arena-world-legend');for(const [state,text] of [['active','Đang làm'],['advancing','Đi tiếp'],['eliminated','Dừng thi'],['blocked','Cần kiểm tra']]){const entry=node('span',text);entry.dataset.state=state;legend.append(entry);}world.append(legend);
+    const credit=node('a','Chasersgaming · CC0','arena-art-credit');credit.href='https://opengameart.org/content/rpg-asset-character-gladiator-sms';credit.target='_blank';credit.rel='noopener noreferrer';world.append(credit);
     return world;
   }
   function live(arena,job,root){

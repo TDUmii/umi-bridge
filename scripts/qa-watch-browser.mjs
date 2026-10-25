@@ -57,7 +57,7 @@ try{
   await page.locator('#watchArenaSelect').selectOption('arena-a');
   corp.office=false;await page.locator('#watchRefresh').click();
   await page.locator('#watchCorpEmpty').waitFor();assert.equal(await page.locator('#watchCorpScene').isVisible(),false);
-  assert.equal(await page.evaluate(()=>document.getElementById('watchCorpScene').contentWindow.office.inspect().visible),false);
+  await page.waitForFunction(()=>document.getElementById('watchCorpScene').contentWindow.office.inspect().visible===false);
   corp.office=true;await page.locator('#watchRefresh').click();await page.locator('#watchCorpScene').waitFor();
   await page.locator('#watchCorpSelect').selectOption('standalone');
   await page.waitForFunction(()=>document.getElementById('watchCorpScene').contentWindow.office.inspect().agents===0);
@@ -74,7 +74,7 @@ try{
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('#watchArenaScene .arena-contestant[data-state="active"] .arena-contestant-figure')).animationName==='none');
   await page.locator('.nav-link[data-view="corp"]').click();
-  assert.equal(await page.evaluate(()=>document.getElementById('watchCorpScene').contentWindow.office.inspect().visible),false);
+  await page.waitForFunction(()=>document.getElementById('watchCorpScene').contentWindow.office.inspect().visible===false);
   assert.equal(await page.locator('#watchArenaScene .arena-world').getAttribute('data-running'),'false');
   await page.setViewportSize({width:1600,height:1000});
   await page.screenshot({path:join(shots,'corp-office-desktop.png'),animations:'disabled'});

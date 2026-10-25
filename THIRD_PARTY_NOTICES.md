@@ -7,6 +7,16 @@ The optional UmiBridge Corp office reuses character and furniture PNG sprites fr
 - Source URLs and original SHA-256 values: `scripts/corp-office/assets/provenance.json`.
 - UmiBridge uses its own Canvas renderer and chat coordinator. It does not bundle the upstream AI runtime or service.
 
+# Arena gladiators
+
+The independent Arena and split observation view bundle adapted **RPG Asset Character 'Gladiator' SMS** sprites by **Chasersgaming**, licensed **CC0 1.0 Universal**.
+
+- Source: https://opengameart.org/content/rpg-asset-character-gladiator-sms
+- License: `scripts/arena-assets/LICENSE.CC0.txt` and https://creativecommons.org/publicdomain/zero/1.0/
+- Archive, original PNG and derived atlas SHA-256: `scripts/arena-assets/provenance.json`.
+- Changes: fixed frame crop/baseline, five cloth/helmet palette rows, charcoal outlines and ivory fabric; avatar head crop. Sprite preparation script: `scripts/prepare-arena-sprites.py`.
+- These are raster pixel sprites; they are not AI-generated. Animation only projects the recorded active step and does not create fights, scores or outcomes.
+
 # Windows-MCP
 
 UmiBridge uses CursorTouch/Windows-MCP as an isolated local stdio worker.
