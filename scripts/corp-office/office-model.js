@@ -36,18 +36,19 @@ class OfficeFloor {
     this.width=1080;this.rooms=[];this.seats=new Map();this.obstacles=[];
     const groups=new Map();
     for(const agent of agents){const key=agent.department||'Chưa phân công';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(agent);}
-    const entries=[...groups],cols=Math.min(4,Math.max(1,entries.length)),baseWidth=(this.width-80-(cols-1)*40)/cols;
-    let y=214;
+    const order=['ceo','product','design','engineering','security','qa','devops','docs'];
+    const entries=[...groups].sort((a,b)=>(order.indexOf(a[1][0].roleId)+1||99)-(order.indexOf(b[1][0].roleId)+1||99)),cols=Math.min(4,Math.max(1,entries.length)),baseWidth=(this.width-80-(cols-1)*40)/cols;
+    let y=214;this.courtyard=null;
     for(let row=0;row<Math.ceil(entries.length/cols);row++){
-      const batch=entries.slice(row*cols,(row+1)*cols),height=Math.max(194,...batch.map(([,members])=>Math.ceil(members.length/4)*180+48));
+      const batch=entries.slice(row*cols,(row+1)*cols),height=Math.max(228,...batch.map(([,members])=>Math.ceil(members.length/4)*180+48));
       batch.forEach(([name,members],column)=>{
         const widths=batch.map((_,i)=>baseWidth*(cols===4?[1.08,.92,1.04,.96][i]:1)),roomWidth=widths[column],x=40+widths.slice(0,column).reduce((sum,w)=>sum+w+40,0),roomY=y+(column%2?20:0),role=members[0].roleId||'',index=this.rooms.length;
         const style=role==='ceo'?'executive':/design|product/.test(role)?'collaboration':/engineer|devops|developer/.test(role)?'benches':/qa|security|test/.test(role)?'corner':['executive','collaboration','benches','corner'][index%4];
-        const room={id:name,name,roleId:role,x,y:roomY,w:roomWidth,h:height-(column%2?20:0),index,style,open:!['ceo','security','docs'].includes(role),islands:[]};
+        const room={id:name,name,roleId:role,x,y:roomY,w:roomWidth,h:height-(column%2?20:0),index,style,open:!['ceo','security','docs'].includes(role),glass:['ceo','security','docs'].includes(role),islands:[]};
         this.rooms.push(room);
         const top=room.y,bottom=room.y+room.h,wallHeight=room.open?Math.floor(room.h*.56):room.h;
         // Each room has a south doorway into a continuous cross-corridor.
-        this.obstacles.push({x,y:top,w:roomWidth,h:7},{x,y:top,w:7,h:wallHeight},{x:x+roomWidth-7,y:top,w:7,h:wallHeight},
+        if(!room.open)this.obstacles.push({x,y:top,w:roomWidth,h:7},{x,y:top,w:7,h:wallHeight},{x:x+roomWidth-7,y:top,w:7,h:wallHeight},
           {x,y:bottom-7,w:roomWidth/2-30,h:7},{x:x+roomWidth/2+30,y:bottom-7,w:roomWidth/2-30,h:7});
         for(let i=0;i<Math.ceil(members.length/4);i++){
           const cx=x+roomWidth/2+((i+index)%2?10:-10),cy=top+106+i*180,occupants=members.slice(i*4,i*4+4),kind=occupants.length===1?'single':occupants.length>2?'paired':style;
@@ -79,13 +80,15 @@ class OfficeFloor {
         room.cabinet={x:x+roomWidth-47,y:top+14,w:28,h:24};this.obstacles.push(room.cabinet);
       });
       y+=height+42;
+      if(row===0){this.courtyard={name:'Sân trong',x:302,y:y+8,w:476,h:126};y+=184;}
     }
     this.height=Math.max(570,y+142);this.reception={name:'Tiếp khách',x:40,y:76,w:300,h:96};
     this.pantry={name:'Pantry',x:740,y:76,w:300,h:96};this.lounge={name:'Thư giãn',x:40,y:this.height-134,w:570,h:106};
     this.rest={name:'Góc nghỉ',x:660,y:this.height-134,w:380,h:106};
     this.obstacles.push({x:756,y:86,w:252,h:40},{x:56,y:98,w:260,h:34},{x:58,y:this.height-118,w:144,h:52},
       {x:238,y:this.height-104,w:80,h:36},{x:360,y:this.height-118,w:62,h:54},{x:505,y:this.height-122,w:66,h:66});
-    this.zones=[...this.rooms,this.reception,this.pantry,this.lounge,this.rest];
+    if(this.courtyard){const c=this.courtyard;this.gardenProps=[{kind:'planter',x:c.x+18,y:c.y+22,w:48,h:78},{kind:'planter',x:c.x+c.w-66,y:c.y+22,w:48,h:78},{kind:'bench',x:c.x+146,y:c.y+17,w:120,h:34},{kind:'table',x:c.x+174,y:c.y+82,w:64,h:26}];this.obstacles.push(...this.gardenProps);this.gardenReadingPoint={x:c.x+298,y:c.y+78};}
+    this.zones=[...this.rooms,...(this.courtyard?[this.courtyard]:[]),this.reception,this.pantry,this.lounge,this.rest];
   }
   blocked(x,y,padding=14) {return x<20||y<70||x>this.width-20||y>this.height-18||this.obstacles.some(r=>x>r.x-padding&&x<r.x+r.w+padding&&y>r.y-padding&&y<r.y+r.h+padding);}
   segment(a,b) {

@@ -21,9 +21,9 @@ Opening UmiBridge checks for updates. Local projects, pairing and settings are p
 
 Browser control is opt-in. Chrome internal pages, password and file inputs require direct interaction. Page content and screenshots are not stored in request history. Tests, chat data, credentials and machine-specific files stay local.
 
-## New in 1.8.0
+## New in 1.8.1
 
-Staggered office seating, aligned status badges, unified Chrome control, silent desktop launch and shorter interface copy.
+Central courtyard with garden seating, glass rooms at the perimeter and open team desks.
 
 ---
 
@@ -50,9 +50,9 @@ App tự kiểm cập nhật khi mở, giữ dự án và cài đặt local.
 
 Điều khiển trình duyệt cần bật quyền. Trang nội bộ Chrome, ô mật khẩu và chọn file cần thao tác trực tiếp. Không lưu nội dung trang/ảnh chụp vào lịch sử request. Test, chat, khóa và dữ liệu riêng giữ local.
 
-### Mới trong 1.8.0
+### Mới trong 1.8.1
 
-Bàn ghế so le, dấu trạng thái đồng nhất, điều khiển Chrome tích hợp, mở Desktop ẩn và giao diện ít chữ hơn.
+Sân giữa có cây và ghế nghỉ, phòng kính ven biên và cụm bàn đội nhóm mở.
 
 ## Source
 

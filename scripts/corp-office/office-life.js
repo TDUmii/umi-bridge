@@ -47,7 +47,7 @@ class OfficeLife {
         const bed=this.beds.indexOf(null);
         if(choice%5===2){p.ambientKind='stretch';this.begin(p,'ambient_pause');this.emit('stretch',p.id);away++;}
         else if(choice%5===3){const room=this.floor?.rooms.find(room=>room.name===p.seat.room);if(room){p.ambientKind='plant';this.routeTo(p,{x:room.plant.x+40,y:room.plant.y+40});this.begin(p,'walk_ambient');away++;}}
-        else if(choice%5===4){p.ambientKind='read';this.routeTo(p,{x:460,y:this.height-62});this.begin(p,'walk_ambient');away++;}
+        else if(choice%5===4){p.ambientKind='read';this.routeTo(p,this.floor?.gardenReadingPoint||{x:460,y:this.height-62});this.begin(p,'walk_ambient');away++;}
         else if(choice%2===0&&bed>=0){this.beds[bed]=p.id;p.bed=bed;this.routeTo(p,{x:this.bedPoints[bed].x,y:this.bedPoints[bed].y+26});this.begin(p,'walk_bed');this.emit('rest_walk',p.id);away++;}
         else if(!this.snacker){this.snacker=p.id;this.routeTo(p,this.snackPoint);this.begin(p,'walk_snack');this.emit('snack_walk',p.id);away++;}
       }else if(p.activity==='walk_ambient'&&!p.route.length&&!p.pathBlocked){this.begin(p,'ambient_pause');this.emit(p.ambientKind,p.id);}

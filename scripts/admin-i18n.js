@@ -5,6 +5,7 @@
 (() => {
   'use strict';
   const VI_TO_EN = {
+  "Sân trong": "Courtyard",
   "Sơ đồ hệ thống": "System map",
   "Từ ý tưởng": "From idea",
   "Hàng đợi": "Queue",
