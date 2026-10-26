@@ -739,6 +739,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
                 delete value.taskId;delete value.leaseId;delete value.evidenceRefs;delete value.verification;delete value.timestamps;value.attemptHistory=[];
                 value.title=template.title+` - vòng ${round}`;
                 value.prompt=template.prompt.replace(/(07-repair|08-acceptance)\.md/g,`$1-round-${round}.md`)+`\nĐây là vòng sửa bổ sung ${round}. Đọc báo cáo nghiệm thu vừa thất bại và giữ bằng chứng các vòng trước.`;
+                if(value.writeScope)value.writeScope=value.writeScope.map(path=>path.replace(/(07-repair|08-acceptance)\.md/g,`$1-round-${round}.md`));
                 newAttempt(value);return value;
               };
               const repeatedRepair=repeat(repair),repeatedQa=repeat(step);
