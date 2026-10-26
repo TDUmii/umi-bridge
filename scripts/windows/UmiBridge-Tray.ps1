@@ -51,6 +51,7 @@ $attempts = New-Object 'System.Collections.Generic.List[datetime]'
 $offlineSince = $null
 $lastMessage = ''
 $exiting = $false
+$dashboardOpened = $false
 $timer = New-Object Windows.Forms.Timer
 $timer.Interval = 5000
 $icon = New-Object Windows.Forms.NotifyIcon
@@ -99,6 +100,7 @@ function Test-TrayHealth {
 }
 
 [void]$menu.Items.Add('Open Dashboard', $null, { Start-Process $dashboard })
+[void]$menu.Items.Add('System Map', $null, { Start-Process ("http://127.0.0.1:{0}/admin/system-map" -f $port) })
 [void]$menu.Items.Add('Restart', $null, {
     try {
         if (Test-UmiModePending $sid) { Set-TrayStatus 'Waiting for Windows authorization' -Notify; return }
@@ -136,10 +138,14 @@ $timer.Add_Tick({
                 if ($exitCode -eq 0) { [IO.File]::WriteAllText($stopPath, $now.ToString('o')); $context.ExitThread(); return }
                 $script:exiting = $false; Set-TrayStatus 'Stop cancelled or failed. Gateway retained' -Notify
             }
-            elseif ($exitCode -ne 0) { Set-TrayStatus 'Startup failed. See launcher-error.log' -Notify }
+            elseif ($exitCode -ne 0 -and -not (Test-TrayHealth)) { Set-TrayStatus 'Startup failed. See launcher-error.log' -Notify }
         }
         if (Test-UmiModePending $sid) { $script:offlineSince = $null; Set-TrayStatus 'Waiting for Windows authorization'; return }
-        if (Test-TrayHealth) { $script:offlineSince = $null; Set-TrayStatus 'Online' $true; return }
+        if (Test-TrayHealth) {
+            $script:offlineSince = $null; Set-TrayStatus 'Online' $true
+            if (-not $script:dashboardOpened) { $script:dashboardOpened = $true; Start-Process $dashboard }
+            return
+        }
         if (-not $script:offlineSince) { $script:offlineSince = $now }
         if (($now - $script:offlineSince).TotalSeconds -lt 15) { Set-TrayStatus 'Connection interrupted'; return }
         # Three restarts per ten minutes. Never rotate URLs or credentials here.

@@ -11,6 +11,7 @@ $port = 43127
 if ($env:DC_WEB_PORT) { $port = [int]$env:DC_WEB_PORT }
 $dashboard = "http://127.0.0.1:$port/admin"
 $gatewayProcess = $null
+$startupLock = $null
 
 function Test-Dashboard {
     try {
@@ -19,6 +20,17 @@ function Test-Dashboard {
     } catch { return $false }
 }
 
+New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+# Serialize first launch and reconnect. A bound frontend can still return 503
+# while the tunnel/backend starts; that must not start a competing gateway.
+for ($lockAttempt = 0; $lockAttempt -lt 90; $lockAttempt++) {
+    try {
+        $startupLock = [IO.File]::Open((Join-Path $stateDir 'gateway-start.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
+        break
+    } catch [IO.IOException] { Start-Sleep -Seconds 1 }
+}
+if (-not $startupLock) { throw 'Another UmiBridge startup is still running. Retry shortly.' }
+try {
 if (Test-Dashboard) {
     $running = Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json
     $retiredCredentials = (Test-Path -LiteralPath (Join-Path $stateDir 'gemini-pairing-secret.txt')) -or (Test-Path -LiteralPath (Join-Path $stateDir 'GEMINI-CONNECT.txt'))
@@ -29,6 +41,18 @@ if (Test-Dashboard) {
 }
 
 if (-not (Test-Dashboard)) {
+    $entry = Join-Path $root 'scripts\run-local-web.mjs'
+    $entryPattern = '(?i)^"?[^"\r\n]+?node\.exe"?\s+"?' + [regex]::Escape($entry) + '"?(?:\s|$)'
+    $existing = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -match $entryPattern })
+    if ($existing.Count) {
+        Write-Host 'Waiting for the existing gateway to finish starting...'
+        for ($readyAttempt = 0; $readyAttempt -lt 90; $readyAttempt++) {
+            if (Test-Dashboard) { if (-not $NoDashboard) { Start-Process $dashboard }; exit 0 }
+            if (-not (Get-Process -Id $existing[0].ProcessId -ErrorAction SilentlyContinue)) { break }
+            Start-Sleep -Seconds 1
+        }
+        if (Get-Process -Id $existing[0].ProcessId -ErrorAction SilentlyContinue) { throw 'The existing gateway is not ready. Use Restart from the UmiBridge tray icon.' }
+    }
     $node = Join-Path $root '.runtime\node\node.exe'
     if (-not (Test-Path -LiteralPath $node)) {
         $systemNode = Get-Command node.exe -ErrorAction SilentlyContinue
@@ -59,3 +83,4 @@ for ($attempt = 0; $attempt -lt 60; $attempt++) {
     Start-Sleep -Seconds 1
 }
 throw 'UmiBridge did not start within 60 seconds. Open .local-data\server-error.log for details.'
+} finally { if ($startupLock) { $startupLock.Dispose() } }

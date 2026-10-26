@@ -8,6 +8,14 @@ Cần Windows, Chrome và tài khoản ChatGPT có quyền dùng Chat. Tải [Um
 
 Có thể chạy gateway bằng `npm ci --ignore-scripts` rồi `npm start`. Lệnh `npm run build` kiểm cú pháp source. Cấu hình tunnel, OAuth, browser pairing và dữ liệu công việc nằm trong .local-data; runtime/dependency tự cài nằm trong .runtime, local-bin và node_modules.
 
+Nhấp đúp **UmiBridge.cmd** để chạy nền bằng icon khay Windows. Có thể đóng cửa sổ CMD đã dùng để mở app; dùng **Exit** trong icon khay khi muốn dừng gateway. Dashboard tự mở sau khi gateway sẵn sàng. Mở nhiều lần cùng lúc sẽ chờ tiến trình đang khởi động, không tạo gateway trùng.
+
+## Sơ đồ hệ thống local
+
+Chọn **Sơ đồ hệ thống** trong thanh bên hoặc **System Map** ở icon khay. Sơ đồ Archify mở trực tiếp tại `/admin/system-map`, không cần mở file bằng đường dẫn máy. Khung **Máy này** hiển thị phiên bản, kết nối extension, số việc Corp/Arena và trạng thái bật Git từ gateway đang chạy; tự cập nhật khi trang mở.
+
+Mỗi bản cài giữ ID ngẫu nhiên riêng cùng `identity.json`, `current.json` và `current.html` trong `.local-data/system-map`. Dữ liệu này không gửi Git. Gói app chỉ chứa mẫu Archify chung và mã tạo map; không kèm bản map hay số liệu máy người dùng. Không sao chép chat, token, tên tài khoản, hostname hoặc đường dẫn dự án vào map. Tuyến map và API trạng thái chỉ phục vụ dashboard local, không mở qua tunnel công khai. Sơ đồ mô tả thành phần UmiBridge; không quét mạng hoặc phần mềm khác trên máy.
+
 ## Corp
 
 Corp có Văn phòng, Từ ý tưởng và Hàng đợi. Từ Tổng quan, chọn **Tạo dự án** để mở form hoặc bấm tên dự án để tới đúng Project và công việc. Form có các nhóm yêu cầu Mục tiêu & giao diện, Kỹ thuật & dữ liệu, Nghiệm thu; mỗi ô trống dùng giả định mặc định được ghi vào nhiệm vụ. Tạo Project mới để điều phối tám bộ phận, hoặc dùng Project/chat đã liên kết. Trong nhiệm vụ đã xong, chọn **Yêu cầu bổ sung** để tạo phiên bản mới trên cùng source và đội ngũ, giữ lịch sử và nạp lại cấu hình kiểm thử của phiên bản đã chọn.

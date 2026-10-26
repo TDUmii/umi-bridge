@@ -24,6 +24,7 @@ import { createArenaRuntime } from './arena-runtime.mjs';
 import { createCorpFolderBrowser } from './corp-folder-browser.mjs';
 import { baseInstructions, CATALOG_META, createToolPolicy, WINDOWS_TOOL_NAMES, withContext, withoutContext } from './tool-policy.mjs';
 import { createPrivilegeControl } from './privilege-control.mjs';
+import { createSystemMap } from './system-map.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const randomToken = () => randomBytes(32).toString('base64url');
@@ -86,6 +87,12 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     ...arena.snapshot().arenas.map(item=>({...item,channel:'arena',chats:arena.snapshot().bootstraps.find(job=>job.arenaId===item.id)?.chats||[],busy:item.status==='running'||arena.snapshot().bootstraps.some(job=>job.arenaId===item.id&&job.status==='running'),completed:item.status==='done'}))
   ];
   const generatedGit=await createGeneratedProjectGit(resolve(configDir,'..','generated-git'),{projects:generatedProjects});
+  let systemMapStore;
+  const systemMap=async(includeHTML=true)=>{
+    // A damaged optional map must never prevent the gateway from starting.
+    systemMapStore??=createSystemMap(resolve(configDir,'..','system-map'),{version:JSON.parse(readFileSync(resolve(ROOT,'package.json'),'utf8')).version,snapshot:()=>({corp:corp.snapshot(),arena:arena.snapshot(),git:generatedGit.snapshot()})}).catch(error=>{systemMapStore=null;throw error;});
+    return (await systemMapStore)(includeHTML);
+  };
   verifiedCheckpoint=async(run,step)=>{const job=corp.snapshot().bootstraps.find(row=>row.workspaceId===run.workspaceId);if(job)await generatedGit.checkpoint({channel:'corp',id:job.id,checkpoint:`${run.id}:${step.id}:${step.attempt}`});};
   const lifecycleProjects=()=>[...generatedProjects().map(project=>({...project,chats:(project.chats||[]).map(chat=>({...chat,name:chatLinks.workspaces().find(workspace=>workspace.projectId===project.projectId)?.chats.find(member=>member.chatId===chat.chatId)?.name||chat.name}))})),...chatLinks.workspaces().filter(row=>row.kind==='project'&&!generatedProjects().some(item=>item.projectId===row.projectId)).map(row=>({...row,channel:'corp',busy:corp.snapshot().runs.some(run=>run.workspaceId===row.id&&run.status==='running')}))].flatMap(project=>{const removed=(project.channel==='arena'?arena:corp).deletedTargets().filter(row=>row.projectId===project.projectId);if(removed.some(row=>!row.chatId))return [];return [{...project,chats:(project.chats||[]).filter(chat=>!removed.some(row=>row.chatId===chat.chatId))}];});
   const lifecycle=createProjectLifecycle({projects:lifecycleProjects,onDeleted:async target=>{
@@ -368,6 +375,17 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.get('/admin/i18n.js', localAdmin, (_req, res) => {
       res.set('Cache-Control', 'no-store');
       res.type('application/javascript').send(readFileSync(new URL('./admin-i18n.js', import.meta.url), 'utf8'));
+    });
+    app.get('/admin/system-map',localAdmin,async(_req,res)=>{
+      try {
+        const {html}=await systemMap();
+        res.set('Cache-Control','no-store');
+        res.set('Content-Security-Policy',"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+        res.type('html').send(html);
+      } catch { res.status(503).type('text').send('Chưa tạo được sơ đồ local. Kiểm tra quyền ghi .local-data/system-map rồi thử lại.'); }
+    });
+    app.get('/admin/api/system-map',localAdmin,async(_req,res)=>{
+      try {res.set('Cache-Control','no-store').json((await systemMap(false)).state);}catch{res.status(503).json({error:'system_map_unavailable'});}
     });
     const startedAt = Date.now();
     app.get('/admin/api/requests', localAdmin, async (_req, res) => {

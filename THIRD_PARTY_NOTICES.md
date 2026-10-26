@@ -54,3 +54,12 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Archify 3.2.0
+
+The generic system-map viewer in scripts/system-map-template.html is generated
+with Archify (https://github.com/tt-a1i/archify), copyright 2026 tt-a1i and
+copyright 2025 Cocoon AI. Apache-2.0, with historical MIT portions. Complete
+license and third-party notices are embedded in that self-contained viewer.
+The UmiBridge local-state panel is an addition to the generated template.
+Generated per-installation maps and runtime snapshots remain in .local-data.
