@@ -57,9 +57,9 @@ Gateway tự khôi phục công việc đã dở theo chat Project đã xác min
 Khi xóa đã được UI xác minh hoàn tất, app bỏ liên kết chat/Project tương ứng và hủy công việc phụ thuộc; file sản phẩm, lịch sử token và Git vẫn giữ. Nếu phản hồi ChatGPT lỗi hoặc chưa đủ báo cáo, Corp dừng tại chặng với lý do cụ thể. Tự khôi phục gateway không biến lỗi phản hồi thành kết quả thành công.
 
 
-## vNext 1.7.0-next.1 - bản local thử nghiệm
+## Điều phối nâng cao - 1.7.0
 
-Runtime sản phẩm chỉ dùng ChatGPT Web trong Trò chuyện. Không có Codex CLI/API, OpenAI API fallback, chuyển tài khoản hay vượt hạn mức. Bản source này chưa được push, publish hoặc deploy. Các flag mới mặc định **tắt**; mở source không kích hoạt task hoặc thay đổi dữ liệu Project hiện tại.
+Runtime sản phẩm chỉ dùng ChatGPT Web trong Trò chuyện. Không có Codex CLI/API, OpenAI API fallback, chuyển tài khoản hay vượt hạn mức. Cài mới giữ các flag điều phối nâng cao **tắt**. Khi gửi yêu cầu Corp có chọn **Chạy song song các việc độc lập**, app bật DAG cùng khóa workspace, kiểm chứng bằng chứng và giám sát worker nếu trạng thái hiện tại cho phép. Mở source không tự kích hoạt task hoặc thay đổi dữ liệu Project hiện tại.
 
 Trong Corp → Hàng đợi → Điều phối DAG có tab Sơ đồ, Bằng chứng, Bộ nhớ, Cấu hình và Tài liệu skill. Sơ đồ có dependency, worker, trạng thái thực và chi tiết lock/attempt/timeline. Arena hiển thị số lượt đang thực thi, phiên chờ và node cần kiểm chứng; số đội không phải concurrency. Phân tích có nhóm Project/task/worker/role/attempt và các chỉ số retry, dependency wait, verified/failed, provider limit. Token tiếp tục là **Estimated Tokens**, không phải số dư hoặc hóa đơn.
 

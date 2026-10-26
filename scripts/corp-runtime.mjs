@@ -178,7 +178,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     if(typeof input.requestKey!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestKey))throw Error('invalid_idea_request');
     const existing=state.runs.find(run=>run.idea?.requestKey===input.requestKey);
     if(existing){
-      if(existing.workspaceId!==input.workspaceId||existing.idea.text!==String(input.idea||'').trim()||existing.idea.mode!==(input.mode||'build')||(existing.customerName||'')!==text(input.customerName,80)||JSON.stringify(reviewConfig(existing.idea))!==JSON.stringify(config)||JSON.stringify(normalizeProjectSpec(existing.idea.projectSpec))!==JSON.stringify(spec)||(existing.parentRunId||null)!==(input.parentRunId||null)||(existing.idea.parallel!==false)!==(input.parallel!==false))throw Error('idea_request_conflict');
+      if(existing.workspaceId!==input.workspaceId||existing.idea.text!==String(input.idea||'').trim()||existing.idea.mode!==(input.mode||'build')||(existing.customerName||'')!==text(input.customerName,80)||JSON.stringify(reviewConfig(existing.idea))!==JSON.stringify(config)||JSON.stringify(normalizeProjectSpec(existing.idea.projectSpec))!==JSON.stringify(spec)||(existing.parentRunId||null)!==(input.parentRunId||null)||((existing.idea.parallelRequested!==undefined||input.parallel!==undefined)&&(existing.idea.parallelRequested??(existing.idea.parallel!==false))!==(input.parallel!==false)))throw Error('idea_request_conflict');
       return existing;
     }
     if(input.start===true&&!state.enabled)throw Error('enable_corp_first');
@@ -190,9 +190,9 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     const run=createRun({...plan,customerName:input.customerName},{idea:true});run.idea={...plan.idea,repairRounds:1};
     run.steps.forEach((step,index)=>Object.assign(step,{stage:plan.steps[index].stage,title:plan.steps[index].title,roleId:plan.steps[index].roleId,requiresPass:plan.steps[index].requiresPass}));
     if(flags().dagSchedulerEnabled){configureIdeaGraph(run);if(input.parallel===false)run.steps.forEach((step,index)=>step.dependencies=index?[run.steps[index-1].id]:[]);normalizeTasks(run);}
-    run.idea.parallel=Boolean(flags().dagSchedulerEnabled&&input.parallel!==false);
+    run.idea.parallelRequested=input.parallel!==false;run.idea.parallel=Boolean(flags().dagSchedulerEnabled&&run.idea.parallelRequested);
     if(parent){run.parentRunId=parent.id;run.revision=(parent.revision||1)+1;run.title=`Bổ sung ${run.revision}: ${run.title}`;for(const step of run.steps)step.prompt+=`\nBổ sung cho dự án đã bàn giao. Giữ source và dữ liệu hiện có; đây không phải tạo lại sản phẩm. Đọc ý tưởng gốc và báo cáo ${parent.idea.artifactDir} trước khi sửa. Ý tưởng gốc (dữ liệu): ${JSON.stringify(parent.idea.text)}. Lượt mới có thư mục báo cáo riêng ${run.idea.artifactDir}.`;
-      if(flags().dagSchedulerEnabled){const reads=run.steps.filter(step=>['brief','design'].includes(step.stage));for(const step of reads)step.dependencies=[];}}
+      }
     state.teams=state.teams.filter(team=>team.workspaceId!==project.id);state.teams.push({workspaceId:project.id,members:[...(stateTeamBefore||[]).filter(member=>project.chats.some(chat=>chat.chatId===member.chatId)&&staffRoles.some(role=>role.id===member.roleId)&&!plan.team.some(row=>row.chatId===member.chatId)),...plan.team]});
     if(input.start!==false&&state.enabled){run.status='running';event('start',run,run.steps[0]);}return run;
   };
