@@ -21,9 +21,9 @@ Opening UmiBridge checks for updates. Local projects, pairing and settings are p
 
 Browser control is opt-in. Chrome internal pages, password and file inputs require direct interaction. Page content and screenshots are not stored in request history. Tests, chat data, credentials and machine-specific files stay local.
 
-## New in 1.8.7
+## New in 1.8.8
 
-Chrome Office uses a three-zone layout: information, map and conversation. Each side scrolls independently.
+Corp rooms have richer decor and more ambient events: coffee, lounge breaks, board review, print collection, reading, plants and delivery activity.
 
 ---
 
@@ -50,9 +50,9 @@ App tự kiểm cập nhật khi mở, giữ dự án và cài đặt local.
 
 Điều khiển trình duyệt cần bật quyền. Trang nội bộ Chrome, ô mật khẩu và chọn file cần thao tác trực tiếp. Không lưu nội dung trang/ảnh chụp vào lịch sử request. Test, chat, khóa và dữ liệu riêng giữ local.
 
-### Mới trong 1.8.7
+### Mới trong 1.8.8
 
-Văn phòng Chrome dùng ba vùng: thông tin, map và trao đổi. Mỗi bên cuộn độc lập.
+Phòng Corp có nhiều đồ hơn và nhiều hoạt cảnh hơn: uống cà phê, nghỉ ở lounge, xem bảng, lấy tài liệu, đọc sách, chăm cây và nhận giao hàng.
 
 ## Source
 

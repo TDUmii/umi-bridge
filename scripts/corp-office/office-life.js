@@ -51,6 +51,10 @@ class OfficeLife {
         if(choice%5===2){p.ambientKind='stretch';this.begin(p,'ambient_pause');this.emit('stretch',p.id);away++;}
         else if(choice%5===3){const room=this.floor?.rooms.find(room=>room.name===p.seat.room);if(room){p.ambientKind='plant';this.routeTo(p,{x:room.plant.x+40,y:room.plant.y+40});this.begin(p,'walk_ambient');away++;}}
         else if(choice%5===4){p.ambientKind='read';this.routeTo(p,this.floor?.gardenReadingPoint||{x:460,y:this.height-62});this.begin(p,'walk_ambient');away++;}
+        else if(choice%8===3){p.ambientKind='coffee';this.routeTo(p,{x:this.floor?.pantry.x+80||820,y:this.floor?.pantry.y+48||120});this.begin(p,'walk_ambient');this.emit('coffee_walk',p.id);away++;}
+        else if(choice%8===4){p.ambientKind='lounge';this.routeTo(p,{x:this.floor?.lounge.x+210||250,y:this.floor?.lounge.y+44||450});this.begin(p,'walk_ambient');this.emit('lounge_walk',p.id);away++;}
+        else if(choice%8===5){const room=this.floor?.rooms.find(room=>room.name===p.seat.room);if(room){p.ambientKind='board';this.routeTo(p,{x:room.x+room.w/2,y:room.y+32});this.begin(p,'walk_ambient');this.emit('board_review',p.id);away++;}}
+        else if(choice%8===6){const room=this.floor?.rooms.find(room=>room.name===p.seat.room);if(room){p.ambientKind='print';this.routeTo(p,{x:room.cabinet.x-28,y:room.cabinet.y+42});this.begin(p,'walk_ambient');this.emit('print_collect',p.id);away++;}}
         else if(choice%2===0&&bed>=0){this.beds[bed]=p.id;p.bed=bed;this.routeTo(p,{x:this.bedPoints[bed].x,y:this.bedPoints[bed].y+26});this.begin(p,'walk_bed');this.emit('rest_walk',p.id);away++;}
         else if(!this.snacker){this.snacker=p.id;this.routeTo(p,this.snackPoint);this.begin(p,'walk_snack');this.emit('snack_walk',p.id);away++;}
       }else if(p.activity==='walk_ambient'&&!p.route.length&&!p.pathBlocked){this.begin(p,'ambient_pause');this.emit(p.ambientKind,p.id);}
