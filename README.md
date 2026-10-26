@@ -10,7 +10,9 @@ Có thể chạy gateway bằng `npm ci --ignore-scripts` rồi `npm start`. L�
 
 ## Corp
 
-Corp có Văn phòng, Từ ý tưởng và Hàng đợi. Form tạo dự án có các nhóm yêu cầu Mục tiêu & giao diện, Kỹ thuật & dữ liệu, Nghiệm thu; mỗi ô trống dùng giả định mặc định được ghi vào nhiệm vụ. Tạo Project mới để điều phối tám bộ phận, hoặc dùng Project/chat đã liên kết. Trong nhiệm vụ đã xong, chọn **Yêu cầu bổ sung** để tạo phiên bản mới trên cùng source và đội ngũ, giữ lịch sử cũ.
+Corp có Văn phòng, Từ ý tưởng và Hàng đợi. Từ Tổng quan, chọn **Tạo dự án** để mở form hoặc bấm tên dự án để tới đúng Project và công việc. Form có các nhóm yêu cầu Mục tiêu & giao diện, Kỹ thuật & dữ liệu, Nghiệm thu; mỗi ô trống dùng giả định mặc định được ghi vào nhiệm vụ. Tạo Project mới để điều phối tám bộ phận, hoặc dùng Project/chat đã liên kết. Trong nhiệm vụ đã xong, chọn **Yêu cầu bổ sung** để tạo phiên bản mới trên cùng source và đội ngũ, giữ lịch sử và nạp lại cấu hình kiểm thử của phiên bản đã chọn.
+
+Hàng đợi luôn có lối mở bàn giao gần nhất kể cả khi không còn việc đang mở. **Xem bàn giao** mở đúng báo cáo cuối; **Sao chép thư mục** lấy đường dẫn sản phẩm. Chặng chờ kiểm chứng có nút **Kiểm chứng** để mở đúng form; thao tác mở không tự duyệt hay thực thi lệnh.
 
 Mặc định các việc độc lập chạy song song: Sản phẩm và Thiết kế cùng bắt đầu; QA/Bảo mật/các đội chuyên trách cùng rà soát; sau sửa, QA cuối/DevOps/Tài liệu cùng làm. CEO chờ đủ kết quả trước bàn giao. Cùng chat và vùng ghi trùng nhau vẫn phải đợi; không tự chia source cho nhiều người ghi đè. Có thể bỏ chọn song song để dùng chuỗi. Bật Điều phối để cho phép gửi; lưu khi tắt sẽ tạm dừng. Không tự khởi động lại lần gửi chưa xác nhận.
 
@@ -34,7 +36,7 @@ Corp tự đóng tab chat thuộc Project đã quản lý sau khi gateway nhận
 
 Cài đặt chia tab Model, Giao diện, Kết nối, Hệ thống và Bảo trì. Có màu nhấn, mật độ, độ trong bảng và nền PNG/JPEG/WebP từ máy. Nền được thu nhỏ và lưu trong trình duyệt, không upload. Nút VI/EN đổi ngôn ngữ bằng một lần bấm.
 
-Tổng quan hiển thị trạng thái, dự án và hoạt động thực. Phân tích có bộ lọc MCP/Corp/Arena, thời gian, ứng dụng, công cụ, token input/output, chi tiết lượt và phân tích sâu theo nguồn/nhóm/lỗi/thời gian. Token là ước tính o200k_base từ văn bản quan sát, không phải hóa đơn, số dư hoặc toàn bộ lịch sử model. Bằng chứng/report hợp lệ không đồng nghĩa tự chạy lại mọi lệnh hoặc chứng nhận chất lượng ngữ nghĩa.
+Tổng quan ưu tiên tạo dự án, việc cần xử lý và sản phẩm đã bàn giao; số liệu kỹ thuật nằm trong **Thông tin gateway**. Hoạt động dùng trạng thái thật, không coi chặng đang chờ là nhân viên đang làm. Phân tích có bộ lọc MCP/Corp/Arena, thời gian, ứng dụng, công cụ, token input/output, chi tiết lượt và phân tích sâu theo nguồn/nhóm/lỗi/thời gian. Token là ước tính o200k_base từ văn bản quan sát, không phải hóa đơn, số dư hoặc toàn bộ lịch sử model. Bằng chứng/report hợp lệ không đồng nghĩa tự chạy lại mọi lệnh hoặc chứng nhận chất lượng ngữ nghĩa.
 
 ## Quyền riêng tư và source
 
@@ -57,11 +59,11 @@ Gateway tự khôi phục công việc đã dở theo chat Project đã xác min
 Khi xóa đã được UI xác minh hoàn tất, app bỏ liên kết chat/Project tương ứng và hủy công việc phụ thuộc; file sản phẩm, lịch sử token và Git vẫn giữ. Nếu phản hồi ChatGPT lỗi hoặc chưa đủ báo cáo, Corp dừng tại chặng với lý do cụ thể. Tự khôi phục gateway không biến lỗi phản hồi thành kết quả thành công.
 
 
-## Điều phối nâng cao - 1.7.0
+## Điều phối nâng cao - 1.7.1
 
 Runtime sản phẩm chỉ dùng ChatGPT Web trong Trò chuyện. Không có Codex CLI/API, OpenAI API fallback, chuyển tài khoản hay vượt hạn mức. Cài mới giữ các flag điều phối nâng cao **tắt**. Khi gửi yêu cầu Corp có chọn **Chạy song song các việc độc lập**, app bật DAG cùng khóa workspace, kiểm chứng bằng chứng và giám sát worker nếu trạng thái hiện tại cho phép. Mở source không tự kích hoạt task hoặc thay đổi dữ liệu Project hiện tại.
 
-Trong Corp → Hàng đợi → Điều phối DAG có tab Sơ đồ, Bằng chứng, Bộ nhớ, Cấu hình và Tài liệu skill. Sơ đồ có dependency, worker, trạng thái thực và chi tiết lock/attempt/timeline. Arena hiển thị số lượt đang thực thi, phiên chờ và node cần kiểm chứng; số đội không phải concurrency. Phân tích có nhóm Project/task/worker/role/attempt và các chỉ số retry, dependency wait, verified/failed, provider limit. Token tiếp tục là **Estimated Tokens**, không phải số dư hoặc hóa đơn.
+Trong Corp → Hàng đợi → Kiểm chứng & điều phối có tab Sơ đồ, Bằng chứng, Bộ nhớ, Cấu hình và Tài liệu skill. Sơ đồ có dependency, worker, trạng thái thực và chi tiết lock/attempt/timeline. Arena hiển thị số lượt đang thực thi, phiên chờ và node cần kiểm chứng; số đội không phải concurrency. Phân tích có nhóm Project/task/worker/role/attempt và các chỉ số retry, dependency wait, verified/failed, provider limit. Token tiếp tục là **Estimated Tokens**, không phải số dư hoặc hóa đơn.
 
 ### Bật tính năng và tương thích
 

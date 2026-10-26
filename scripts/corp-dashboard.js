@@ -20,7 +20,7 @@
   const scopedRuns = () => (data?.runs||[]).filter(run => selectedProject() ? run.workspaceId === selectedProject().id : !run.workspaceId);
   const teamMembers = () => data?.teams?.find(team=>team.workspaceId===selectedProject()?.id)?.members || [];
   const staffRole = chatId => [...(data?.companyRoles||[]),...(data?.reviewTeams||[])].find(role=>role.id===teamMembers().find(member=>member.chatId===chatId)?.roleId);
-  function error(value) { $('corpError').textContent = value; $('corpError').hidden = !value; }
+  function error(value,source='action') { $('corpError').textContent = value; $('corpError').hidden = !value;$('corpError').dataset.source=source; }
   async function api(path, body) {
     const response = await fetch('/admin/api/corp' + path, body === undefined ? { cache:'no-store' } : { method:'POST', headers:{ 'Content-Type':'application/json', 'X-DC-Admin-Action':'1' }, body:JSON.stringify(body) });
     if(!response.headers.get('content-type')?.includes('application/json'))throw Error('Gateway đang khởi động hoặc kết nối lại. Tiến độ được giữ; tự kiểm tra lại trong giây lát.');
@@ -31,6 +31,23 @@
   }
   async function act(path, body = {}) { try { error(''); const result = await api(path, body); await load(); return result; } catch (cause) { error(cause.message); return null; } }
   function button(label, action) { const b = node('button', label, 'btn small'); b.type = 'button'; b.onclick = action; return b; }
+  const currentTask=run=>['reported_complete','blocked','running','dispatching','limit_wait','queued'].map(status=>run.steps.find(step=>step.status===status)).find(Boolean);
+  function showDelivery(runId){
+    $('corpRunFilter').value='done';setCorpTab('queue');render();
+    const article=[...$('corpRuns').children].find(row=>row.dataset.runId===runId);if(!article)return;
+    const delivery=article.querySelector('[data-delivery]');if(delivery){delivery.open=true;const journey=delivery.closest('.corp-journey');if(journey)journey.open=true;}
+    const target=delivery||article;target.tabIndex=-1;target.focus({preventScroll:true});target.scrollIntoView({block:delivery?'start':'nearest'});
+  }
+  function loadFollowUp(run){
+    if(!run?.idea||ideaSending||directSending)return;
+    $('corpIdeaTarget').value='follow-up';setCorpTab('idea');$('corpIdeaWorkflowToggle').click();renderIdea();$('corpFollowUpRun').value=run.id;
+    for(const field of $('corpProjectSpecFields').querySelectorAll('textarea'))field.value=run.idea.projectSpec?.[field.dataset.spec]||'';
+    for(const field of $('corpReviewTeams').querySelectorAll('input'))field.checked=(run.idea.reviewTeams||[]).includes(field.value);
+    $('corpProductProfile').value=run.idea.productProfile||'general';$('corpProductGoal').value=run.idea.productGoal||'';
+    $('corpIdeaMode').value=run.idea.mode||'build';$('corpParallel').checked=run.idea.parallelRequested??run.idea.parallel??true;
+    $('corpIdeaCustomer').value=run.customerName||'';$('corpIdeaText').value='';ideaRequest=null;
+    $('corpIdeaText').placeholder='Mô tả tính năng muốn thêm hoặc thay đổi trên sản phẩm hiện có...';renderIdea();$('corpIdeaText').focus();
+  }
   function addStep() {
     if ($('corpSteps').children.length >= 12) return;
     const field = node('fieldset', undefined, 'corp-step'), count = $('corpSteps').children.length + 1;
@@ -247,20 +264,22 @@
     section.classList.toggle('queue-empty', !runs.length);
     $('corpRunCount').textContent = runs.length;
     updateChoices();
-    const next = JSON.stringify([runs, data.enabled, data.connected, filter]);
+    const delivered=scopedRuns().findLast(run=>run.status==='done'&&run.idea&&!run.arenaId);
+    const next = JSON.stringify([runs,delivered?.id, data.enabled, data.connected, filter]);
     if (signature !== next) {
       signature = next; $('corpRuns').replaceChildren();
-      if (!runs.length) $('corpRuns').append(node('p', filter === 'active' ? 'Hàng đợi trống. Chọn Giao việc để bắt đầu.' : 'Chưa có nhiệm vụ trong nhóm này.', 'corp-empty'));
+      if(filter==='active'&&delivered){const notice=node('div',undefined,'corp-delivery-notice');notice.append(node('span','Đã bàn giao: '+delivered.title),button('Xem bàn giao',()=>showDelivery(delivered.id)));$('corpRuns').append(notice);}
+      if (!runs.length) $('corpRuns').append(node('p', filter === 'active' ? delivered?'Không có công việc đang mở.':'Hàng đợi trống. Chọn Giao việc để bắt đầu.' : 'Chưa có nhiệm vụ trong nhóm này.', 'corp-empty'));
       for (const run of [...runs].reverse()) {
-        const article = node('article', undefined, 'corp-run'); article.dataset.status = run.status;
-        const currentIndex=run.steps.findIndex(step=>!['done','cancelled'].includes(step.status)),activeStep=run.steps[currentIndex],completed=run.steps.filter(step=>step.status==='done').length;
+        const article = node('article', undefined, 'corp-run'); article.dataset.status = run.status;article.dataset.runId=run.id;article.tabIndex=-1;
+        const activeStep=currentTask(run),completed=run.steps.filter(step=>step.status==='done').length;
         const header=node('header',undefined,'corp-run-heading'),who=node('div');who.append(node('h4',run.customerName||'Khách chưa đặt tên'),node('p',run.title,'corp-customer-task'));
         header.append(who,node('span',labels[activeStep?.status]||labels[run.status]||run.status,'corp-status'));article.append(header);
         const meter=node('div',undefined,'corp-run-meter'),progress=node('progress');progress.max=run.steps.length;progress.value=completed;progress.setAttribute('aria-label','Tiến độ công việc');meter.append(progress,node('span',completed+'/'+run.steps.length+' chặng'));article.append(meter);
         const working=run.steps.filter(step=>['running','dispatching'].includes(step.status));if(working.length>1)article.append(node('p','Đang làm đồng thời: '+working.map(step=>step.title||step.role).join(' · '),'corp-run-parallel'));
         if(activeStep){const focus=node('section',undefined,'corp-run-focus');focus.dataset.state=activeStep.status;focus.append(node('h5',activeStep.title||activeStep.role),node('p',activeStep.role));if(activeStep.reason)focus.append(node('p',reasons[activeStep.reason]||activeStep.reason,'corp-reason'));article.append(focus);}
         if(run.idea){
-          const index=run.steps.findIndex(step=>!['done','cancelled'].includes(step.status));
+          const index=run.steps.indexOf(activeStep);
           article.append(node('p',index<0?'Đã kết thúc quy trình':`Chặng ${index+1}/${run.steps.length} · ${run.steps[index].title}`,'corp-idea-progress'));
           const brief=node('details');brief.append(node('summary','Ý tưởng và thư mục đầu ra'),node('p',run.idea.text),node('code',run.idea.root+' / '+run.idea.artifactDir));article.append(brief);
         }
@@ -271,14 +290,18 @@
           li.append(node('span',step.status==='done'&&step.assessment?.outcome==='needs_changes'?'Đã phát hiện lỗi':labels[step.status] || step.status));
           if (step.resetAt && step.status === 'limit_wait') { const stamp = node('time'); stamp.dataset.reset = step.resetAt; stamp.dateTime = new Date(step.resetAt).toISOString(); li.append(stamp); }
           if (step.reason && (reasons[step.reason] || step.reason === 'chat_outside_project')) li.append(node('span', reasons[step.reason] || 'Chat đã rời Project. Đồng bộ và kiểm tra lại phạm vi giao việc.', 'corp-reason'));
-          if (step.result) { const details = node('details');details.append(node('summary','Kết quả bàn giao'));
+          if (step.result||step.assessment) { const details = node('details');if(step===run.steps.at(-1))details.dataset.delivery='true';details.append(node('summary','Kết quả bàn giao'));
             if(step.assessment){details.append(node('p',step.assessment.summary));const checks=node('ul');for(const check of step.assessment.checks)checks.append(node('li',`${{pass:'Đạt',fail:'Chưa đạt',unverified:'Chưa kiểm tra'}[check.status]} · ${check.name}: ${check.evidence}`));details.append(checks);for(const path of step.assessment.artifacts)details.append(node('code',path,'corp-artifact'));}
             else details.append(node('pre',step.result));li.append(details);
           }
           steps.append(li);
         }
-        journey.append(steps);article.append(journey); const actions = node('div', undefined, 'actions'), current = run.steps.find(step => !['done','cancelled'].includes(step.status));
-        if(run.status==='done'&&run.idea&&!run.arenaId)actions.append(button('Yêu cầu bổ sung',()=>{setCorpTab('idea');$('corpIdeaTarget').value='follow-up';renderIdea();$('corpFollowUpRun').value=run.id;const spec=run.idea.projectSpec||{};for(const field of $('corpProjectSpecFields').querySelectorAll('textarea'))field.value=spec[field.dataset.spec]||'';$('corpIdeaText').value='';$('corpIdeaText').placeholder='Mô tả tính năng muốn thêm hoặc thay đổi trên sản phẩm hiện có...';$('corpIdeaText').focus();}));
+        journey.append(steps);article.append(journey); const actions = node('div', undefined, 'actions'), current = activeStep;
+        if(run.status==='done'&&run.idea&&!run.arenaId){
+          const summary=run.steps.at(-1)?.assessment?.summary;if(summary)article.append(node('p',summary,'corp-delivery-summary'));
+          actions.append(button('Xem bàn giao',()=>showDelivery(run.id)),button('Sao chép thư mục',async()=>{try{await navigator.clipboard.writeText(run.idea.root);error('Đã sao chép thư mục.');}catch{const field=node('input');field.value=run.idea.root;field.readOnly=true;field.setAttribute('aria-label','Đường dẫn thư mục để sao chép');actions.append(field);field.focus();field.select();error('Không chép được. Nhấn Ctrl+C để sao chép đường dẫn đang chọn.');}}),button('Yêu cầu bổ sung',()=>loadFollowUp(run)));
+        }
+        const pending=run.steps.find(step=>step.status==='reported_complete');if(pending)actions.append(button('Kiểm chứng',()=>window.dispatchEvent(new CustomEvent('umibridge-corp-verify',{detail:{runId:run.id,taskId:pending.id}}))));
         if (!['done','cancelled'].includes(run.status)) {
           const start = button(run.status === 'running' ? 'Tạm dừng' : 'Bắt đầu', () => act('/runs/' + run.id + '/' + (run.status === 'running' ? 'pause' : 'start')));
           start.disabled = run.status !== 'running' && (!data.enabled || current?.status === 'blocked'); actions.append(start);
@@ -304,8 +327,8 @@
   function countdown() { for (const el of section.querySelectorAll('[data-reset]')) { const at = Number(el.dataset.reset), seconds = Math.max(0, Math.ceil((at - Date.now()) / 1000)); el.textContent = 'Tiếp tục sau ' + Math.floor(seconds / 3600) + ' giờ ' + Math.floor(seconds % 3600 / 60) + ' phút ' + seconds % 60 + ' giây - ' + new Date(at).toLocaleTimeString('vi-VN') + (seconds === 0 ? ' (đợi extension kiểm tra lại)' : ''); } }
   async function load() {
     if (busy) return; busy = true;
-    try { data = await api(''); render(); }
-    catch (cause) { error(cause.message); scene.contentWindow?.postMessage({type:'corp-office-error'}, location.origin); }
+    try { data = await api('');if($('corpError').dataset.source==='connection')error('','connection');render(); }
+    catch (cause) { if($('corpError').hidden||$('corpError').dataset.source==='connection')error(cause.message,'connection');scene.contentWindow?.postMessage({type:'corp-office-error'}, location.origin); }
     finally { busy = false; }
   }
   $('corpAddStep').onclick = addStep;
@@ -315,7 +338,8 @@
   $('corpIdeaConfigure').onclick=()=>team(true);
   $('corpIdeaMode').onchange=renderIdea;
   $('corpProductProfile').onchange=renderIdea;
-  $('corpIdeaTarget').onchange=renderIdea;
+  $('corpIdeaTarget').onchange=()=>{renderIdea();if($('corpIdeaTarget').value==='follow-up')loadFollowUp(scopedRuns().find(run=>run.id===$('corpFollowUpRun').value));};
+  $('corpFollowUpRun').onchange=()=>loadFollowUp(scopedRuns().find(run=>run.id===$('corpFollowUpRun').value));
   $('corpParallel').onchange=renderIdea;
   $('corpSpecTabs').onclick=event=>{const button=event.target.closest('[data-spec-tab]');if(button){specTab=button.dataset.specTab;renderIdea();}};
   $('corpIdeaBrowse').onclick=()=>window.umiFolderDialog.open('corpIdeaParentRoot','corpIdeaBrowse','corpIdeaFolderStatus');
@@ -390,6 +414,14 @@
   $('corpCopyToken').onclick = () => navigator.clipboard.writeText($('corpPairToken').value).catch(() => { $('corpPairToken').select(); error('Không chép được. Chọn ô mã rồi nhấn Ctrl+C.'); });
   scene.onload = () => { first = true; syncScene(); };
   window.umiCorpLayout={refresh:load,getSnapshot:officeSnapshot,selectProject(id){if(!$('corpProject').disabled&&[...$('corpProject').options].some(option=>option.value===id)){$('corpProject').value=id;$('corpProject').dispatchEvent(new Event('change'));}},openChat(id){const chat=scopedChats().find(item=>item.chatId===id);if(chat)window.open(chat.chatUrl,'_blank','noopener,noreferrer');}};
+  window.addEventListener('umibridge-corp-navigate',event=>{
+    const {workspaceId,runId,action,filter}=event.detail||{};if(!data||ideaSending||directSending||folderPicking)return;
+    const target=data.runs.find(run=>run.id===runId),scope=workspaceId||target?.workspaceId;
+    if(scope){if(![...$('corpProject').options].some(option=>option.value===scope)){error('Project chưa có trong danh sách. Đồng bộ rồi thử lại.');return;}if(target&&target.workspaceId!==scope){error('Công việc không thuộc Project đã chọn.');return;}$('corpProject').value=scope;$('corpProject').dispatchEvent(new Event('change'));}
+    if(action==='follow-up'){if(target?.status==='done'&&target.idea)loadFollowUp(target);else error('Chọn phiên bản đã bàn giao để bổ sung.');}
+    else if(action==='new'){$('corpIdeaTarget').value='new';setCorpTab('idea');$('corpIdeaWorkflowToggle').click();renderIdea();$('corpIdeaText').placeholder='Mô tả sản phẩm và yêu cầu của bạn...';$('corpIdeaText').focus();}
+    else if(action==='queue'){if(!target&&['active','done','all'].includes(filter))$('corpRunFilter').value=filter;setCorpTab('queue');if(target){$('corpRunFilter').value=['done','cancelled'].includes(target.status)?'done':'active';render();const article=[...$('corpRuns').children].find(row=>row.dataset.runId===target.id);article?.focus();article?.scrollIntoView({block:'nearest'});}else render();}
+  });
   window.addEventListener('umibridge-view', () => { first = true; syncScene(); if (section.classList.contains('view-active')) void load(); });
   document.addEventListener('visibilitychange',syncScene);
   function expandOffice(expanded) {

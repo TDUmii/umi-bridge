@@ -1,4 +1,17 @@
 /* Dense desktop workspace, with task area taking remaining height. */
+#overview>.overview-studio{margin-top:0;padding-top:0;border-top:0}
+.studio-actions{display:flex;gap:10px;margin:16px 0 8px;align-items:center}
+.studio-actions .btn{min-height:40px;padding:10px 16px;font-size:14px}
+.overview-studio .studio-status{margin:18px 0;gap:34px}
+.overview-studio .studio-people{min-height:58px;padding:10px 0}
+.overview-studio .studio-project{align-items:center;min-height:46px;gap:20px;padding:12px 0}
+.overview-studio .studio-project strong{min-width:0;font-size:14px;line-height:1.5}
+.overview-studio .studio-project>span{flex:none}
+.overview-studio a:focus-visible,.overview-diagnostics>summary:focus-visible{outline:2px solid var(--ink);outline-offset:4px;border-radius:4px}
+.overview-diagnostics{margin-top:24px;border-top:1px solid var(--line);padding-top:14px}
+.overview-diagnostics>summary{cursor:pointer;font-size:14px;color:var(--muted);width:fit-content;padding:8px 0}
+.overview-diagnostics[open]>summary{margin-bottom:14px;color:var(--ink)}
+.overview-diagnostics>.hero{margin-top:0}
 .language-select{background-image:none;padding:6px 11px;min-width:48px;color:var(--user-accent,var(--ink))}
 #corp .corp-head{display:flex;gap:12px;align-items:center;margin-bottom:8px;min-height:38px;flex:none}#corp .corp-title{flex:none}#corp .corp-title h2{font-size:22px}#corpConnection{display:none}#corp .corp-scope{margin:0;gap:6px;flex:none;min-height:34px}#corp .corp-scope>label,#corpScopeStatus{display:none}#corp #corpProject{width:210px;max-width:210px;margin:0;min-height:34px;font-size:12px}#corp .corp-tabs{margin:0;padding:0;border:0;gap:0;flex:none}#corp .corp-tab{font-size:12px;min-height:34px;padding:8px}#corp .corp-head>.actions{margin-left:auto;gap:5px;flex-wrap:nowrap}#corp .corp-head .btn{padding:6px 8px;font-size:11px;min-height:32px}#corp .corp-head .corp-title #corpConnection{display:none}#corp #corpTeamToggle{padding:6px;font-size:11px}#corp .corp-workspace{min-height:0!important}#corp .corp-title{gap:5px}#corp .corp-tabs{overflow:visible}
 body:has(#corp.view-active[data-corp-tab="office"]) main{padding-top:12px;padding-bottom:12px}#corp[data-corp-tab="office"] .corp-head{margin-bottom:8px}

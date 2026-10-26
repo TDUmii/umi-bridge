@@ -40,14 +40,62 @@
   $('generatedGitEnabled').onchange=async()=>{$('generatedGitEnabled').disabled=true;try{const response=await fetch('/admin/api/generated-git/settings',{method:'POST',headers:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},body:JSON.stringify({enabled:$('generatedGitEnabled').checked})});const value=await response.json();if(!response.ok)throw Error(value.error);await loadGeneratedGit();}catch(error){$('generatedGitStatus').textContent=error.message;$('generatedGitEnabled').checked=!$('generatedGitEnabled').checked;}finally{$('generatedGitEnabled').disabled=false;}};
   window.addEventListener('umibridge-view',event=>{if(event.detail==='settings')void loadGeneratedGit();});if(location.hash==='#settings')void loadGeneratedGit();
 
-  const studio=node('section',null,'overview-studio');studio.innerHTML='<div class="studio-heading"><h2 id="studioTitle"></h2><span id="studioHealth"></span></div><div id="studioStatus" class="studio-status"></div><div id="studioPeople" class="studio-people"></div><div class="studio-columns"><section><h3 id="projectsTitle"></h3><div id="studioProjects"></div></section><section><h3 id="eventsTitle"></h3><ol id="studioEvents"></ol></section></div>';$('overview').append(studio);
+  const studio=node('section',null,'overview-studio');studio.innerHTML='<div class="studio-heading"><h2 id="studioTitle"></h2><span id="studioHealth" role="status"></span></div><nav class="studio-actions" aria-label="Project actions"><a id="studioNewProject" class="btn primary" href="#corp"></a><a id="studioGuide" class="btn" href="#guide"></a></nav><div id="studioStatus" class="studio-status"></div><div id="studioPeople" class="studio-people"></div><div class="studio-columns"><section><h3 id="projectsTitle"></h3><div id="studioProjects"></div></section><section><h3 id="eventsTitle"></h3><ol id="studioEvents"></ol></section></div>';
+  const overview=$('overview'),diagnostics=node('details',null,'overview-diagnostics'),diagnosticsTitle=node('summary');diagnostics.append(diagnosticsTitle);
+  for(const element of [...overview.children])if(!element.classList.contains('page-head'))diagnostics.append(element);
+  overview.append(studio,diagnostics);
+  function navigateCorp(detail){location.hash='#corp';window.dispatchEvent(new CustomEvent('umibridge-corp-navigate',{detail}));}
+  $('studioNewProject').onclick=event=>{event.preventDefault();navigateCorp({action:'new'});};
+  const attention=run=>Boolean(run.reason||run.status==='blocked'||run.steps?.some(step=>['reported_complete','blocked'].includes(step.status)));
+  function projectLink(item,label,cls='studio-project'){
+    const a=node('a',label,cls);a.href='#corp';a.dataset.focusKey=item.id;
+    a.onclick=event=>{event.preventDefault();navigateCorp({workspaceId:item.workspaceId,runId:item.id,action:'queue'});};return a;
+  }
   function language(){for(const [id,a,b]of [['personalTitle','Tùy chỉnh của bạn','Your workspace'],['appearanceHint','Điều chỉnh, xem trước trên mọi tab rồi lưu.','Adjust, preview across tabs, then save.'],['appearancePreviewLabel','Đang xem trước giao diện · chưa lưu','Appearance preview · unsaved'],['saveAppearance','Lưu giao diện','Save appearance'],['discardAppearance','Bỏ thay đổi','Discard changes'],['accentLabel','Màu nhấn','Accent'],['densityLabel','Mật độ','Density'],['opacityLabel','Độ đặc của bảng','Panel opacity'],['backgroundLabel','Thêm nền từ máy','Add background'],['clearBackground','Bỏ nền','Clear background'],['resetAppearance','Mặc định giao diện','Reset appearance'],['studioTitle','Nhịp làm việc','Workspace pulse'],['projectsTitle','Dự án gần đây','Recent projects'],['eventsTitle','Hoạt động gần nhất','Recent activity']])$(id).textContent=t(a,b);groups.forEach((row,i)=>settingsNav.children[i].textContent=t(row[1],row[2]));$('settingsLanguage').textContent=vi()?'English':'Tiếng Việt';const density=$('userDensity');density.options[0].textContent=t('Thoải mái','Comfortable');density.options[1].textContent=t('Gọn','Compact');}
   language();$('languageSelect').addEventListener('change',()=>{language();void pulse();});
-  let loading=false;
-  async function pulse(){if(loading||document.hidden||location.hash&&location.hash!=='#overview')return;loading=true;try{const responses=await Promise.all([fetch('/admin/api/corp',{cache:'no-store'}),fetch('/admin/api/arena',{cache:'no-store'})]);if(responses.some(r=>!r.ok))return;const [corp,arena]=await Promise.all(responses.map(r=>r.json())),runs=corp.runs||[],arenas=arena.arenas||[],all=[...runs,...arenas,...(corp.bootstraps||[]).filter(row=>!['done','cancelled'].includes(row.status))];$('studioHealth').textContent=corp.connected?t('Extension đã nối','Extension connected'):t('Chờ extension','Waiting for extension');$('studioStatus').replaceChildren();for(const [name,count,href]of [[t('Đang thực hiện','Running'),all.filter(r=>r.status==='running').length,'#corp'],[t('Đã bàn giao','Delivered'),all.filter(r=>r.status==='done').length,'#corp'],[t('Cần kiểm tra','Needs attention'),all.filter(r=>r.reason||r.status==='blocked').length,'#corp']]){const a=node('a',null,'studio-counter');a.href=href;a.append(node('strong',String(count)),node('span',name));$('studioStatus').append(a);}
-    const workers=runs.flatMap(r=>r.steps.filter(s=>['running','dispatching','queued'].includes(s.status))).slice(0,8);$('studioPeople').replaceChildren();for(const [i,worker]of workers.entries()){const person=node('div',null,'studio-person'),sprite=node('i');sprite.style.setProperty('--worker',`url('/admin/corp/office/assets/char_${i%6}.png')`);person.dataset.active=String(['running','dispatching'].includes(worker.status));person.append(sprite,node('span',worker.role));$('studioPeople').append(person);}if(!workers.length)$('studioPeople').append(node('p',t('Văn phòng sẵn sàng. Tạo ý tưởng để bắt đầu một dự án.','Office ready. Start a project from an idea.')));
-    $('studioProjects').replaceChildren();const recent=all.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).slice(0,4);for(const item of recent){const a=node('a',null,'studio-project');a.href=arenas.includes(item)?'#arena':'#corp';a.append(node('strong',item.title||item.name),node('span',t(({done:'Đã bàn giao',running:'Đang làm',paused:'Tạm dừng',cancelled:'Đã hủy',setup:'Khởi tạo'})[item.status]||item.status,item.status)));$('studioProjects').append(a);}if(!recent.length)$('studioProjects').append(node('p',t('Chưa có dự án.','No projects yet.')));
-    $('studioEvents').replaceChildren();const events=[...(corp.events||[]),...(arena.events||[])].sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,5),names={created:'Lưu dự án',start:'Bắt đầu',dispatch:'Gửi nhiệm vụ',done:'Nhận kết quả',handoff:'Bàn giao',finished:'Hoàn thành',blocked:'Cần kiểm tra',setup_completed:'Đội ngũ sẵn sàng',product_completed:'Sản phẩm hoàn chỉnh',round_completed:'Chấm xong vòng'};for(const event of events){const li=node('li');li.append(node('time',new Date(event.at).toLocaleTimeString(vi()?'vi-VN':'en-US',{hour:'2-digit',minute:'2-digit'})),node('span',vi()?names[event.type]||event.type:event.type.replaceAll('_',' ')));$('studioEvents').append(li);}if(!events.length)$('studioEvents').append(node('li',t('Hoạt động thật sẽ hiện ở đây.','Real activity will appear here.')));
-  }catch{}finally{loading=false;}}
+  let loading=false,pulseSignature='';
+  async function pulse(){
+    $('studioNewProject').textContent=t('Tạo dự án','Create project');$('studioGuide').textContent=t('Hướng dẫn từng bước','Step-by-step guide');diagnosticsTitle.textContent=t('Thông tin gateway','Gateway details');
+    if(loading||document.hidden||location.hash&&location.hash!=='#overview')return;loading=true;
+    try{
+      const responses=await Promise.all([fetch('/admin/api/corp',{cache:'no-store'}),fetch('/admin/api/arena',{cache:'no-store'})]);
+      if(responses.some(r=>!r.ok))throw Error('gateway_unavailable');
+      const [corp,arena]=await Promise.all(responses.map(r=>r.json())),runs=(corp.runs||[]).filter(run=>!run.arenaId),arenas=arena.arenas||[];
+      const jobs=(corp.bootstraps||[]).filter(job=>!['done','cancelled'].includes(job.status));
+      const all=[...runs,...arenas,...jobs],events=[...(corp.events||[]),...(arena.events||[])].sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,5);
+      const next=JSON.stringify([vi(),corp.connected,all.map(row=>[row.id,row.status,row.reason,row.title||row.name,row.workspaceId,row.steps?.map(step=>[step.status,step.role])]),events.map(row=>[row.at,row.type])]);
+      $('studioHealth').textContent=corp.connected?t('Extension đã nối','Extension connected'):t('Chờ extension','Waiting for extension');
+      if(next===pulseSignature)return;pulseSignature=next;
+      const focused=studio.contains(document.activeElement)?document.activeElement.dataset.focusKey:null;
+      $('studioStatus').replaceChildren();
+      for(const [name,matches,filter]of [[t('Đang thực hiện','Running'),all.filter(row=>row.status==='running'),'active'],[t('Đã bàn giao','Delivered'),all.filter(row=>row.status==='done'),'done'],[t('Cần xử lý','Needs attention'),all.filter(attention),'active']]){
+        const item=matches.find(row=>runs.includes(row))||matches[0],a=item&&runs.includes(item)?projectLink(item,null,'studio-counter'):node('a',null,'studio-counter');
+        a.href=item&&arenas.includes(item)?'#arena':'#corp';a.dataset.focusKey='counter-'+filter+'-'+name;
+        if(!item||jobs.includes(item))a.onclick=event=>{event.preventDefault();navigateCorp({workspaceId:item?.workspaceId,action:'queue',filter});};
+        a.append(node('strong',String(matches.length)),node('span',name));$('studioStatus').append(a);
+      }
+      const workers=runs.filter(run=>run.status==='running').flatMap(run=>run.steps.filter(step=>['running','dispatching'].includes(step.status))).slice(0,6);
+      $('studioPeople').replaceChildren();
+      for(const [i,worker]of workers.entries()){
+        const person=node('div',null,'studio-person'),sprite=node('i');sprite.style.setProperty('--worker',`url('/admin/corp/office/assets/char_${i%6}.png')`);person.dataset.active='true';person.append(sprite,node('span',worker.role));$('studioPeople').append(person);
+      }
+      if(!workers.length)$('studioPeople').append(node('p',t('Không có công việc đang chạy. Mở một dự án hoặc tạo yêu cầu mới.','No work is running. Open a project or create a new request.')));
+      $('studioProjects').replaceChildren();
+      const recent=[...all].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')).slice(0,4);
+      const statuses={done:['Đã bàn giao','Delivered'],running:['Đang làm','Running'],paused:['Tạm dừng','Paused'],cancelled:['Đã hủy','Cancelled'],setup:['Khởi tạo','Setting up'],blocked:['Cần xử lý','Needs attention']};
+      for(const item of recent){
+        const a=runs.includes(item)?projectLink(item):node('a',null,'studio-project');
+        if(!runs.includes(item)){a.href=arenas.includes(item)?'#arena':'#corp';if(jobs.includes(item))a.onclick=event=>{event.preventDefault();navigateCorp({workspaceId:item.workspaceId,action:'queue'});};}
+        const name=corp.workspaces?.find(row=>row.id===item.workspaceId)?.name||item.title||item.name;
+        a.append(node('strong',name),node('span',t(...(statuses[item.status]||['Đang chuẩn bị','Preparing']))));$('studioProjects').append(a);
+      }
+      if(!recent.length)$('studioProjects').append(node('p',t('Chưa có dự án. Bấm Tạo dự án để bắt đầu.','No projects yet. Choose Create project to start.')));
+      $('studioEvents').replaceChildren();
+      const names={created:['Lưu dự án','Project saved'],start:['Bắt đầu','Started'],dispatch:['Gửi nhiệm vụ','Task sent'],sent:['Đã gửi cho bộ phận','Sent to department'],done:['Nhận kết quả','Result received'],handoff:['Bàn giao','Handoff'],finished:['Hoàn thành','Completed'],blocked:['Cần xử lý','Needs attention'],reported_complete:['Chờ kiểm chứng','Awaiting verification'],verification:['Đã kiểm chứng','Verified'],setup_completed:['Đội ngũ sẵn sàng','Team ready'],product_completed:['Sản phẩm hoàn chỉnh','Product completed'],round_completed:['Chấm xong vòng','Round judged']};
+      for(const event of events){const li=node('li');li.append(node('time',new Date(event.at).toLocaleTimeString(vi()?'vi-VN':'en-US',{hour:'2-digit',minute:'2-digit'})),node('span',t(...(names[event.type]||['Cập nhật tiến độ','Progress updated']))));$('studioEvents').append(li);}
+      if(!events.length)$('studioEvents').append(node('li',t('Hoạt động thật sẽ hiện ở đây.','Real activity will appear here.')));
+      if(focused)[...studio.querySelectorAll('[data-focus-key]')].find(element=>element.dataset.focusKey===focused)?.focus({preventScroll:true});
+    }catch{$('studioHealth').textContent=t('Chưa tải được tiến độ. Đang thử kết nối lại.','Progress unavailable. Reconnecting.');}finally{loading=false;}
+  }
   window.addEventListener('umibridge-view',()=>void pulse());setInterval(pulse,6000);void pulse();
 })();
