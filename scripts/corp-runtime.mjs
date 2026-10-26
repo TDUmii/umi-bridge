@@ -470,6 +470,14 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       return {...await finishStep(run,step),evidence};
     }),
     taskAction:(runId,taskId,action)=>transaction(async()=>{
+      if(action==='reverify'){
+        const run=find(runId),step=run.steps.find(row=>row.id===taskId);
+        if(!flags().evidenceGateEnabled||!step||step.status!=='blocked'||step.reason!=='evidence_stale'||!step.assessment)throw Error('task_reverification_unavailable');
+        if(step.leaseId)await execution.release(step.leaseId,'owner_reverification');delete step.leaseId;
+        step.priorEvidenceRefs=[...(step.priorEvidenceRefs||[]),...(step.evidenceRefs||[])];step.evidenceRefs=[];
+        step.status='reported_complete';step.reason=null;step.verification='pending';step.ownerReverification=true;
+        run.status='paused';event('owner_reverification',run,step);return copy(run);
+      }
       if(action==='recover_artifact'){
         const run=find(runId),step=run.steps.find(row=>row.id===taskId);
         if(!flags().evidenceGateEnabled||!step||step.status!=='blocked'||!['response_unavailable','idea_report_invalid'].includes(step.reason))throw Error('task_recovery_unavailable');
@@ -714,7 +722,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         const reopen=dag?scheduleRuns(state.runs,{...limits,cursor:state.schedulerCursor}):state.runs.filter(run=>run.status==='running').map(run=>({run,task:current(run)}));
         const openChats=state.enabled&&state.autoResume?[...monitors.map(row=>({run:state.runs.find(run=>run.id===row.runId),task:state.runs.find(run=>run.id===row.runId)?.steps.find(step=>step.id===row.stepId)})),...reopen].filter(({run,task})=>run?.status==='running'&&task&&inScope(run,task)&&task.status!=='reported_complete'&&task.status!=='failed').map(({task})=>({chatId:task.chatId,projectId:chatProject(task),chatUrl:task.chatUrl})):[];
         // Keep uncertain provider attempts open for observation, including paused runs.
-        const keep=new Set([...monitors,...openChats,...(command?[command]:[])].map(row=>row.chatId));
+        const keep=new Set([...monitors,...openChats,...(command?[command]:[]),...state.runs.filter(run=>!['done','cancelled'].includes(run.status)).flatMap(run=>run.steps.filter(step=>step.status==='blocked'))].map(row=>row.chatId));
         const closeChats=state.bootstraps.flatMap(job=>job.chats.map(chat=>({...chat,projectId:job.projectId}))).filter(chat=>chat.projectId&&!keep.has(chat.chatId));
         return { enabled: state.enabled, command, monitors, bootstrap,openChats,closeChats };
       } catch (error) { state = before;for(const id of issuedLeases)await execution.release(id,'dispatch_not_committed').catch(()=>{});throw error; }
