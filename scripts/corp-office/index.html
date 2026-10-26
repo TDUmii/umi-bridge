@@ -12,7 +12,7 @@
 </head>
 <body>
   <header>
-    <div class="office-heading"><h1>Văn phòng</h1><p id="project">Đội ngũ UmiBridge Corp</p><div id="connection" role="status"><span class="dot"></span><span id="health">Đang kết nối với Corp…</span></div></div>
+    <div class="office-heading"><h1>Văn phòng</h1><div id="connection" role="status" hidden><span class="dot"></span><span id="health"></span></div></div>
     <div class="view-tools" aria-label="Hiển thị văn phòng">
       <button id="zoom-out" type="button" aria-label="Thu nhỏ văn phòng">−</button>
       <output id="zoom-value" aria-live="polite">100%</output>
@@ -30,7 +30,6 @@
       <div class="scene" id="scene" tabindex="0" aria-label="Văn phòng. Trỏ hoặc dùng Tab vào nhân viên để xem tên, vai trò và nhiệm vụ."><div id="stage" hidden><canvas id="room" aria-label="Nhân viên và bàn làm việc."></canvas><div id="seat-labels" aria-label="Nhân viên tại bàn làm việc"></div></div>
         <div id="empty"><h2>Văn phòng đang chờ đủ đội ngũ</h2><p id="empty-message">Đang nhận danh sách nhân sự từ Corp.</p></div>
       </div>
-      <div class="legend" aria-label="Chú thích trạng thái"><span><i class="sending"></i>Đang gửi</span><span><i class="waiting"></i>Chờ phản hồi</span><span><i class="review"></i>Chờ duyệt</span><span><i class="limit"></i>Chờ hạn mức</span><span><i class="blocked"></i>Bị chặn</span><span><i class="idle"></i>Sẵn sàng</span></div>
       <div id="customer-line" class="customer-line" role="list" aria-label="Tên khách hàng đang chờ" hidden></div>
     </section>
     <aside id="office-roster" aria-label="Đội ngũ và nhiệm vụ">
@@ -43,12 +42,10 @@
         <p id="detail-status" class="status"></p><h2 id="detail-role"></h2>
         <p id="detail-task"></p><p id="detail-count"></p>
         <button id="open-chat" type="button">Mở chat</button>
-        <p id="detail-hint">Dùng Giao nhiệm vụ bên dưới văn phòng để chọn chat và nội dung bàn giao.</p>
       </section>
       </div>
       <section id="panel-customers" role="tabpanel" aria-labelledby="tab-customers" data-office-panel="customers" class="customers" hidden><div class="roster-title"><h2>Khách đang chờ</h2><span id="customer-count">0</span></div><ol id="customers"></ol></section>
       <div id="panel-handoffs" role="tabpanel" aria-labelledby="tab-handoffs" data-office-panel="handoffs" class="handoff" hidden><h2>Bàn giao gần đây</h2><p id="handoff-empty">Chưa có bàn giao trong Project này.</p><ol id="handoffs"></ol></div>
-      <details class="life-events"><summary>Sinh hoạt minh họa</summary><ol id="life-events"></ol></details>
     </aside>
   </main>
   <div id="employee-tooltip" role="tooltip" hidden><div class="tooltip-name"><i class="status-dot" id="tooltip-dot" aria-hidden="true"></i><strong id="tooltip-name"></strong></div><span id="tooltip-status"></span><small id="tooltip-department"></small><p id="tooltip-task"></p></div>

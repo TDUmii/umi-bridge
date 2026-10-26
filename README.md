@@ -24,7 +24,7 @@ Hàng đợi luôn có lối mở bàn giao gần nhất kể cả khi không c�
 
 Mặc định các việc độc lập chạy song song: Sản phẩm và Thiết kế cùng bắt đầu; QA/Bảo mật/các đội chuyên trách cùng rà soát; sau sửa, QA cuối/DevOps/Tài liệu cùng làm. CEO chờ đủ kết quả trước bàn giao. Cùng chat và vùng ghi trùng nhau vẫn phải đợi; không tự chia source cho nhiều người ghi đè. Có thể bỏ chọn song song để dùng chuỗi. Bật Điều phối để cho phép gửi; lưu khi tắt sẽ tạm dừng. Không tự khởi động lại lần gửi chưa xác nhận.
 
-Văn phòng dùng trạng thái thật của Corp; hoạt cảnh nghỉ/ăn/shipper chỉ là minh họa. Bản đồ tự vừa khung; roster và tooltip giữ tên/trạng thái dễ đọc.
+Văn phòng dùng trạng thái thật của Corp. Bàn ghế đã lắp được giữ khi mở lại hoặc đổi Project; chỉ nhân sự mới xuất hiện trong phiên mới có hoạt ảnh lắp chỗ ngồi. Lịch sử bố trí lưu local trong trình duyệt, không đưa lên Git. Phòng ban có sàn, thảm và đồ trang trí riêng; dùng thêm pixel asset Kenney CC0. Bản đồ tự vừa khung; tên, nhiệm vụ và thông tin phòng xem qua tooltip, không phủ chú giải hoạt cảnh lên bản đồ.
 
 Các bộ phận có mapping skill mặc định từ Codex và checklist bằng chứng riêng. Có thể import bản SKILL.md local vào kho UmiBridge, đổi mapping hoặc tắt từng nhóm. Skill là tài liệu hướng dẫn, không tự cấp công cụ hoặc tự chạy script/pentest/cloud. Bằng chứng phân biệt **kiểm file/cấu trúc** với **lệnh đã chạy**; phần chưa kiểm chứng không được đổi thành kết quả test đạt.
 

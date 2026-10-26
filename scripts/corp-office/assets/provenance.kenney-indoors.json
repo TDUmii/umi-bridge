@@ -1,0 +1,81 @@
+{
+  "source": "https://kenney.nl/assets/roguelike-indoors",
+  "download": "https://kenney.nl/media/pages/assets/roguelike-indoors/4d5b520b03-1702169567/kenney_roguelike-indoors.zip",
+  "license": "CC0-1.0",
+  "author": "Kenney Vleugels",
+  "tilesheetSha256": "ade984d5cbe3f16d9e23e6dc516246649de1a7eec2540cf31d53852b690c446f",
+  "tileSize": 16,
+  "margin": 1,
+  "files": [
+    {
+      "file": "KENNEY_BOOKCASE.png",
+      "tile": [
+        20,
+        17,
+        1,
+        1
+      ],
+      "sha256": "be284a7e183023be742bf1c627a9f0ac9b3caa0272dfc49112aaa3e2d85fd733"
+    },
+    {
+      "file": "KENNEY_BOOKCASE_ALT.png",
+      "tile": [
+        21,
+        17,
+        1,
+        1
+      ],
+      "sha256": "d2a6a43dcbc78459565e210c747723a1c335ad8d0c45f146db8ca1f38ea5e8a5"
+    },
+    {
+      "file": "KENNEY_MAP.png",
+      "tile": [
+        19,
+        12,
+        1,
+        1
+      ],
+      "sha256": "74825137d2ae54cf398847a961158742c41f39ef95dc4afb5b7096783a716457"
+    },
+    {
+      "file": "KENNEY_ART.png",
+      "tile": [
+        17,
+        12,
+        1,
+        1
+      ],
+      "sha256": "69f834f4038300ae99d8d6c197d73fb7530c2b357a9720c646d684c38ee9c247"
+    },
+    {
+      "file": "KENNEY_PLANT.png",
+      "tile": [
+        16,
+        0,
+        1,
+        1
+      ],
+      "sha256": "08bed913e16fb8c0c1f8410b79f84be3da89a1a71419b9d7019d57b58c452325"
+    },
+    {
+      "file": "KENNEY_CABINET.png",
+      "tile": [
+        13,
+        13,
+        1,
+        1
+      ],
+      "sha256": "6b713350b31222d0c394f8baa30712f4d9f4798db840db2abd7afee5fdbcda43"
+    },
+    {
+      "file": "KENNEY_PIANO.png",
+      "tile": [
+        23,
+        8,
+        2,
+        2
+      ],
+      "sha256": "dc82da0328dfbfd1b1169962d91248aba6924268b81f24dbbee3a4fe935fa530"
+    }
+  ]
+}

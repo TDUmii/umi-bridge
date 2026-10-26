@@ -13,6 +13,23 @@ class OfficeModel {
 globalThis.OfficeModel = OfficeModel;
 if (typeof module !== 'undefined') module.exports = OfficeModel;
 
+// Visual installation history only. First arrival is an existing office;
+// only new staff observed afterward carry furniture. Reloads never replay it.
+class OfficeFurnitureHistory {
+  constructor(storage) {this.storage=storage;this.projects=Object.create(null);try{const saved=JSON.parse(storage?.getItem('umibridge.office.furniture.v1')||'{}');if(saved&&typeof saved==='object'&&!Array.isArray(saved))this.projects=Object.fromEntries(Object.entries(saved).filter(([id,staff])=>id.length<=200&&Array.isArray(staff)).slice(-64).map(([id,staff])=>[id,staff.filter(value=>typeof value==='string'&&value.length<=200).slice(-1000)]));}catch{}}
+  claim(project,agents,baseline=false) {
+    const known=new Set(Object.hasOwn(this.projects,project)?this.projects[project]:[]),install=new Set();
+    let changed=!Object.hasOwn(this.projects,project);
+    for(const agent of agents){if(!known.has(agent.id))changed=true;if(!baseline&&!known.has(agent.id))install.add(agent.id);known.add(agent.id);}
+    this.projects[project]=[...known].slice(-1000);
+    this.projects=Object.fromEntries(Object.entries(this.projects).slice(-64));
+    try{if(changed)this.storage?.setItem('umibridge.office.furniture.v1',JSON.stringify(this.projects));}catch{}
+    return install;
+  }
+}
+globalThis.OfficeFurnitureHistory=OfficeFurnitureHistory;
+if(typeof module!=='undefined')module.exports.OfficeFurnitureHistory=OfficeFurnitureHistory;
+
 /* Room bounds own both furniture placement and walkable geometry. */
 class OfficeFloor {
   constructor(agents) {
@@ -26,7 +43,7 @@ class OfficeFloor {
       batch.forEach(([name,members],column)=>{
         const x=40+column*(roomWidth+40),role=members[0].roleId||'',index=this.rooms.length;
         const style=role==='ceo'?'executive':/design|product/.test(role)?'collaboration':/engineer|devops|developer/.test(role)?'benches':/qa|security|test/.test(role)?'corner':['executive','collaboration','benches','corner'][index%4];
-        const room={id:name,name,x,y,w:roomWidth,h:height,index,style,islands:[]};
+        const room={id:name,name,roleId:role,x,y,w:roomWidth,h:height,index,style,islands:[]};
         this.rooms.push(room);
         // Each room has a south doorway into a continuous cross-corridor.
         this.obstacles.push({x,y,w:roomWidth,h:7},{x,y,w:7,h:height},{x:x+roomWidth-7,y,w:7,h:height},
@@ -55,6 +72,7 @@ class OfficeFloor {
           occupants.forEach((member,j)=>this.seats.set(member.id,{...positions[j],room:name,island:i}));
         }
         const plant={x:x+18,y:y+20,w:22,h:25};room.plant=plant;this.obstacles.push(plant);
+        room.cabinet={x:x+roomWidth-47,y:y+14,w:28,h:24};this.obstacles.push(room.cabinet);
       });
       y+=height+42;
     }
@@ -62,7 +80,7 @@ class OfficeFloor {
     this.pantry={name:'Pantry',x:740,y:76,w:300,h:96};this.lounge={name:'Thư giãn',x:40,y:this.height-134,w:570,h:106};
     this.rest={name:'Góc nghỉ',x:660,y:this.height-134,w:380,h:106};
     this.obstacles.push({x:756,y:86,w:252,h:40},{x:56,y:98,w:260,h:34},{x:58,y:this.height-118,w:144,h:52},
-      {x:238,y:this.height-104,w:80,h:36},{x:360,y:this.height-118,w:62,h:54});
+      {x:238,y:this.height-104,w:80,h:36},{x:360,y:this.height-118,w:62,h:54},{x:505,y:this.height-122,w:66,h:66});
     this.zones=[...this.rooms,this.reception,this.pantry,this.lounge,this.rest];
   }
   blocked(x,y,padding=14) {return x<20||y<70||x>this.width-20||y>this.height-18||this.obstacles.some(r=>x>r.x-padding&&x<r.x+r.w+padding&&y>r.y-padding&&y<r.y+r.h+padding);}
@@ -89,4 +107,4 @@ class OfficeFloor {
   }
 }
 globalThis.OfficeFloor=OfficeFloor;
-if(typeof module!=='undefined'){module.exports=OfficeModel;module.exports.OfficeFloor=OfficeFloor;}
+if(typeof module!=='undefined'){module.exports=OfficeModel;module.exports.OfficeFloor=OfficeFloor;module.exports.OfficeFurnitureHistory=OfficeFurnitureHistory;}

@@ -63,3 +63,10 @@ copyright 2025 Cocoon AI. Apache-2.0, with historical MIT portions. Complete
 license and third-party notices are embedded in that self-contained viewer.
 The UmiBridge local-state panel is an addition to the generated template.
 Generated per-installation maps and runtime snapshots remain in .local-data.
+
+## Kenney Roguelike Indoors
+
+Selected interior sprites by Kenney Vleugels, CC0-1.0, from
+https://kenney.nl/assets/roguelike-indoors. Local crops preserve original pixels.
+Source license: scripts/corp-office/assets/LICENSE.kenney-indoors.txt.
+Tile coordinates and SHA-256: scripts/corp-office/assets/provenance.kenney-indoors.json.

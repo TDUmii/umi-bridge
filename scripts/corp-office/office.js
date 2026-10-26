@@ -5,7 +5,9 @@
   const $ = id => document.getElementById(id);
   const canvas = $('room'), ctx = canvas.getContext('2d');
   const model = new OfficeModel(), images = {}, people = new Map(), life = new OfficeLife(people);
-  let ambient=true,lifeStatus='',lastLifeUI=-1, floor=new OfficeFloor([]), roomPlan=false, hoveredZone=null, mapReady=false;
+  let storage;try{storage=localStorage;}catch{}
+  const furnitureHistory=new OfficeFurnitureHistory(storage);
+  let ambient=true, floor=new OfficeFloor([]), roomPlan=false, hoveredZone=null, mapReady=false;
   const labels = { IDLE:'Sẵn sàng', QUEUED:'Đợi nhận việc', DISPATCHED:'Đã gửi nhiệm vụ',
     WAITING:'Chờ phản hồi', LIMIT:'Chờ reset hạn mức', PAUSED:'Tạm dừng', COMPLETED:'Đã có kết quả', REVIEW:'Chờ duyệt', BLOCKED:'Bị chặn', DONE:'Đã bàn giao', UNKNOWN:'Chưa rõ trạng thái' };
   const colors = { IDLE:'#46665f', QUEUED:'#46665f', DISPATCHED:'#176448', WAITING:'#345b92', LIMIT:'#82541e', PAUSED:'#46665f', COMPLETED:'#72501a', REVIEW:'#72501a', BLOCKED:'#a6333a', DONE:'#176448' };
@@ -82,6 +84,7 @@
   const assets = ['DESK_FRONT','PC_FRONT_OFF','PC_FRONT_ON_1','PC_FRONT_ON_2','PC_FRONT_ON_3',
     'WOODEN_CHAIR_FRONT','SOFA_FRONT','BOOKSHELF','LARGE_PLANT','COFFEE','WHITEBOARD','CLOCK',
     'COFFEE_TABLE','CUSHIONED_CHAIR_BACK','SOFA_SIDE','SOFA_BACK','PLANT','PLANT_2','CACTUS','SMALL_PAINTING_2','HANGING_PLANT','DOUBLE_BOOKSHELF',
+    'KENNEY_BOOKCASE','KENNEY_BOOKCASE_ALT','KENNEY_MAP','KENNEY_ART','KENNEY_PLANT','KENNEY_CABINET','KENNEY_PIANO',
     ...Array.from({length:6},(_,i)=>`char_${i}`)];
   const hash = value => [...value].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,7);
   function sprite(name,x,y,scale=1) {
@@ -94,17 +97,17 @@
   }
   function rect(x,y,w,h,fill) {ctx.fillStyle=fill;ctx.fillRect(x,y,w,h);}
   function layout(agents, reset) {
-    const previous=new Set(reset?[]:people.keys()), prior=people.size;
+    const install=furnitureHistory.claim(model.project,agents,reset);
     if(reset)people.clear();
     const alive=new Set(agents.map(a=>a.id));for(const id of people.keys())if(!alive.has(id))people.delete(id);
     floor=new OfficeFloor(agents);
     for(const [slot,a] of agents.entries()){
       const old=people.get(a.id),seat=floor.seats.get(a.id),moved=old&&(old.seat.x!==seat.x||old.seat.y!==seat.y);
-      people.set(a.id,{...old,...a,seat,slot,boss:a.roleId==='ceo',palette:hash(a.id)%6,furniture:old?.furniture??(reset?0:3),
+      people.set(a.id,{...old,...a,seat,slot,boss:a.roleId==='ceo',palette:hash(a.id)%6,furniture:old?.furniture??3,
         x:old&&!moved?old.x:seat.x,y:old&&!moved?old.y:seat.y,route:old&&!moved?old.route:[]});
     }
     life.configure(floor.width,floor.height,floor);for(const p of people.values())life.init(p);resizeView();
-    if(!reduced)for(const p of people.values())if(!previous.has(p.id))life.install(p);
+    if(!reduced)for(const p of people.values())if(install.has(p.id))life.install(p);
   }
   function select(id) {selected=id;lastRoster='';renderUI();draw();}
   function avatar(a) {
@@ -115,10 +118,10 @@
   }
   function renderUI() {
     const data=model.current;if(!data)return;
-    $('project').textContent=data.project?data.name:'Chọn ChatGPT Project để xem đội ngũ.';
     $('health').textContent=error?'Mất cập nhật. Trạng thái hiển thị đã cũ; đang thử lại.':
       `${data.coordinator?'Điều phối: Bật':'Điều phối: Tắt'} · ${data.agents.length} nhân viên`;
     $('connection').classList.toggle('error',error);
+    $('connection').hidden=!error;
     const active=data.agents.some(agent=>['DISPATCHED','WAITING','LIMIT','REVIEW','BLOCKED','QUEUED','PAUSED'].includes(agent.status));
     $('connection').dataset.state=error?'error':active?'active':'idle';
     $('count').textContent=data.agents.length;
@@ -209,9 +212,7 @@
         else if(delivery.phase==='hold'&&now>delivery.hold){delivery.phase='back';walkTo(p,p.seat);}
         else if(delivery.phase==='back'){life.begin(p,'desk');delivery=null;}}
     }
-    const eventNames={install_start:'Mang bàn, ghế và màn hình đến chỗ mới',install_done:'Lắp xong chỗ làm việc',stretch:'Vươn vai',plant:'Chăm cây trong phòng',read:'Đọc sách ở góc thư giãn',spread:'Trải nệm nghỉ',sleep:'Nghỉ một lát',snack:'Ăn vặt ở pantry',courier_arrive:'Shipper đến cửa',courier_drop:'Nhận đồ tại quầy',courier_leave:'Shipper rời văn phòng'};
-    for(const event of life.takeEvents())if(eventNames[event.kind]){const actor=people.get(event.actor),entry=document.createElement('li');entry.textContent=(actor?actor.role.split('\n')[0]+' · ':'')+eventNames[event.kind];$('life-events').prepend(entry);while($('life-events').children.length>6)$('life-events').lastElementChild.remove();lifeStatus=eventNames[event.kind];}
-    if(Math.floor(now)!==lastLifeUI){lastLifeUI=Math.floor(now);document.body.dataset.life=lifeStatus;}
+    life.takeEvents();
   }
   function drawRoom() {
     rect(0,0,sceneWidth,sceneHeight,'#263c37');rect(14,16,sceneWidth-28,sceneHeight-30,'#e7d5b4');
@@ -219,14 +220,21 @@
     rect(16,18,sceneWidth-32,48,'#a5c3b3');rect(16,61,sceneWidth-32,7,'#54796a');
     for(const x of [64,410,820]){rect(x,28,130,28,'#527b79');rect(x+4,31,122,21,'#c4ded5');rect(x+63,31,3,21,'#8eb6a7');}
     sprite('HANGING_PLANT',234,22,1.5);sprite('SMALL_PAINTING_2',650,18,1.5);sprite('CLOCK',580,28,1);
-    const palette=['#c8d4c0','#becdd3','#d5c7b2','#c8c4d3','#c4d0bc','#d5c4bd'];
+    const themes={ceo:['#decba7','#926d43','#d9b866','KENNEY_MAP'],product:['#e3d3b6','#a67a54','#cc996d','WHITEBOARD'],design:['#d9cfe0','#7a648c','#b394bf','KENNEY_ART'],engineering:['#c5d2db','#526b7d','#81a7ba','WHITEBOARD'],qa:['#c8d8ca','#557966','#8cae84','KENNEY_MAP'],security:['#c6cece','#526767','#80a59e','KENNEY_MAP'],devops:['#c5d3d8','#506e77','#87adb5','CLOCK'],docs:['#e1d4bb','#8d7755','#bfab7c','KENNEY_BOOKCASE']};
     for(const room of floor.rooms){
-      rect(room.x,room.y,room.w,room.h,palette[room.index%palette.length]);
-      for(let y=room.y+8;y<room.y+room.h-6;y+=20)rect(room.x+8,y,room.w-16,1,'#4c695315');
-      rect(room.x,room.y,room.w,7,'#527267');rect(room.x,room.y,7,room.h,'#78988a');rect(room.x+room.w-7,room.y,7,room.h,'#78988a');
-      rect(room.x,room.y+room.h-7,room.w/2-30,7,'#78988a');rect(room.x+room.w/2+30,room.y+room.h-7,room.w/2-30,7,'#78988a');
-      sprite(room.index%2?'PLANT_2':'LARGE_PLANT',room.plant.x,room.plant.y-10,1);
-      sprite(room.index%3?'SMALL_PAINTING_2':'WHITEBOARD',room.x+room.w-67,room.y+12,1);
+      const [surface,trim,accent,art]=themes[room.roleId]||themes.qa;
+      rect(room.x,room.y,room.w,room.h,surface);
+      if(['engineering','devops','security'].includes(room.roleId)){for(let y=room.y+10;y<room.y+room.h-7;y+=20)for(let x=room.x+10;x<room.x+room.w-7;x+=20){rect(x,y,18,18,'#ffffff18');rect(x,y,18,1,'#314b5c15');}}
+      else{for(let y=room.y+8;y<room.y+room.h-6;y+=12){rect(room.x+8,y,room.w-16,1,'#5c503b1c');for(let x=room.x+18+(y%24?28:0);x<room.x+room.w-8;x+=56)rect(x,y,1,12,'#5c503b15');}}
+      rect(room.x+28,room.y+64,room.w-56,84,accent);rect(room.x+32,room.y+68,room.w-64,76,surface);rect(room.x+36,room.y+72,room.w-72,68,accent+'65');
+      rect(room.x,room.y,room.w,7,trim);rect(room.x,room.y,7,room.h,trim);rect(room.x+room.w-7,room.y,7,room.h,trim);
+      rect(room.x,room.y+room.h-7,room.w/2-30,7,trim);rect(room.x+room.w/2+30,room.y+room.h-7,room.w/2-30,7,trim);
+      sprite(room.index%3===1?'KENNEY_PLANT':room.index%2?'PLANT_2':'LARGE_PLANT',room.plant.x,room.plant.y-10,room.index%3===1?2:1);
+      sprite(art,room.x+room.w/2-16,room.y+12,art.startsWith('KENNEY')?2:1);
+      sprite(room.roleId==='docs'?'KENNEY_BOOKCASE_ALT':room.roleId==='ceo'?'KENNEY_BOOKCASE':'KENNEY_CABINET',room.cabinet.x-2,room.cabinet.y-5,2);
+      if(room.roleId==='design'){for(let i=0;i<4;i++)rect(room.x+65+i*13,room.y+48,10,12,['#e5a58e','#e8ce85','#9db8bc','#b49fc2'][i]);}
+      if(['engineering','devops','security'].includes(room.roleId)){rect(room.cabinet.x,room.cabinet.y+2,26,25,'#344d56');for(let i=0;i<3;i++){rect(room.cabinet.x+3,room.cabinet.y+5+i*7,20,4,'#67828a');rect(room.cabinet.x+19,room.cabinet.y+6+i*7,2,2,'#b6d6a0');}}
+      if(room.roleId==='qa'){for(let i=0;i<3;i++){rect(room.x+70+i*18,room.y+17,14,19,'#f5edcf');rect(room.x+73+i*18,room.y+21,8,3,accent);rect(room.x+73+i*18,room.y+27,8,2,'#87a18d');}}
       for(const [index,island]of room.islands.entries()){
         const members=[...people.values()].filter(p=>p.seat.room===room.name&&p.seat.island===index);
         if(members.some(p=>p.furniture>0)){
@@ -252,7 +260,7 @@
     (model.current?.customers||[]).slice(0,3).forEach((customer,index)=>drawCharacter(hash(customer.id)%6,1,'down',88+index*92,157));
     rect(pantry.x,pantry.y,pantry.w,pantry.h,'#c6d5c2');sprite('DOUBLE_BOOKSHELF',756,82,1.5);sprite('COFFEE',854,94,1.5);sprite('PLANT_2',980,83,1.5);rect(912,108,60,18,'#caa16e');rect(912,105,60,4,'#725940');
     rect(sceneWidth-19,172,5,40,'#3f6359');rect(sceneWidth-16,177,3,30,'#c6d9bf');
-    rect(lounge.x,lounge.y,lounge.w,lounge.h,'#b8c9b8');sprite('SOFA_FRONT',58,sceneHeight-118,2);sprite('COFFEE_TABLE',238,sceneHeight-104,1.5);sprite('SOFA_SIDE',360,sceneHeight-118,1.5);sprite('BOOKSHELF',505,sceneHeight-122,1.5);
+    rect(lounge.x,lounge.y,lounge.w,lounge.h,'#b8c9b8');sprite('SOFA_FRONT',58,sceneHeight-118,2);sprite('COFFEE_TABLE',238,sceneHeight-104,1.5);sprite('SOFA_SIDE',360,sceneHeight-118,1.5);sprite('KENNEY_PIANO',505,sceneHeight-122,2);
     rect(rest.x,rest.y,rest.w,rest.h,'#c9cfba');
     for(let index=0;index<2;index++){const bed=life.bedPoints[index];rect(bed.x-35,bed.y-25,70,38,'#a5997d');rect(bed.x-32,bed.y-23,64,34,'#c5d4bd');rect(bed.x-30,bed.y-21,14,30,'#e6ead8');if(!life.beds[index]){rect(bed.x+8,bed.y-20,23,28,'#78978b');rect(bed.x+8,bed.y-20,23,5,'#abc5b0');}}
     if(life.parcel){rect(life.parcel.x,life.parcel.y,23,15,'#b8814f');rect(life.parcel.x+9,life.parcel.y,3,15,'#e4c99a');}
@@ -304,7 +312,7 @@
     if(qaMode)frameDraws=[];
     ctx.imageSmoothingEnabled=false;if(!mapReady){ctx.clearRect(0,0,sceneWidth,sceneHeight);return;}drawRoom();
     [...people.values()].sort((a,b)=>a.y-b.y).forEach(drawPerson);
-    if(life.courier){const p=life.courier,moving=p.route.length&&!p.motionBlocked,dir=moving?p.dir:'up';drawCharacter(p.palette,moving?[0,1,2,1][Math.floor(now*8)%4]:1,dir,p.x,p.y);rect(p.x-9,p.y-43,18,5,'#447594');rect(p.x-12,p.y-39,24,3,'#315d77');if(p.phase!=='out'){const bx=p.x+(dir==='left'?-18:5);rect(bx,p.y-23,15,15,'#bf8d56');rect(bx+6,p.y-23,3,15,'#e7cda0');}text('Shipper',Math.max(40,Math.min(sceneWidth-40,p.x)),p.y-50,'#365a4c',10);}
+    if(life.courier){const p=life.courier,moving=p.route.length&&!p.motionBlocked,dir=moving?p.dir:'up';drawCharacter(p.palette,moving?[0,1,2,1][Math.floor(now*8)%4]:1,dir,p.x,p.y);rect(p.x-9,p.y-43,18,5,'#447594');rect(p.x-12,p.y-39,24,3,'#315d77');if(p.phase!=='out'){const bx=p.x+(dir==='left'?-18:5);rect(bx,p.y-23,15,15,'#bf8d56');rect(bx+6,p.y-23,3,15,'#e7cda0');}}
   }
   function frame(ts) {
     raf=0;if(!visible||document.hidden)return;
@@ -320,7 +328,7 @@
       const roles=JSON.stringify(data.agents.map(agent=>[agent.id,agent.roleId||'']).sort());
       const reset=model.project!==data.project;lastRoles=roles;
       const events=model.accept(data);error=false;
-      if(reset){clearMovement();life.log=[];$('life-events').replaceChildren();}layout(mapReady?data.agents:[],reset);
+      if(reset){clearMovement();life.log=[];}layout(mapReady?data.agents:[],reset);
       if(!people.has(selected))selected=null;
       // Bound visual backlog. The full history remains visible in the ledger.
       if(!reduced)pending.push(...events.slice(-12));
