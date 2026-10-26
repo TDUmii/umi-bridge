@@ -89,3 +89,24 @@
 .arena-featured{position:absolute;z-index:6;left:50%;top:65%;transform:translate(-50%,-50%);display:grid;justify-items:center;gap:2px;color:#34291b;font:12px/1.4 'Segoe UI',sans-serif}.arena-featured-figure{width:54px;height:72px;background:url('/admin/arena/assets/gladiator-idle.png') 0 calc(var(--palette-row,0)*-72px)/216px 360px no-repeat;image-rendering:pixelated;filter:drop-shadow(0 5px 3px #67451c50)}.arena-featured[data-active=true] .arena-featured-figure{background-image:url('/admin/arena/assets/gladiator-run.png');animation:arena-featured-frames .9s steps(4,end) infinite}.arena-featured>span{font-size:11px}.arena-world:has(.arena-featured) .arena-world-focus{top:40%}@keyframes arena-featured-frames{to{background-position-x:-216px}}
 #arena .arena-head h2{font-family:UmiCinzel,'Segoe UI',sans-serif;font-size:25px!important;letter-spacing:.03em}#arenaContent>.arena-world{min-height:440px!important;flex:1}#arenaEmpty>.arena-world{min-height:460px!important}body.dark .arena-world{border-color:#596958}.arena-world[data-running=false] *,.arena-world[data-visible=false] *{animation-play-state:paused!important}@media(prefers-reduced-motion:reduce){.arena-featured-figure{animation:none!important}}
 .arena-world .arena-contestant>span:not(.arena-contestant-figure),.arena-world[data-compact=true] .arena-contestant>span:not(.arena-contestant-figure){font-size:11px;line-height:1.35;min-height:15px;background:#e4ca93eF;border-radius:3px;padding:1px 4px;max-width:94px;color:#362715}.arena-world .arena-contestant{width:92px!important}.arena-world .arena-contestant>strong{font-size:13px}
+
+/* Each contestant carries a distinct Roman weapon. */
+/* Unmodified Kenney CC0 weapon tiles, aligned to each sprite's right hand. */
+.arena-weapon{position:absolute;display:block;width:32px;height:32px;z-index:8;background-position:center;background-size:32px 32px;background-repeat:no-repeat;image-rendering:pixelated;transform-origin:50% 78%;pointer-events:none;--combat:arena-sword-slash;--tempo:1.5s;--weapon-scale:1;transform:scale(var(--weapon-scale))}
+.arena-contestant .arena-weapon{left:calc(50% + 1px);top:8px}
+.arena-featured .arena-weapon{left:calc(50% + 8px);top:22px;--weapon-scale:1.5}
+.weapon-0{background-image:url('/admin/arena/assets/weapons/sword.png')}
+.weapon-1{background-image:url('/admin/arena/assets/weapons/longsword.png');--combat:arena-sword-thrust;--tempo:1.7s}
+.weapon-2{background-image:url('/admin/arena/assets/weapons/saber.png');--combat:arena-saber-sweep;--tempo:1.4s}
+.weapon-3{background-image:url('/admin/arena/assets/weapons/hammer.png');--combat:arena-hammer-strike;--tempo:2s}
+.weapon-4{background-image:url('/admin/arena/assets/weapons/shield.png');--combat:arena-shield-block;--tempo:1.8s}
+.weapon-5{background-image:url('/admin/arena/assets/weapons/axe.png');--combat:arena-axe-chop;--tempo:1.9s}
+.arena-world[data-running=true] .arena-contestant[data-state=active] .arena-weapon,.arena-world[data-running=true] .arena-featured[data-active=true] .arena-weapon{animation:var(--combat) var(--tempo) steps(5,end) infinite}
+.arena-contestant[data-state=empty] .arena-weapon{display:none}.arena-contestant[data-state=eliminated] .arena-weapon{opacity:.45;filter:grayscale(.8)}
+@keyframes arena-sword-slash{0%,25%,80%,100%{transform:scale(var(--weapon-scale)) rotate(-15deg)}40%{transform:scale(var(--weapon-scale)) rotate(-85deg)}55%{transform:scale(var(--weapon-scale)) rotate(65deg)}}
+@keyframes arena-sword-thrust{0%,30%,80%,100%{transform:scale(var(--weapon-scale)) rotate(25deg)}48%,56%{transform:translate(9px,-4px) scale(var(--weapon-scale)) rotate(85deg)}}
+@keyframes arena-saber-sweep{0%,25%,85%,100%{transform:scale(var(--weapon-scale)) rotate(15deg)}40%{transform:translate(-3px,0) scale(var(--weapon-scale)) rotate(-95deg)}60%{transform:translate(7px,3px) scale(var(--weapon-scale)) rotate(100deg)}}
+@keyframes arena-hammer-strike{0%,20%,90%,100%{transform:scale(var(--weapon-scale)) rotate(15deg)}45%,55%{transform:translate(-4px,-6px) scale(var(--weapon-scale)) rotate(-120deg)}65%,73%{transform:translate(5px,5px) scale(var(--weapon-scale)) rotate(85deg)}}
+@keyframes arena-shield-block{0%,25%,80%,100%{transform:scale(var(--weapon-scale)) rotate(5deg)}40%,60%{transform:translate(5px,-3px) scale(var(--weapon-scale)) rotate(-12deg)}50%{transform:translate(2px,-3px) scale(var(--weapon-scale)) rotate(-18deg)}}
+@keyframes arena-axe-chop{0%,25%,85%,100%{transform:scale(var(--weapon-scale)) rotate(15deg)}40%,48%{transform:translate(-3px,-5px) scale(var(--weapon-scale)) rotate(-100deg)}60%,70%{transform:translate(7px,4px) scale(var(--weapon-scale)) rotate(100deg)}}
+@media(prefers-reduced-motion:reduce){.arena-world .arena-weapon{animation:none!important}}

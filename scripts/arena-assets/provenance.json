@@ -72,5 +72,47 @@
     "file": "Cinzel.ttf",
     "sha256": "f4d83d34d1f6c741193e4acf4b3dff9531e5a67b6aa65228d00a7db72a4e0f34",
     "usage": "Latin display text only"
+  },
+  "weapons": {
+    "title": "Tiny Dungeon 1.0",
+    "author": "Kenney",
+    "license": "CC0-1.0",
+    "source": "https://kenney.nl/assets/tiny-dungeon",
+    "download": "https://kenney.nl/media/pages/assets/tiny-dungeon/f8422efb44-1674742415/kenney_tiny-dungeon.zip",
+    "archiveSha256": "c109438ab06f65fd80f9b2686a4cf9c7c11dc64444b47333ec71d602f8bb5fc7",
+    "sourceFile": "Tilemap/tilemap_packed.png",
+    "changes": "Unmodified 16x16 tile crops; renderer uses nearest-neighbor 2x / 3x scale. Weapon names describe visual silhouettes, not historical replicas.",
+    "outputs": [
+      {
+        "file": "weapons/sword.png",
+        "tileIndex": 104,
+        "sha256": "89eff0c07205661ac56f2d2e01d8941daa520622e0c55abc27a8797e6475da31"
+      },
+      {
+        "file": "weapons/longsword.png",
+        "tileIndex": 105,
+        "sha256": "c2167720307b7a1709af3b042a11f06857a54358ff8ec38d17426773483b6165"
+      },
+      {
+        "file": "weapons/saber.png",
+        "tileIndex": 106,
+        "sha256": "b949293620559dd2d8e0e2f9f462aff5eeb5829db3dba4ae6c49211590037ae6"
+      },
+      {
+        "file": "weapons/hammer.png",
+        "tileIndex": 117,
+        "sha256": "ed50fec979dbd35eb4916eb55ae9b43c8ff0a0d2a83c42dc304051d5b555204e"
+      },
+      {
+        "file": "weapons/shield.png",
+        "tileIndex": 102,
+        "sha256": "cd2eab320c58ad0a28261a69fe9bb0390e584e3f89b88a4bf235172874b31848"
+      },
+      {
+        "file": "weapons/axe.png",
+        "tileIndex": 118,
+        "sha256": "801b784858dc3bb780a1c7198c7f3b902914dd92bbded91978320bbe00849d07"
+      }
+    ]
   }
 }

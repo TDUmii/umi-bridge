@@ -59,3 +59,7 @@ Phòng Corp có nhiều đồ hơn và nhiều hoạt cảnh hơn: uống cà ph
 Windows, Node.js 22.12+: `npm ci --ignore-scripts`, then `npm start`. Check syntax with `npm run build`.
 
 MIT. Asset licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## New in 1.8.9
+
+Arena Beta now uses six real Kenney CC0 weapon tiles. Each contestant keeps a stable weapon assignment and active turns show a distinct sword slash, thrust, saber sweep, hammer strike, shield block or axe chop. Reduced-motion and paused states stay still.

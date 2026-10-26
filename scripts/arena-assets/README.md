@@ -13,3 +13,8 @@ UmiBridge crops all four frames to the same 18x24 canvas, preserving a common fo
 
 
 Cinzel is self-hosted for Latin display text only under SIL OFL 1.1; see LICENSE.Cinzel.txt. Vietnamese interface labels use the app text font. Architecture composition is original and references Kenney Mini Arena and TorjusFS/colosseum-fight; their code and assets are not bundled.
+
+## Weapon tiles
+
+Six unmodified 16x16 weapon/shield tiles from **Kenney Tiny Dungeon 1.0**, CC0-1.0.
+Source: https://kenney.nl/assets/tiny-dungeon. See LICENSE.Kenney.txt and provenance.json for exact tile indices and SHA-256 hashes. Nearest-neighbor 2x/3x display, no interpolation. Sword slash, longsword thrust, saber sweep, hammer strike, shield block and axe chop use separate authored CSS keyframes. Assignment follows contestant index and remains stable across pages/rounds. These are visual activity cues for the actual active product turn; they do not simulate combat results or affect judging.

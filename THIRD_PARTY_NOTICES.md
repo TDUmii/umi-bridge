@@ -70,3 +70,9 @@ Selected interior sprites by Kenney Vleugels, CC0-1.0, from
 https://kenney.nl/assets/roguelike-indoors. Local crops preserve original pixels.
 Source license: scripts/corp-office/assets/LICENSE.kenney-indoors.txt.
 Tile coordinates and SHA-256: scripts/corp-office/assets/provenance.kenney-indoors.json.
+
+## Arena weapons - Kenney Tiny Dungeon
+
+Six unmodified 16x16 weapon/shield tiles from **Tiny Dungeon 1.0** by **Kenney**, CC0-1.0.
+Source: https://kenney.nl/assets/tiny-dungeon.
+License: scripts/arena-assets/LICENSE.Kenney.txt. Exact tile indices, archive/output SHA-256 hashes: scripts/arena-assets/provenance.json.
