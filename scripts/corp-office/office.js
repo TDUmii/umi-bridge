@@ -8,6 +8,7 @@
   let storage;try{storage=localStorage;}catch{}
   const furnitureHistory=new OfficeFurnitureHistory(storage);
   let ambient=true, floor=new OfficeFloor([]), roomPlan=false, hoveredZone=null, mapReady=false;
+  let infoConfig={team:true,conversation:true,customers:false,handoffs:true};try{const saved=JSON.parse(localStorage.getItem('umibridge.office.info.v1')||'{}');for(const key of Object.keys(infoConfig))if(typeof saved[key]==='boolean')infoConfig[key]=saved[key];}catch{}
   const labels = { IDLE:'Sẵn sàng', QUEUED:'Đợi nhận việc', DISPATCHED:'Đã gửi nhiệm vụ',
     WAITING:'Chờ phản hồi', LIMIT:'Chờ reset hạn mức', PAUSED:'Tạm dừng', COMPLETED:'Đã có kết quả', REVIEW:'Chờ duyệt', BLOCKED:'Bị chặn', DONE:'Đã bàn giao', UNKNOWN:'Chưa rõ trạng thái' };
   const colors = { IDLE:'#46665f', QUEUED:'#46665f', DISPATCHED:'#176448', WAITING:'#345b92', LIMIT:'#82541e', PAUSED:'#46665f', COMPLETED:'#72501a', REVIEW:'#72501a', BLOCKED:'#a6333a', DONE:'#176448' };
@@ -110,6 +111,7 @@
     if(!reduced)for(const p of people.values())if(install.has(p.id))life.install(p);
   }
   function select(id) {selected=id;lastRoster='';renderUI();draw();}
+  function applyInfoConfig(){for(const [key,value] of Object.entries(infoConfig)){document.querySelectorAll(`[data-info="${key}"]`).forEach(input=>input.checked=value);}const panel={team:'panel-team',customers:'panel-customers',handoffs:'panel-handoffs'};for(const [key,id] of Object.entries(panel)){const enabled=infoConfig[key];document.querySelector(`[data-office-tab="${key}"]`)?.toggleAttribute('hidden',!enabled);const node=$(id);if(node&&!enabled)node.hidden=true;}document.querySelector('.conversation-section').hidden=!infoConfig.conversation;}
   function avatar(a) {
     const c=document.createElement('canvas');c.width=24;c.height=40;c.className='avatar';c.setAttribute('aria-hidden','true');
     const g=c.getContext('2d'), im=images[`char_${hash(a.id)%6}`];g.imageSmoothingEnabled=false;
@@ -366,6 +368,9 @@
   $('zoom-fit').onclick=fitRoom;
   $('expand').onclick=()=>parent.postMessage({type:'corp-office-expand'},location.origin);
   $('toggle-roster').onclick=()=>{const open=document.body.classList.toggle('show-roster');$('toggle-roster').setAttribute('aria-expanded',String(open));};
+  $('info-settings-toggle').onclick=()=>{const open=$('info-settings').hidden;$('info-settings').hidden=!open;$('info-settings-toggle').setAttribute('aria-expanded',String(open));};
+  for(const input of document.querySelectorAll('[data-info]'))input.onchange=()=>{infoConfig[input.dataset.info]=input.checked;try{localStorage.setItem('umibridge.office.info.v1',JSON.stringify(infoConfig));}catch{}applyInfoConfig();};
+  applyInfoConfig();
   new ResizeObserver(resizeView).observe($('scene'));
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){hideTooltip();parent.postMessage({type:'corp-office-collapse'},location.origin);}});
   $('scene').addEventListener('scroll',()=>{

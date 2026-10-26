@@ -21,9 +21,9 @@ Opening UmiBridge checks for updates. Local projects, pairing and settings are p
 
 Browser control is opt-in. Chrome internal pages, password and file inputs require direct interaction. Page content and screenshots are not stored in request history. Tests, chat data, credentials and machine-specific files stay local.
 
-## New in 1.8.5
+## New in 1.8.6
 
-Project names are short. Chrome Office lets you choose which information panels appear and saves that layout locally.
+Project names are short. Chrome Office lets you choose visible information panels and saves that layout locally.
 
 ---
 
@@ -50,7 +50,7 @@ App tự kiểm cập nhật khi mở, giữ dự án và cài đặt local.
 
 Điều khiển trình duyệt cần bật quyền. Trang nội bộ Chrome, ô mật khẩu và chọn file cần thao tác trực tiếp. Không lưu nội dung trang/ảnh chụp vào lịch sử request. Test, chat, khóa và dữ liệu riêng giữ local.
 
-### Mới trong 1.8.5
+### Mới trong 1.8.6
 
 Tên Project ngắn hơn. Văn phòng Chrome cho chọn panel thông tin hiển thị và lưu bố cục trên máy.
 
