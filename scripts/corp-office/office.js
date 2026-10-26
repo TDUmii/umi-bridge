@@ -191,12 +191,12 @@
     const entries=data.conversations||data.handoffs.filter(h=>h.text);
     $('office-roster').classList.toggle('conversation-is-empty',!entries.length);
     const signature=JSON.stringify(entries);if($('conversation').dataset.signature===signature)return;
-    const root=$('conversation'),nearBottom=root.scrollHeight-root.scrollTop-root.clientHeight<48;root.dataset.signature=signature;root.replaceChildren();
-    if(!entries.length){const p=document.createElement('p');p.className='conversation-empty';p.textContent='Chưa có nội dung bàn giao được ghi nhận. Kết quả thực từ các lượt chạy sẽ xuất hiện tại đây.';root.append(p);return;}
+    const root=$('conversation'),right=$('right-conversation'),nearBottom=root.scrollHeight-root.scrollTop-root.clientHeight<48;root.dataset.signature=signature;root.replaceChildren();
+    if(!entries.length){const p=document.createElement('p');p.className='conversation-empty';p.textContent='Chưa có nội dung bàn giao được ghi nhận. Kết quả thực từ các lượt chạy sẽ xuất hiện tại đây.';root.append(p);if(right)right.replaceChildren(p.cloneNode(true));return;}
     for(const entry of entries){const article=document.createElement('article'),header=document.createElement('div'),name=document.createElement('strong'),stamp=document.createElement('time'),task=document.createElement('p'),body=document.createElement('p');
       article.className='conversation-entry';name.textContent=[people.get(entry.from)?.chatName||people.get(entry.from)?.role||entry.fromName||'Kết quả đã ghi nhận',entry.to?(people.get(entry.to)?.chatName||people.get(entry.to)?.role||entry.toName||'Nhân viên nhận'):''].filter(Boolean).join(' bàn giao cho ');
       const date=entry.at?new Date(entry.at):null;stamp.textContent=!date||Number.isNaN(date.valueOf())?'':date.toLocaleString('vi-VN');header.append(name,stamp);task.className='conversation-task';task.textContent=entry.task||'';body.className='conversation-text';const marker=(entry.text||'').lastIndexOf('UMI_CORP_RESULT:'),content=marker>=0?entry.text.slice(0,marker).trim():entry.text;body.textContent=content||entry.summary||'Nội dung kết quả chưa được ghi nhận.';article.append(header,task,body);if(marker>=0){const details=document.createElement('details'),summary=document.createElement('summary'),raw=document.createElement('pre');summary.textContent='Báo cáo gốc';raw.textContent=entry.text;details.append(summary,raw);article.append(details);}root.append(article);}
-    if(nearBottom)root.scrollTop=root.scrollHeight;
+    if(right)right.replaceChildren(...[...root.children].map(node=>node.cloneNode(true)));if(nearBottom)root.scrollTop=root.scrollHeight;
   }
   function walkTo(p,target) {life.routeTo(p,target);}
   function startDelivery() {
