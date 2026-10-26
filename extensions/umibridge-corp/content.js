@@ -1,5 +1,6 @@
 (() => {
   const memory = new Map();
+  const progressSeen=new Map(),sessionId=globalThis.crypto?.randomUUID?.()??`web-session-${Date.now()}`;
   const channelOf = command => command?.channel === 'arena' ? 'arena' : 'corp';
   const attemptKey = command => channelOf(command)+':'+command.attempt;
   const setupMarker = command => `[UmiBridge ${channelOf(command)==='arena'?'arena ':''}setup ${command.jobId}:${command.roleId}]`;
@@ -156,7 +157,9 @@
       if (prior?.result === result && result && Date.now() - prior.since >= 6000) return { ...base, kind: 'done', sent: true, result };
       if (prior?.result !== result) memory.set(attemptKey(command), { result, since: Date.now() });
     } else memory.delete(attemptKey(command));
-    return { ...base, kind: 'sent' };
+    const fingerprint=result.length+':'+result.slice(-120),key=attemptKey(command),progress=progressSeen.has(key)&&progressSeen.get(key)!==fingerprint;
+    progressSeen.set(key,fingerprint);if(progressSeen.size>200)progressSeen.delete(progressSeen.keys().next().value);
+    return { ...base, kind: 'sent',progress,providerProcessing:sending(),sessionId };
   }
   async function dispatch(command) {
     const base = { runId: command.runId, stepId: command.stepId, attempt: command.attempt,channel:channelOf(command) };

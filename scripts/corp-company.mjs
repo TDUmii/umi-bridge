@@ -88,6 +88,25 @@ export function buildIdeaWorkflow({project, members = [], idea, mode = 'build', 
       prompt:`${common}\n${reviewInstructions(config)}${variantInstructions ? '\n\n' + variantInstructions : ''}\n\nChặng: ${stage.title}\nTệp đầu ra: ${artifactDir}/${stage.file}\nNhiệm vụ: ${stage.task}`}))};
 }
 
+// Only independent readers fan out. Each reviewer owns its own report file.
+// Legacy workflows keep their original chain unless the owner enables DAG.
+export function configureIdeaGraph(run) {
+  const initial=run.steps.filter(step=>step.stage==='qa-first'||step.stage==='security'||step.stage?.startsWith('review-')&&!step.stage.endsWith('-final'));
+  const final=run.steps.filter(step=>step.stage==='qa-final'||step.stage?.startsWith('review-')&&step.stage.endsWith('-final'));
+  const implementation=run.steps.find(step=>step.stage==='implement'),repair=run.steps.find(step=>step.stage==='repair');
+  for(const [index,step] of run.steps.entries()){
+    step.dependencies=index?[run.steps[index-1].id]:[];
+    step.readScope=['.'];
+    const report=step.prompt.match(/Tệp đầu ra: ([^\r\n]+)/)?.[1];
+    step.writeScope=['implement','repair'].includes(step.stage)?['.']:report?[report]:[];
+    step.acceptanceCriteria=[{type:'artifact'},...(['implement','repair','qa-first','qa-final','local-run'].includes(step.stage)?[{type:'command'}]:[])];
+  }
+  if(implementation)for(const step of initial){step.dependencies=[implementation.id];if(step.stage==='security')step.prompt=step.prompt.replace('Đọc source và báo cáo QA','Đọc source và bằng chứng triển khai');}
+  if(repair){repair.dependencies=initial.map(step=>step.id);for(const step of final)step.dependencies=[repair.id];}
+  const local=run.steps.find(step=>step.stage==='local-run');if(local&&final.length)local.dependencies=final.map(step=>step.id);
+  return run;
+}
+
 export function readIdeaReport(result) {
   const source=String(result).trim(),marker='UMI_CORP_RESULT:',index=source.lastIndexOf(marker);
   if (index<0) throw Error('idea_report_invalid');

@@ -224,6 +224,7 @@
     syncScene(); sizeWorkspace();
   }
   function render() {
+    if(data)window.dispatchEvent(new CustomEvent('umibridge-orchestration',{detail:data}));
     renderScope();
     renderBootstraps();
     $('corpEnabled').textContent = 'Điều phối: ' + (data.enabled ? 'Bật' : 'Tắt'); $('corpEnabled').setAttribute('aria-pressed', String(data.enabled));

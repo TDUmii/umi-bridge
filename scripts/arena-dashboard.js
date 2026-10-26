@@ -148,7 +148,12 @@
     root.replaceChildren();const active=localStorage.getItem('umibridge.arena.tab.'+arena.id)||'live';
     for(const tab of section.querySelectorAll('[data-arena-tab]')){const selected=tab.dataset.arenaTab===active;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;}
     const activeTab=section.querySelector('[data-arena-tab][aria-selected="true"]');if(activeTab)root.setAttribute('aria-labelledby',activeTab.id);
-    ({live,candidates,rounds,history}[active]||live)(arena,...(active==='live'?[job,root]:[root]));root.scrollTop=scroll;if(focus)root.querySelector(`[data-focus="${CSS.escape(focus)}"]`)?.focus({preventScroll:true});
+    ({live,candidates,rounds,history}[active]||live)(arena,...(active==='live'?[job,root]:[root]));
+    const health=node('div',undefined,'umi-arena-health'),running=arena.steps.filter(step=>['dispatching','running'].includes(step.status)),waiting=arena.steps.filter(step=>step.status==='queued'),blocked=arena.steps.filter(step=>step.status==='blocked'),verification=arena.steps.filter(step=>step.status==='reported_complete'),en=localStorage.getItem('umibridge.admin.language')==='en';
+    for(const text of [en?`Active workers: ${running.length}`:`Worker đang chạy: ${running.length}`,en?`Queued sessions: ${waiting.length}`:`Phiên chờ: ${waiting.length}`,en?`Blocked: ${blocked.length}`:`Bị chặn: ${blocked.length}`,en?`Awaiting verification: ${verification.length}`:`Chờ kiểm chứng: ${verification.length}`])health.append(node('span',text));
+    for(const step of [...running,...blocked])health.append(node('span',`${step.kind==='judge'?(en?'Judge':'Giám khảo'):step.candidateId} · ${step.workerHealth||step.reason||step.status}`));
+    for(const step of verification)health.append(button((en?'Verify ':'Kiểm chứng ')+(step.kind==='judge'?(en?'judge':'giám khảo'):step.candidateId),async()=>{await window.umiVerifyArenaTask?.(arena,step);await load(true);}));
+    root.prepend(health);root.scrollTop=scroll;if(focus)root.querySelector(`[data-focus="${CSS.escape(focus)}"]`)?.focus({preventScroll:true});
   }
   async function load(force=false){if(loading&&!force)return;loading=true;try{data=await api();render();}catch(cause){message(cause.message);}finally{loading=false;}}
   $('arenaSelect').onchange=()=>{selected=$('arenaSelect').value;seatPage=null;localStorage.setItem('umibridge.arena.selected',selected);signature='';render();};

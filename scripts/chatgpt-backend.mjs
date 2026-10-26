@@ -1,4 +1,5 @@
 import { createCommandSession } from './command-session.mjs';
+import {readOrchestrationSettings} from './orchestration-state.mjs';
 import { createWindowsTools } from './windows-tools.mjs';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, readdir, stat, writeFile, appendFile } from 'node:fs/promises';
@@ -31,7 +32,7 @@ const tools = [
   {
     name: 'list_skills',
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    description: 'List installed Codex/Agents skills and their enabled states. Manage them in the local /admin Skill Center. Automatic context includes enabled summaries only; full skill documents require read_skill.',
+    description: 'List UmiBridge and compatible external SKILL.md documents and their enabled states. Manage them in the local /admin Skill Center. Automatic context includes enabled summaries only; full documents require read_skill. No skill scripts run automatically.',
     inputSchema: { type: 'object', additionalProperties: false, properties: {} },
   },
   {
@@ -283,8 +284,9 @@ let deliveredRevision;
 const server = new Server({ name: 'umibridge-sakura-console', version: '0.1.0-beta.21' }, { capabilities: { tools: {} }, instructions: [baseInstructions, initial.context.prompt].filter(Boolean).join('\n\n') });
 server.setRequestHandler(ListToolsRequestSchema, async request => {
   const { catalog, context } = await currentContext();
+  const protectedMode=(await readOrchestrationSettings(skillStateDir)).flags.workspaceLocksEnabled;
   return {
-    tools: catalog.filter(tool => context.allows(tool.name)),
+    tools: catalog.filter(tool => context.allows(tool.name)&&(!protectedMode||['list_skills','read_skill','windows_status'].includes(tool.name))),
     ...(request.params?._meta?.[CATALOG_META] === true ? { _meta: { [CATALOG_META]: catalog } } : {}),
   };
 });
@@ -293,6 +295,9 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
   let result;
   try {
     context.assertCall(request.params.name, request.params.arguments ?? {});
+    // Shared OAuth and stdio do not identify a conversation. Fail closed for all
+    // global filesystem, shell, Windows and remote operations in protected mode.
+    if((await readOrchestrationSettings(skillStateDir)).flags.workspaceLocksEnabled&&!['list_skills','read_skill','windows_status'].includes(request.params.name))throw Error('protected_workspace_requires_scoped_gateway_tool');
     result = await callTool(request.params.name, request.params.arguments ?? {});
   } catch (cause) { result = error(cause instanceof Error ? cause.message : String(cause)); }
   if (deliveredRevision !== context.revision) {

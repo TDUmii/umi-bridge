@@ -74,9 +74,12 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
   const secretHash = digest(connectionSecret);
   const requestHistory = await createRequestHistory(resolve(configDir, '..', 'request-history.jsonl'), { secretValues: [connectionSecret] });
   const chatLinks = await createChatLinksStore(resolve(configDir, '..', 'chat-links.json'));
+  const skillLibrary = createSkillLibrary({ stateDir: resolve(configDir, '..'), projectDir: ROOT });
+  const orchestration=await createOrchestrationState(resolve(configDir,'..'),corpClock?{clock:corpClock}:{});
+  const execution=await createWorkspaceExecution(resolve(configDir,'..'),corpClock?{clock:corpClock}:{});
   const addCorpWorkspace=async item=>{let link;try{link=parseProjectLink(item.chatUrl);}catch{link=parseChatLink(item.chatUrl);}if(link.projectId&&arena.snapshot().arenas.some(row=>row.projectId===link.projectId))throw Error('arena_project_reserved');return chatLinks.addWorkspace(item);};
-  const corp = await createCorpRuntime(resolve(configDir, '..', 'corp-state.json'), { workspaces: () => chatLinks.workspaces(), createWorkspace:addCorpWorkspace, syncProject:input=>chatLinks.syncProject(input), ...(corpClock ? { clock: corpClock } : {}),...(corpProjectsRoot?{projectsRoot:corpProjectsRoot}:{}) });
-  const arena = await createArenaRuntime(resolve(configDir,'..','arena-state.json'),{authenticate:token=>corp.authenticate(token),isPaired:()=>corp.snapshot().paired,projectAllowed:id=>!chatLinks.workspaces().some(project=>project.projectId===id),...(corpClock?{clock:corpClock}:{}),...((arenaProjectsRoot||corpProjectsRoot)?{projectsRoot:arenaProjectsRoot||corpProjectsRoot}:{})});
+  const corp = await createCorpRuntime(resolve(configDir, '..', 'corp-state.json'), { skillLibrary,orchestration,execution,workspaces: () => chatLinks.workspaces(), createWorkspace:addCorpWorkspace, syncProject:input=>chatLinks.syncProject(input), ...(corpClock ? { clock: corpClock } : {}),...(corpProjectsRoot?{projectsRoot:corpProjectsRoot}:{}) });
+  const arena = await createArenaRuntime(resolve(configDir,'..','arena-state.json'),{orchestration,execution,browserCatalog:()=>corp.snapshot().modelCatalog,authenticate:token=>corp.authenticate(token),isPaired:()=>corp.snapshot().paired,projectAllowed:id=>!chatLinks.workspaces().some(project=>project.projectId===id),...(corpClock?{clock:corpClock}:{}),...((arenaProjectsRoot||corpProjectsRoot)?{projectsRoot:arenaProjectsRoot||corpProjectsRoot}:{})});
   const generatedProjects=()=>[
     ...corp.snapshot().bootstraps.map(job=>({...job,channel:'corp',busy:job.status==='running'||corp.snapshot().runs.some(run=>run.workspaceId===job.workspaceId&&run.status==='running'),completed:corp.snapshot().runs.some(run=>run.id===job.runId&&run.status==='done')})),
     ...arena.snapshot().arenas.map(item=>({...item,channel:'arena',chats:arena.snapshot().bootstraps.find(job=>job.arenaId===item.id)?.chats||[],busy:item.status==='running'||arena.snapshot().bootstraps.some(job=>job.arenaId===item.id&&job.status==='running'),completed:item.status==='done'}))
@@ -100,7 +103,6 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
   const workflowsEnabled = workflowEnabled === undefined ? process.env.UMIBRIDGE_WORKFLOWS === '1' || existsSync(resolve(configDir, 'workflows-enabled')) : workflowEnabled === true || workflowEnabled === '1';
   const workflowLedger = await createWorkflowLedger(resolve(configDir, '..', 'workflows.jsonl'), { enabled: workflowsEnabled });
   if (workflowsEnabled && typeof workflowLedger.recover === 'function') await workflowLedger.recover();
-  const skillLibrary = createSkillLibrary({ stateDir: resolve(configDir, '..'), projectDir: ROOT });
   const toolPolicy = createToolPolicy({ stateDir: resolve(configDir, '..') });
   const oauthState = createOAuthState(resolve(configDir, '..', 'oauth-state.json'), issuer.href);
   const { clients, access, refresh } = oauthState;
@@ -227,6 +229,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     if (typeof workflowLedger.close === 'function') await workflowLedger.close().catch(() => {});
     await corp.close();
     await arena.close();
+    await execution.close();await orchestration.close();
     await backend.close().catch(() => {});
     resolveClosed();
   })();
@@ -241,7 +244,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       const listed = await backend.listTools({ _meta: { [CATALOG_META]: true } }, { timeout: 30_000 });
       const backendCatalog = listed._meta?.[CATALOG_META] ?? listed.tools ?? [];
       const paused = existsSync(resolve(configDir, '..', 'windows-tools-disabled'));
-      const catalog = [...backendCatalog, ...deviceToolSpecs].map(tool => ({ ...tool, available: !(paused && tool.name.startsWith('windows_') && tool.name !== 'windows_status') }));
+      const catalog = [...backendCatalog, ...deviceToolSpecs,...scopedToolSpecs].map(tool => ({ ...tool, available: !(paused && tool.name.startsWith('windows_') && tool.name !== 'windows_status') }));
       const names = new Set(catalog.map(tool => tool.name));
       const policyCatalog = [...catalog, ...WINDOWS_TOOL_NAMES.filter(name => !names.has(name)).map(name => ({ name, available: false, description: 'Named Windows desktop operation on linked devices. The local worker does not currently expose this operation.' }))];
       const skills = await skillLibrary.list().catch(() => []);
@@ -404,6 +407,31 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       try { res.json(await action(req)); }
       catch (error) { res.status(['invalid_corp_key','invalid_arena_key'].includes(error.message) ? 401 : error.message.endsWith('_not_found') ? 404 : 400).json({ error: error.message }); }
     };
+    const protectedTool=name=>scopedToolSpecs.some(tool=>tool.name===name)||['list_skills','read_skill','windows_status'].includes(name);
+    app.get('/admin/api/orchestration',localAdmin,corpHandler(()=>({settings:orchestration.settings(),execution:execution.snapshot()})));
+    app.post('/admin/api/orchestration',localAdmin,adminWrite,corpJson,corpHandler(async req=>{
+      if(arena.snapshot().arenas.some(row=>row.status==='running'||row.steps?.some(step=>['dispatching','running','reported_complete'].includes(step.status))))throw Error('pause_and_reconcile_before_feature_change');
+      await corp.prepareOrchestration();
+      for(const route of Object.values(req.body.routes||{}))if(!corp.snapshot().modelCatalog.some(row=>row.model===route.model&&row.efforts.includes(route.effort)))throw Error('model_not_available');
+      return orchestration.update(req.body);
+    }));
+    app.post('/admin/api/corp/runs/:runId/tasks/:taskId/verify',localAdmin,adminWrite,corpJson,corpHandler(req=>corp.verifyTask(req.params.runId,req.params.taskId,req.body)));
+    app.post('/admin/api/corp/runs/:runId/tasks/:taskId/action',localAdmin,adminWrite,corpJson,corpHandler(req=>corp.taskAction(req.params.runId,req.params.taskId,req.body.action)));
+    app.post('/admin/api/arena/arenas/:arenaId/tasks/:taskId/verify',localAdmin,adminWrite,corpJson,corpHandler(req=>arena.verifyTask(req.params.arenaId,req.params.taskId,req.body)));
+    app.get('/admin/api/skill-categories',localAdmin,corpHandler(()=>skillLibrary.categoryMap()));
+    app.post('/admin/api/skill-categories',localAdmin,adminWrite,corpJson,corpHandler(req=>skillLibrary.mapCategory(req.body.category,req.body.names)));
+    app.post('/admin/api/skills/:name/import',localAdmin,adminWrite,corpJson,corpHandler(req=>skillLibrary.importCopy(req.params.name)));
+    const memoryProject=id=>{if(!chatLinks.workspaces().some(row=>row.kind==='project'&&row.projectId===id))throw Error('project_not_found');};
+    app.get('/admin/api/projects/:id/memory',localAdmin,corpHandler(req=>{memoryProject(req.params.id);return {entries:orchestration.memory(req.params.id)};}));
+    app.post('/admin/api/projects/:id/memory',localAdmin,adminWrite,corpJson,corpHandler(async req=>{
+      memoryProject(req.params.id);const row=orchestration.memory(req.params.id).find(row=>row.id===req.body.id);
+      if(req.body.status==='approved'&&row&&['verified_fix','tested_command'].includes(row.kind)){
+        if(!row.evidenceRefs.length)throw Error('memory_requires_verified_evidence');
+        const root=chatLinks.workspaces().find(project=>project.projectId===req.params.id)?.root;
+        for(const ref of row.evidenceRefs){const evidence=execution.evidence(ref,req.params.id);if(evidence.status!=='verified'||!(await execution.checkEvidence(ref,root)).checks.some(check=>check.type==='command'&&check.testPassed))throw Error('memory_requires_verified_evidence');if(execution.evidence(ref,req.params.id).status!=='verified')throw Error('memory_evidence_stale');}
+      }
+      return orchestration.memoryChange(req.params.id,req.body);
+    }));
     const pairBrowser=async()=>{await arena.settings({enabled:false});return corp.pair();};
     const revokeBrowser=async()=>{await arena.settings({enabled:false});return corp.revoke();};
     app.get('/admin/api/corp', localAdmin, (_req, res) => res.json({ ...corp.snapshot(), workspaces: chatLinks.workspaces() }));
@@ -415,7 +443,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.post('/admin/api/arena/arenas/:id/:action',localAdmin,adminWrite,corpHandler(req=>arena.action(req.params.id,req.params.action)));
     for(const action of ['poll','report','authorize','bootstrap-authorize','bootstrap-report']){
       const method={'bootstrap-authorize':'bootstrapAuthorize','bootstrap-report':'bootstrapReport'}[action]||action;
-      app.post('/admin/arena/bridge/'+action,localAdmin,arenaJson,corpHandler(async req=>{if(action==='poll')corp.authenticate(String(req.headers.authorization??'').replace(/^Bearer /,''));if(action==='poll'&&!/^([1-9]\d*\.|0\.([7-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||''))return {command:null,monitors:[],bootstrap:null};const result=await arena[method](String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{});if(action==='report')checkpoint('arena',req.body??{});if(action==='poll'){const preference=corp.snapshot().modelPreference;if(preference){if(result.command)result.command.modelPreference=preference;if(result.bootstrap)result.bootstrap.modelPreference=preference;}}return action==='poll'?{...result,lifecycle:/^(?:[1-9]\d*\.|0\.(?:[8-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||'')?lifecycle.poll():null,resetGeneration:corp.snapshot().resetGeneration}:result;}));
+      app.post('/admin/arena/bridge/'+action,localAdmin,arenaJson,corpHandler(async req=>{if(action==='poll')corp.authenticate(String(req.headers.authorization??'').replace(/^Bearer /,''));if(action==='poll'&&!/^([1-9]\d*\.|0\.([7-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||''))return {command:null,monitors:[],bootstrap:null};const result=await arena[method](String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{});if(action==='report')checkpoint('arena',req.body??{});if(action==='poll'){const preference=corp.snapshot().modelPreference;if(preference){if(result.command&&!result.command.modelPreference)result.command.modelPreference=preference;if(result.bootstrap)result.bootstrap.modelPreference=preference;}}return action==='poll'?{...result,lifecycle:/^(?:[1-9]\d*\.|0\.(?:[8-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||'')?lifecycle.poll():null,resetGeneration:corp.snapshot().resetGeneration}:result;}));
     }
     app.get('/admin/api/generated-git',localAdmin,(_req,res)=>res.set('Cache-Control','no-store').json(generatedGit.snapshot()));
     app.post('/admin/api/generated-git/settings',localAdmin,adminWrite,corpJson,corpHandler(req=>generatedGit.settings(req.body??{})));
@@ -446,7 +474,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
         if(action==='poll'&&!/^([1-9]\d*\.|0\.([7-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||'')){return corp.poll(token,{...(req.body??{}),suppressDispatch:true});}
         const result = await corp[action](token, req.body ?? {});
         if(action==='report')checkpoint('corp',req.body??{});
-        if(action==='poll'&&corp.snapshot().modelPreference){if(result.command)result.command.modelPreference=corp.snapshot().modelPreference;if(result.bootstrap)result.bootstrap.modelPreference=corp.snapshot().modelPreference;}
+        if(action==='poll'&&corp.snapshot().modelPreference){if(result.command&&!result.command.modelPreference)result.command.modelPreference=corp.snapshot().modelPreference;if(result.bootstrap)result.bootstrap.modelPreference=corp.snapshot().modelPreference;}
         return action === 'poll' ? { ...result,lifecycle:/^(?:[1-9]\d*\.|0\.(?:[8-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||'')?lifecycle.poll():null, modelScan:corp.snapshot().modelScan, resetGeneration:corp.snapshot().resetGeneration, projects: chatLinks.workspaces().filter(item => item.kind === 'project' && !corp.snapshot().bootstraps.some(job=>job.workspaceId===item.id&&!['done','cancelled'].includes(job.status))).map(({id, projectId, chatUrl, sync}) => ({id, projectId, chatUrl, requested: sync.requested})) } : result;
       }));
     }
@@ -460,7 +488,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       next();
     }, express.static(resolve(ROOT, 'scripts/corp-office'), { dotfiles: 'deny', index: 'index.html' }));
     app.use('/admin/arena/assets', localAdmin, express.static(resolve(ROOT, 'scripts/arena-assets'), {dotfiles:'deny', index:false}));
-    for (const asset of ['help-center.js', 'model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
+    for (const asset of ['orchestration-dashboard.js','orchestration-dashboard.css','help-center.js', 'model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
       app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
     }
     const workflowAvailable = (_req, res, next) => {
@@ -675,7 +703,8 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       const options = { timeout: 120_000 };
       server.setRequestHandler(ListToolsRequestSchema, async () => {
         const { catalog, context } = await readToolContext();
-        return { tools: catalog.filter(tool => context.allows(tool.name)).map(({ available, ...tool }) => tool) };
+        const protectedMode=orchestration.settings().flags.workspaceLocksEnabled;
+        return { tools: catalog.filter(tool => context.allows(tool.name)&&(protectedMode?protectedTool(tool.name):!scopedToolSpecs.some(row=>row.name===tool.name))).map(({ available, ...tool }) => tool) };
       });
       server.setRequestHandler(CallToolRequestSchema, async request => {
         const startedAt = performance.now();
@@ -684,14 +713,18 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
         let result;
         try {
           context.assertCall(request.params.name, request.params.arguments ?? {});
+          if(orchestration.settings().flags.workspaceLocksEnabled&&!protectedTool(request.params.name))throw Error('protected_workspace_requires_scoped_tool');
           if (paused && request.params.name === 'windows_on_device') throw new Error('Windows desktop tools are paused. Enable them in Dashboard Settings.');
-          result = deviceToolsByName.has(request.params.name)
+          result = scopedToolSpecs.some(tool=>tool.name===request.params.name)
+            ? (orchestration.settings().flags.workspaceLocksEnabled?{content:[{type:'text',text:JSON.stringify(await execution.execute(request.params.name,request.params.arguments??{}))}]}:{isError:true,content:[{type:'text',text:'Error: protected_workspace_disabled'}]})
+            : deviceToolsByName.has(request.params.name)
             ? await callDeviceTool(request.params.name, request.params.arguments ?? {})
             : withoutContext(await backend.callTool(request.params, undefined, options));
         } catch (cause) {
           result = { isError: true, content: [{ type: 'text', text: `Error: ${cause instanceof Error ? cause.message : String(cause)}` }] };
         }
-        await requestHistory.add(request.params.name, request.params.arguments, result, performance.now() - startedAt, clientName);
+        const historyArgs=request.params.arguments?.scopeToken?{...request.params.arguments,scopeToken:'[redacted]'}:request.params.arguments;
+        await requestHistory.add(request.params.name, historyArgs, result, performance.now() - startedAt, clientName);
         return deliverContext(result, context, req.auth?.clientId);
       });
       if (capabilities.resources) {
@@ -716,3 +749,5 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     return { port: httpServer.address().port, publicUrl: issuer.href, url: resource.href, backendPid: backendTransport.pid, close, closed };
   } catch (error) { await close(); throw error; }
 }
+import {createOrchestrationState} from './orchestration-state.mjs';
+import {createWorkspaceExecution,scopedToolSpecs} from './workspace-execution.mjs';

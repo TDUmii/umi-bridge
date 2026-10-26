@@ -4,6 +4,7 @@ import {homedir,totalmem,availableParallelism} from 'node:os';
 export function recommendArenaCount(memory=totalmem(),cores=availableParallelism()){const gib=memory/1073741824;return gib<8||cores<4?10:gib<16||cores<8?20:gib<32?40:gib<64?60:100;}
 import {createHash, randomBytes, randomUUID, timingSafeEqual} from 'node:crypto';
 import {countTextTokens} from './local-admin.mjs';
+import {normalizeTasks,dependencyState,scheduleRuns} from './task-graph.mjs';
 
 // Rubric v2 keeps scoring evidence-based and makes quality dimensions explicit.
 // The judge must score every criterion for every candidate. Scores sum to 100.
@@ -68,7 +69,7 @@ async function evidenceFiles(root, paths) {
   return files;
 }
 
-export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'Documents','UmiBridge Projects'),clock=Date.now,authenticate:externalAuthenticate,isPaired,projectAllowed=()=>true}={}) {
+export async function createArenaRuntime(filePath,{orchestration,execution,browserCatalog=()=>[],projectsRoot=join(homedir(),'Documents','UmiBridge Projects'),clock=Date.now,authenticate:externalAuthenticate,isPaired,projectAllowed=()=>true}={}) {
   await mkdir(dirname(filePath),{recursive:true});
   let state={schema:1,enabled:false,tokenHash:null,arenas:[],bootstraps:[],events:[],usage:[]};
   try{if((await lstat(filePath)).isSymbolicLink())throw Error('arena_store_symlink');state=JSON.parse(await readFile(filePath,'utf8'));if(state.schema!==1||!['arenas','bootstraps','events','usage'].every(key=>Array.isArray(state[key])))throw Error('arena_store_invalid');}catch(error){if(error.code!=='ENOENT')throw error;}
@@ -82,7 +83,9 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
   const transaction=fn=>serial(async()=>{const before=clone(state),rollbacks=[];try{const result=await fn(cleanup=>rollbacks.push(cleanup));if(JSON.stringify(before)!==JSON.stringify(state))await save();return result;}catch(error){state=before;for(const cleanup of rollbacks.reverse())await cleanup().catch(()=>{});throw error;}});
   const now=()=>new Date(clock()).toISOString();
   const paired=()=>externalAuthenticate ? (isPaired ? Boolean(isPaired()) : true) : Boolean(state.tokenHash);
-  const authenticate=token=>{if(externalAuthenticate)return externalAuthenticate(token);if(typeof token!=='string'||!state.tokenHash||token.length>200||!timingSafeEqual(Buffer.from(state.tokenHash,'hex'),Buffer.from(digest(token),'hex')))throw Error('invalid_arena_key');};
+  const owner=Symbol('local-verification');
+  const flags=()=>orchestration?.settings().flags||{};
+  const authenticate=token=>{if(token===owner)return;if(externalAuthenticate)return externalAuthenticate(token);if(typeof token!=='string'||!state.tokenHash||token.length>200||!timingSafeEqual(Buffer.from(state.tokenHash,'hex'),Buffer.from(digest(token),'hex')))throw Error('invalid_arena_key');};
   const arenaById=id=>{const arena=state.arenas.find(row=>row.id===id);if(!arena)throw Error('arena_not_found');return arena;};
   const jobById=id=>{const job=state.bootstraps.find(row=>row.id===id);if(!job)throw Error('bootstrap_not_found');return job;};
   const history=(arena,type,extra={})=>{const row={id:randomUUID(),arenaId:arena.id,type,at:now(),...extra};arena.history.push(row);state.events.push(row);state.events=state.events.slice(-300);};
@@ -92,7 +95,8 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
   const usage=(arena,step,status='pending')=>{
     if(!step.sent)return;
     let row=state.usage.find(item=>item.id===step.attempt);
-    if(!row){row={id:step.attempt,timestamp:new Date(step.issuedAt).toISOString(),provider:'chatgpt',clientName:'ChatGPT Arena',toolName:'chat_turn',title:arena.title,chatId:step.chatId,usage:{inputTokens:step.inputTokens??null,inputBytes:step.inputBytes??0,outputTokens:null,outputBytes:0,estimated:true,method:'o200k_base',partial:true}};state.usage.push(row);}
+    if(!row){row={id:step.attempt,projectId:arena.projectId,runId:arena.id,taskId:step.id,attemptId:step.attempt,workerId:step.chatId,roleId:step.kind==='judge'?'judge':step.candidateId,retryCount:step.attemptHistory?.length||0,timestamp:new Date(step.issuedAt).toISOString(),provider:'chatgpt',clientName:'ChatGPT Arena',toolName:'chat_turn',title:arena.title,chatId:step.chatId,usage:{inputTokens:step.inputTokens??null,inputBytes:step.inputBytes??0,outputTokens:null,outputBytes:0,estimated:true,method:'o200k_base',partial:true}};state.usage.push(row);}
+    row.taskStatus=step.status;row.verification=step.verification??null;row.limitBlocked=step.reason==='provider_limit';
     row.status=status;if(status==='ok'){row.usage.outputTokens=countTextTokens(step.result);row.usage.outputBytes=Buffer.byteLength(step.result);row.usage.partial=row.usage.inputTokens===null||row.usage.outputTokens===null;row.durationMs=Math.max(0,clock()-step.issuedAt);}
   };
   const promptProduct=(arena,candidate,round)=>{
@@ -106,7 +110,12 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
   const newStep=(arena,kind,round,candidate)=>{
     const chat=candidate||arena.judge;
     const step={id:randomUUID(),kind,round,candidateId:candidate?.id??null,chatId:chat.chatId,chatUrl:chat.chatUrl,projectId:arena.projectId,status:'queued',attempt:randomUUID(),issuedAt:null,sent:false,result:null,reason:null,prompt:kind==='judge'?promptJudge(arena,arena.rounds.at(-1)):promptProduct(arena,candidate,round)};
-    arena.steps.push(step);return step;
+    if(flags().dagSchedulerEnabled){
+      const previousJudge=arena.steps.findLast(row=>row.kind==='judge'&&row.round===round-1);
+      step.dependencies=kind==='judge'?arena.steps.filter(row=>row.round===round&&row.kind!=='judge').map(row=>row.id):previousJudge?[previousJudge.id]:[];
+      step.roleId=kind==='judge'?'judge':'contestant';step.readScope=['.'];step.writeScope=kind==='judge'?[]:['.'];step.acceptanceCriteria=[{type:'artifact'},...(kind==='judge'?['review']:['build','test','run']).map(name=>({type:'command',name}))];
+    }
+    arena.steps.push(step);if(flags().dagSchedulerEnabled)normalizeTasks(arena,{legacy:true});return step;
   };
   const scheduleProducts=(arena,ids,round)=>{arena.phase=round===1?'build':'revise';for(const id of ids)newStep(arena,round===1?'build':'revise',round,arena.candidates.find(row=>row.id===id));};
   const advance=arena=>{
@@ -118,106 +127,21 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
   // Persisted running intent survives restart; issued attempts are observed, never replayed.
   if(migrated)await save();
 
-  return {
-    snapshot,authenticate,
-    deletedTargets:()=>clone(state.deletedTargets||[]),
-    recordDeletion:input=>transaction(()=>{const target={projectId:input.projectId,chatId:input.chatId||null};state.deletedTargets??=[];if(!state.deletedTargets.some(row=>row.projectId===target.projectId&&row.chatId===target.chatId))state.deletedTargets.push({...target,at:now()});for(const arena of state.arenas.filter(row=>row.projectId===target.projectId)){if(!['done','cancelled'].includes(arena.status)){arena.status='cancelled';arena.reason=target.chatId?'chat_deleted':'project_deleted';for(const step of arena.steps.filter(row=>!finished(row))){usage(arena,step,'error');step.status='cancelled';step.reason=arena.reason;}history(arena,'cancel',{reason:arena.reason});}const job=state.bootstraps.find(row=>row.arenaId===arena.id);if(job&&!finished(job))job.status='cancelled';}return {ok:true};}),
-    usage:()=>clone(state.usage),
-    settings:input=>transaction(()=>{if(typeof input.enabled==='boolean')state.enabled=input.enabled;if(typeof input.autoResume==='boolean')state.autoResume=input.autoResume;return snapshot();}),
-    pair:()=>transaction(()=>{if(externalAuthenticate)throw Error('shared_pairing_managed_by_gateway');const token=randomBytes(32).toString('base64url');state.tokenHash=digest(token);return {token};}),
-    revoke:()=>transaction(()=>{state.tokenHash=null;state.enabled=false;lastSeen=0;return snapshot();}),
-    create:input=>transaction(async rollback=>{
-      if(input.chatMode==='temporary')throw Error('temporary_chat_project_unsupported');
-      if(!paired())throw Error('pair_arena_first');
-      if(!bounded(input.idea,8000)||input.idea.trim().length<4)throw Error('invalid_idea');
-      const count=input.count??20;if(!Number.isInteger(count)||count<10||count>100)throw Error('invalid_arena_count');
-      if(input.workspaceId!==undefined||input.mode!==undefined&&input.mode!=='build'||input.format!==undefined&&input.format!=='knockout')throw Error('independent_arena_required');
-      if(typeof input.requestKey!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestKey))throw Error('invalid_arena_request');
-      const requested=parentPath(input.parentRoot||projectsRoot),existing=state.arenas.find(row=>row.requestKey===input.requestKey);
-      if(existing){if(existing.idea!==input.idea.trim()||existing.count!==count||relative(existing.parentRoot,await realpath(requested))!=='')throw Error('arena_request_conflict');return clone(existing);}
-      if(state.arenas.filter(row=>!finished(row)).length>=10||state.arenas.length>=100)throw Error('arena_capacity');
-      if(relative(parentPath(projectsRoot),requested)==='')await mkdir(requested,{recursive:true});
-      const parent=await realpath(requested).catch(()=>{throw Error('parent_folder_unavailable');});if(!(await lstat(parent)).isDirectory())throw Error('parent_folder_unavailable');
-      const base=clean(input.name,48)||input.idea.trim().split('\n')[0].slice(0,48),slug=base.normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/đ/gi,'d').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'arena';
-      const root=join(parent,`${slug}-arena-${input.requestKey}`);await mkdir(root).catch(error=>{throw Error(error.code==='EEXIST'?'project_folder_exists':'parent_folder_unavailable');});rollback(()=>rmdir(root));
-      if((await lstat(root)).isSymbolicLink()||outside(parent,await realpath(root)))throw Error('invalid_parent_root');
-      const ideaFile=join(root,'UMI-ARENA-IDEA.md'),handle=await open(ideaFile,'wx');rollback(()=>unlink(ideaFile));try{await handle.writeFile(`# ${base}\n\n${input.idea.trim()}\n`);}finally{await handle.close();}
-      const id=input.requestKey,candidates=[];
-      for(let index=1;index<=count;index++){const roleId=`contestant-${String(index).padStart(2,'0')}`,candidateRoot=join(root,roleId);await mkdir(candidateRoot);rollback(()=>rmdir(candidateRoot));candidates.push({id:roleId,roleId,label:`Thí sinh ${String(index).padStart(2,'0')}`,root:candidateRoot,chatId:null,chatUrl:null,status:'waiting',versions:[],feedback:[]});}
-      const arena={id,cleanupAfterDelivery:input.cleanupAfterDelivery===true,requestKey:id,title:base,name:`${base.slice(0,30)} [Arena-${id.slice(0,8)}]`,idea:input.idea.trim(),parentRoot:parent,root,count,rubricVersion:arenaRubricVersion,rubric:clone(arenaRubric),status:'setup',phase:'setup',createdAt:now(),projectId:null,projectUrl:null,candidates,judge:null,steps:[],rounds:[],history:[],winnerId:null,reason:null};
-      const job={id,arenaId:id,kind:'arena',name:arena.name,root,idea:arena.idea,count,status:input.start!==false&&state.enabled?'running':'paused',projectId:null,projectUrl:null,chats:[],attempt:null,issuedAt:null,reason:null,createdAt:now()};
-      state.arenas.push(arena);state.bootstraps.push(job);history(arena,'created');return clone(arena);
-    }),
-    action:(id,action)=>transaction(()=>{
-      const arena=arenaById(id),job=jobById(id),step=current(arena);
-      if(action==='delete'){if(!finished(arena))throw Error('cancel_before_delete');state.arenas=state.arenas.filter(row=>row.id!==id);state.bootstraps=state.bootstraps.filter(row=>row.id!==id);return {ok:true};}
-      if(finished(arena))throw Error('arena_finished');
-      if(action==='setup'){if(!state.enabled)throw Error('enable_arena_first');if(job.status==='done')throw Error('bootstrap_finished');if(job.issuedAt!==null)throw Error('check_browser_before_retry');job.status='running';job.reason=null;}
-      else if(action==='start'){arena.manualPaused=false;if(!state.enabled)throw Error('enable_arena_first');if(job.status!=='done')throw Error('arena_setup_required');if(step?.status==='blocked')throw Error('check_chat_before_retry');arena.status='running';arena.reason=null;advance(arena);}
-      else if(action==='pause'){arena.manualPaused=true;arena.reason='manual_pause';arena.status=job.status==='done'?'paused':'setup';if(!finished(job))job.status='paused';}
-      else if(action==='retry'){
-        if(job.status!=='done'){if(!['blocked','paused'].includes(job.status))throw Error('retry_not_available');job.status='paused';job.attempt=null;job.issuedAt=null;job.reason=null;}
-        else {if(step?.status!=='blocked')throw Error('retry_not_available');usage(arena,step,'error');Object.assign(step,{status:'queued',attempt:randomUUID(),issuedAt:null,sent:false,result:null,reason:null,continuation:true});arena.status='paused';arena.reason=null;}
-      }else if(action==='cancel'){arena.status='cancelled';job.status=finished(job)?job.status:'cancelled';for(const item of arena.steps.filter(row=>!finished(row))){usage(arena,item,'error');item.status='cancelled';}}
-      else throw Error('invalid_arena_action');
-      history(arena,action);return clone(arena);
-    }),
-    bootstrapAuthorize:(token,input)=>serial(()=>{authenticate(token);const job=jobById(input.jobId);return {allowed:state.enabled&&job.status==='running'&&job.attempt===input.attempt&&job.issuedAt!==null&&clock()-job.issuedAt<120000};}),
-    bootstrapReport:(token,input)=>transaction(()=>{
-      authenticate(token);const job=jobById(input.jobId),arena=arenaById(job.arenaId);
-      if(job.lastAttempt===input.attempt)return {ignored:true};
-      if(job.attempt!==input.attempt)throw Error('stale_attempt');if(finished(job)||job.issuedAt===null)return {ignored:true};
-      if(input.kind==='blocked'){job.status='blocked';job.reason=clean(input.reason,150)||'bootstrap_unconfirmed';history(arena,'bootstrap_blocked',{reason:job.reason});return {ok:true};}
-      if(input.kind==='project'&&!job.projectId){const link=projectLink(input.projectUrl);if(!projectAllowed(link.projectId)||state.arenas.some(row=>row.id!==arena.id&&row.projectId===link.projectId))throw Error('arena_project_conflict');Object.assign(job,link);Object.assign(arena,link);}
-      else if(input.kind==='chat'&&job.projectId){
-        const member=arena.candidates[job.chats.length]||{roleId:'judge',label:'Giám khảo'},chat=scopedChat(input.chatUrl,job.projectId);
-        if(input.roleId!==member.roleId||job.chats.some(row=>row.chatId===chat.chatId))throw Error('bootstrap_role_mismatch');
-        const row={roleId:member.roleId,name:member.label,...chat};job.chats.push(row);
-        if(member.roleId==='judge')arena.judge=row;else Object.assign(member,chat);
-        if(job.chats.length===arena.count+1){job.status='done';arena.status='paused';arena.phase='build';const ids=arena.candidates.map(row=>row.id);arena.rounds.push({number:1,inputIds:ids,outputIds:[],status:'building',decision:null});scheduleProducts(arena,ids,1);history(arena,'setup_completed',{chatCount:arena.count+1});}
-      }else throw Error('invalid_bootstrap_report');
-      job.lastAttempt=input.attempt;job.attempt=null;job.issuedAt=null;job.reason=null;return {ok:true};
-    }),
-    poll:(token,input={})=>transaction(()=>{
-      authenticate(token);lastSeen=clock();extensionVersion=/^\d+\.\d+\.\d+$/.test(input.extensionVersion)?input.extensionVersion:null;
-      let bootstrap=null,command=null;
-      const monitors=[];
-      for(const job of state.bootstraps.filter(row=>row.status==='running')){
-        if(job.issuedAt!==null){if(clock()-job.issuedAt>=120000){job.status='blocked';job.reason='bootstrap_unconfirmed';}continue;}
-        if(!state.enabled||!supported(job.count)||bootstrap||state.bootstraps.some(row=>row.issuedAt!==null&&!finished(row)))continue;
-        job.attempt=randomUUID();job.issuedAt=clock();const arena=arenaById(job.arenaId),member=arena.candidates[job.chats.length]||{roleId:'judge',label:'Giám khảo'};
-        const marker=`[UmiBridge arena setup ${job.id}:${member.roleId}]`;
-        bootstrap={channel:'arena',mode:'arena',jobId:job.id,attempt:job.attempt,type:job.projectId?'bootstrap-chat':'bootstrap-project',projectName:job.name,projectUrl:job.projectUrl,projectId:job.projectId,...(job.projectId?{roleId:member.roleId,roleName:member.label,setupMarker:marker,seed:`${marker}\nBạn là ${member.roleId==='judge'?'giám khảo duy nhất':'thí sinh AI độc lập tự tạo sản phẩm hoàn chỉnh'} trong Arena riêng, không thuộc đội Corp. ${member.root?`Thư mục riêng: ${member.root}.`:''} Chờ nhiệm vụ Arena; không thao tác tệp lúc khởi tạo. Chỉ trả lời UMI_READY ${member.roleId}.`}:{})};
-      }
-      const inflight=state.arenas.some(arena=>arena.steps.some(step=>['dispatching','running','blocked'].includes(step.status)));
-      for(const arena of state.arenas.filter(row=>!finished(row))){
-        const step=current(arena);if(!step)continue;
-        if(['dispatching','running'].includes(step.status)||step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(step.reason)){
-          monitors.push({channel:'arena',mode:'arena',arenaId:arena.id,runId:arena.id,stepId:step.id,attempt:step.attempt,chatId:step.chatId,projectId:arena.projectId});
-          if(['dispatching','running'].includes(step.status)&&clock()-step.issuedAt>(step.status==='dispatching'?90000:45*60000)){usage(arena,step,'error');block(arena,step,step.status==='dispatching'?'send_unconfirmed':'response_timeout');}
-        }
-        if(!state.enabled||!supported(arena.count)||arena.status!=='running'||step.status!=='queued'||command||bootstrap||inflight||state.bootstraps.some(row=>row.issuedAt!==null&&!finished(row)))continue;
-        // The adapter must attest the exact Project chat; a same-named ordinary chat is insufficient.
-        if(!input.chats?.includes(step.chatId)||!input.projectChats?.some(row=>row.chatId===step.chatId&&row.projectId===arena.projectId))continue;
-        step.status='dispatching';step.issuedAt=clock();
-        const prompt=`[UmiBridge task ${step.attempt}]\n${step.continuation?'Tiếp tục sau đối chiếu thủ công, kiểm tra tiến độ trong chat và tệp trước khi làm tiếp.\n':''}${step.prompt}`;
-        step.inputTokens=countTextTokens(prompt);step.inputBytes=Buffer.byteLength(prompt);
-        command={channel:'arena',mode:'arena',arenaId:arena.id,runId:arena.id,stepId:step.id,attempt:step.attempt,chatId:step.chatId,projectId:arena.projectId,prompt,kind:step.kind,round:step.round,candidateId:step.candidateId};history(arena,'dispatch',{stepId:step.id,kind:step.kind,candidateId:step.candidateId,round:step.round});
-      }
-      const openChats=state.enabled&&state.autoResume?state.arenas.filter(row=>row.status==='running'||row.status==='paused'&&!row.manualPaused&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(row.reason)).map(current).filter(Boolean).map(step=>({chatId:step.chatId,projectId:step.projectId,chatUrl:step.chatUrl})):[];
-      return {enabled:state.enabled,bootstrap,command,monitors,openChats};
-    }),
-    authorize:(token,input)=>serial(()=>{authenticate(token);const arena=arenaById(input.arenaId||input.runId),step=arena.steps.find(row=>row.id===input.stepId);return {allowed:state.enabled&&arena.status==='running'&&Boolean(step&&step.attempt===input.attempt&&step.status==='dispatching'&&step.issuedAt!==null&&clock()-step.issuedAt<90000)};}),
-    report:(token,input)=>transaction(async rollback=>{
+  const processReport=(token,input,verifiedReceipt=null)=>transaction(async rollback=>{
       authenticate(token);const arena=arenaById(input.arenaId||input.runId),step=arena.steps.find(row=>row.id===input.stepId);
       if(!step||step.attempt!==input.attempt)throw Error('stale_attempt');
       if(finished(arena)||finished(step))return {ignored:true};
+      if(step.status==='reported_complete'&&!verifiedReceipt)return {ignored:true};
+      if(step.leaseId&&['sent','done'].includes(input.kind)){await execution?.heartbeat(step.leaseId,{progress:input.progress===true||input.kind==='done',sessionId:input.sessionId});step.providerProcessing=input.providerProcessing===true;step.timestamps??={};step.timestamps.heartbeatAt=clock();if(input.progress)step.timestamps.progressAt=clock();}
       if(step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(step.reason)&&['sent','done'].includes(input.kind)){step.status='dispatching';step.reason=null;if(state.autoResume&&!arena.manualPaused&&arena.reason!=='manual_pause'){arena.status='running';arena.reason=null;}}
       if(input.kind==='sent'){if(step.status==='dispatching'){step.sent=true;step.status='running';usage(arena,step);}return {ok:true};}
       if(input.kind==='blocked'||input.kind==='limit'){step.sent ||= input.sent===true;usage(arena,step,'error');block(arena,step,input.kind==='limit'?'provider_limit':clean(input.reason,150)||'browser_unavailable');return {ok:true};}
       if(input.kind!=='done')throw Error('invalid_report');
       if(!input.sent||!bounded(input.result,240000))return {ignored:true};
       if(!['running','dispatching','blocked'].includes(step.status))return {ignored:true};
+      if(flags().evidenceGateEnabled&&!verifiedReceipt){
+        step.sent=true;step.result=input.result.trim();step.status='reported_complete';step.verification='pending';usage(arena,step,'ok');history(arena,'reported_complete',{stepId:step.id});return {ok:true,verificationRequired:true};
+      }
       step.sent=true;step.result=input.result.trim();const evidenceCleanups=[];
       const ownedFile=cleanup=>{rollback(cleanup);evidenceCleanups.push(cleanup);};
       try{
@@ -257,8 +181,124 @@ export async function createArenaRuntime(filePath,{projectsRoot=join(homedir(),'
           else {const next={number:round.number+1,inputIds:[...decision.advance],outputIds:[],status:'revising',decision:null};arena.rounds.push(next);scheduleProducts(arena,next.inputIds,next.number);}
         }
       }catch(error){for(const cleanup of evidenceCleanups.reverse())await cleanup().catch(()=>{});usage(arena,step,'error');block(arena,step,error.message.startsWith('arena_')?error.message:'arena_evidence_invalid');return {ok:true,blocked:true,reason:arena.reason};}
-      step.status='done';step.completedAt=now();step.reason=null;arena.reason=null;usage(arena,step,'ok');advance(arena);return {ok:true};
+      step.status='done';step.completedAt=now();step.reason=null;arena.reason=null;if(verifiedReceipt){step.verification='verified';step.evidenceRefs=[verifiedReceipt.id];}if(step.leaseId)await execution.release(step.leaseId,'completed');usage(arena,step,'ok');advance(arena);return {ok:true};
+    });
+  return {
+    verifyTask:async(arenaId,stepId,input={})=>{
+      const prepared=await transaction(async()=>{
+        const arena=arenaById(arenaId),step=arena.steps.find(row=>row.id===stepId);if(!flags().evidenceGateEnabled||step?.status!=='reported_complete')throw Error('task_not_verifiable');
+        const report=parseReport(step.result,step.kind==='judge'?'UMI_ARENA_RESULT:':'UMI_ARENA_PRODUCT:');
+        const artifacts=step.kind==='judge'?input.artifacts||[]:report.artifacts;
+        const evidence=await execution.verify(step.leaseId,{artifacts,criteria:step.acceptanceCriteria||[{type:'artifact'},{type:'command'}],command:input.command});
+        if(evidence.status!=='verified'){step.verification=evidence.status;block(arena,step,'evidence_'+evidence.status);return {evidence};}
+        step.status='running';return {evidence,input:{arenaId,stepId,attempt:step.attempt,sent:true,kind:'done',result:step.result}};
+      });
+      if(!prepared.input)return {ok:false,...prepared};return {...await processReport(owner,prepared.input,prepared.evidence),evidence:prepared.evidence};
+    },
+    snapshot,authenticate,
+    deletedTargets:()=>clone(state.deletedTargets||[]),
+    recordDeletion:input=>transaction(()=>{const target={projectId:input.projectId,chatId:input.chatId||null};state.deletedTargets??=[];if(!state.deletedTargets.some(row=>row.projectId===target.projectId&&row.chatId===target.chatId))state.deletedTargets.push({...target,at:now()});for(const arena of state.arenas.filter(row=>row.projectId===target.projectId)){if(!['done','cancelled'].includes(arena.status)){arena.status='cancelled';arena.reason=target.chatId?'chat_deleted':'project_deleted';for(const step of arena.steps.filter(row=>!finished(row))){usage(arena,step,'error');step.status='cancelled';step.reason=arena.reason;}history(arena,'cancel',{reason:arena.reason});}const job=state.bootstraps.find(row=>row.arenaId===arena.id);if(job&&!finished(job))job.status='cancelled';}return {ok:true};}),
+    usage:()=>clone(state.usage),
+    settings:input=>transaction(()=>{if(typeof input.enabled==='boolean')state.enabled=input.enabled;if(typeof input.autoResume==='boolean')state.autoResume=input.autoResume;return snapshot();}),
+    pair:()=>transaction(()=>{if(externalAuthenticate)throw Error('shared_pairing_managed_by_gateway');const token=randomBytes(32).toString('base64url');state.tokenHash=digest(token);return {token};}),
+    revoke:()=>transaction(()=>{state.tokenHash=null;state.enabled=false;lastSeen=0;return snapshot();}),
+    create:input=>transaction(async rollback=>{
+      if(input.chatMode==='temporary')throw Error('temporary_chat_project_unsupported');
+      if(!paired())throw Error('pair_arena_first');
+      if(!bounded(input.idea,8000)||input.idea.trim().length<4)throw Error('invalid_idea');
+      const count=input.count??20;if(!Number.isInteger(count)||count<10||count>100)throw Error('invalid_arena_count');
+      if(input.workspaceId!==undefined||input.mode!==undefined&&input.mode!=='build'||input.format!==undefined&&input.format!=='knockout')throw Error('independent_arena_required');
+      if(typeof input.requestKey!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestKey))throw Error('invalid_arena_request');
+      const requested=parentPath(input.parentRoot||projectsRoot),existing=state.arenas.find(row=>row.requestKey===input.requestKey);
+      if(existing){if(existing.idea!==input.idea.trim()||existing.count!==count||relative(existing.parentRoot,await realpath(requested))!=='')throw Error('arena_request_conflict');return clone(existing);}
+      if(state.arenas.filter(row=>!finished(row)).length>=10||state.arenas.length>=100)throw Error('arena_capacity');
+      if(relative(parentPath(projectsRoot),requested)==='')await mkdir(requested,{recursive:true});
+      const parent=await realpath(requested).catch(()=>{throw Error('parent_folder_unavailable');});if(!(await lstat(parent)).isDirectory())throw Error('parent_folder_unavailable');
+      const base=clean(input.name,48)||input.idea.trim().split('\n')[0].slice(0,48),slug=base.normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/đ/gi,'d').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'arena';
+      const root=join(parent,`${slug}-arena-${input.requestKey}`);await mkdir(root).catch(error=>{throw Error(error.code==='EEXIST'?'project_folder_exists':'parent_folder_unavailable');});rollback(()=>rmdir(root));
+      if((await lstat(root)).isSymbolicLink()||outside(parent,await realpath(root)))throw Error('invalid_parent_root');
+      const ideaFile=join(root,'UMI-ARENA-IDEA.md'),handle=await open(ideaFile,'wx');rollback(()=>unlink(ideaFile));try{await handle.writeFile(`# ${base}\n\n${input.idea.trim()}\n`);}finally{await handle.close();}
+      const id=input.requestKey,candidates=[];
+      for(let index=1;index<=count;index++){const roleId=`contestant-${String(index).padStart(2,'0')}`,candidateRoot=join(root,roleId);await mkdir(candidateRoot);rollback(()=>rmdir(candidateRoot));candidates.push({id:roleId,roleId,label:`Thí sinh ${String(index).padStart(2,'0')}`,root:candidateRoot,chatId:null,chatUrl:null,status:'waiting',versions:[],feedback:[]});}
+      const arena={id,cleanupAfterDelivery:input.cleanupAfterDelivery===true,requestKey:id,title:base,name:`${base.slice(0,30)} [Arena-${id.slice(0,8)}]`,idea:input.idea.trim(),parentRoot:parent,root,count,rubricVersion:arenaRubricVersion,rubric:clone(arenaRubric),status:'setup',phase:'setup',createdAt:now(),projectId:null,projectUrl:null,candidates,judge:null,steps:[],rounds:[],history:[],winnerId:null,reason:null};
+      const job={id,arenaId:id,kind:'arena',name:arena.name,root,idea:arena.idea,count,status:input.start!==false&&state.enabled?'running':'paused',projectId:null,projectUrl:null,chats:[],attempt:null,issuedAt:null,reason:null,createdAt:now()};
+      state.arenas.push(arena);state.bootstraps.push(job);history(arena,'created');return clone(arena);
     }),
+    action:(id,action)=>transaction(async()=>{
+      const arena=arenaById(id),job=jobById(id),step=current(arena);
+      if(action==='delete'){if(!finished(arena))throw Error('cancel_before_delete');state.arenas=state.arenas.filter(row=>row.id!==id);state.bootstraps=state.bootstraps.filter(row=>row.id!==id);return {ok:true};}
+      if(finished(arena))throw Error('arena_finished');
+      if(action==='setup'){if(!state.enabled)throw Error('enable_arena_first');if(job.status==='done')throw Error('bootstrap_finished');if(job.issuedAt!==null)throw Error('check_browser_before_retry');job.status='running';job.reason=null;}
+      else if(action==='start'){arena.manualPaused=false;if(!state.enabled)throw Error('enable_arena_first');if(job.status!=='done')throw Error('arena_setup_required');if(step?.status==='blocked')throw Error('check_chat_before_retry');arena.status='running';arena.reason=null;advance(arena);}
+      else if(action==='pause'){arena.manualPaused=true;arena.reason='manual_pause';arena.status=job.status==='done'?'paused':'setup';if(!finished(job))job.status='paused';}
+      else if(action==='retry'){
+        if(job.status!=='done'){if(!['blocked','paused'].includes(job.status))throw Error('retry_not_available');job.status='paused';job.attempt=null;job.issuedAt=null;job.reason=null;}
+        else {if(step?.status!=='blocked')throw Error('retry_not_available');if(flags().workerHealthEnabled&&(step.attemptHistory?.length||0)>=2)throw Error('task_retry_exhausted');if(step.leaseId)await execution?.release(step.leaseId,'manual_retry');step.attemptHistory??=[];step.attemptHistory.push({attemptId:step.attempt,status:step.status,reason:step.reason,at:now()});delete step.leaseId;usage(arena,step,'error');Object.assign(step,{status:'queued',attempt:randomUUID(),issuedAt:null,sent:false,result:null,reason:null,continuation:true});arena.status='paused';arena.reason=null;}
+      }else if(action==='cancel'){arena.status='cancelled';job.status=finished(job)?job.status:'cancelled';for(const item of arena.steps.filter(row=>!finished(row))){usage(arena,item,'error');item.status='cancelled';if(item.leaseId)await execution?.release(item.leaseId,'cancelled');}}
+      else throw Error('invalid_arena_action');
+      history(arena,action);return clone(arena);
+    }),
+    bootstrapAuthorize:(token,input)=>serial(()=>{authenticate(token);const job=jobById(input.jobId);return {allowed:state.enabled&&job.status==='running'&&job.attempt===input.attempt&&job.issuedAt!==null&&clock()-job.issuedAt<120000};}),
+    bootstrapReport:(token,input)=>transaction(()=>{
+      authenticate(token);const job=jobById(input.jobId),arena=arenaById(job.arenaId);
+      if(job.lastAttempt===input.attempt)return {ignored:true};
+      if(job.attempt!==input.attempt)throw Error('stale_attempt');if(finished(job)||job.issuedAt===null)return {ignored:true};
+      if(input.kind==='blocked'){job.status='blocked';job.reason=clean(input.reason,150)||'bootstrap_unconfirmed';history(arena,'bootstrap_blocked',{reason:job.reason});return {ok:true};}
+      if(input.kind==='project'&&!job.projectId){const link=projectLink(input.projectUrl);if(!projectAllowed(link.projectId)||state.arenas.some(row=>row.id!==arena.id&&row.projectId===link.projectId))throw Error('arena_project_conflict');Object.assign(job,link);Object.assign(arena,link);}
+      else if(input.kind==='chat'&&job.projectId){
+        const member=arena.candidates[job.chats.length]||{roleId:'judge',label:'Giám khảo'},chat=scopedChat(input.chatUrl,job.projectId);
+        if(input.roleId!==member.roleId||job.chats.some(row=>row.chatId===chat.chatId))throw Error('bootstrap_role_mismatch');
+        const row={roleId:member.roleId,name:member.label,...chat};job.chats.push(row);
+        if(member.roleId==='judge')arena.judge=row;else Object.assign(member,chat);
+        if(job.chats.length===arena.count+1){job.status='done';arena.status='paused';arena.phase='build';const ids=arena.candidates.map(row=>row.id);arena.rounds.push({number:1,inputIds:ids,outputIds:[],status:'building',decision:null});scheduleProducts(arena,ids,1);history(arena,'setup_completed',{chatCount:arena.count+1});}
+      }else throw Error('invalid_bootstrap_report');
+      job.lastAttempt=input.attempt;job.attempt=null;job.issuedAt=null;job.reason=null;return {ok:true};
+    }),
+    poll:(token,input={})=>transaction(async()=>{
+      authenticate(token);lastSeen=clock();extensionVersion=/^\d+\.\d+\.\d+$/.test(input.extensionVersion)?input.extensionVersion:null;
+      let bootstrap=null,command=null;
+      const monitors=[];
+      for(const job of state.bootstraps.filter(row=>row.status==='running')){
+        if(job.issuedAt!==null){if(clock()-job.issuedAt>=120000){job.status='blocked';job.reason='bootstrap_unconfirmed';}continue;}
+        if(!state.enabled||!supported(job.count)||bootstrap||state.bootstraps.some(row=>row.issuedAt!==null&&!finished(row)))continue;
+        job.attempt=randomUUID();job.issuedAt=clock();const arena=arenaById(job.arenaId),member=arena.candidates[job.chats.length]||{roleId:'judge',label:'Giám khảo'};
+        const marker=`[UmiBridge arena setup ${job.id}:${member.roleId}]`;
+        bootstrap={channel:'arena',mode:'arena',jobId:job.id,attempt:job.attempt,type:job.projectId?'bootstrap-chat':'bootstrap-project',projectName:job.name,projectUrl:job.projectUrl,projectId:job.projectId,...(job.projectId?{roleId:member.roleId,roleName:member.label,setupMarker:marker,seed:`${marker}\nBạn là ${member.roleId==='judge'?'giám khảo duy nhất':'thí sinh AI độc lập tự tạo sản phẩm hoàn chỉnh'} trong Arena riêng, không thuộc đội Corp. ${member.root?`Thư mục riêng: ${member.root}.`:''} Chờ nhiệm vụ Arena; không thao tác tệp lúc khởi tạo. Chỉ trả lời UMI_READY ${member.roleId}.`}:{})};
+      }
+      const inflight=state.arenas.some(arena=>arena.steps.some(step=>['dispatching','running','blocked'].includes(step.status)));
+      const dag=flags().dagSchedulerEnabled;
+      if(dag)for(const arena of state.arenas){for(const step of arena.steps)step.acceptanceCriteria=[{type:'artifact'},...(step.kind==='judge'?['review']:['build','test','run']).map(name=>({type:'command',name}))];normalizeTasks(arena,{legacy:true});}
+      const selected=dag?scheduleRuns(state.arenas,{...orchestration.settings(),cursor:state.schedulerCursor}).at(0):null;
+      for(const arena of state.arenas.filter(row=>!finished(row))){
+        for(const step of dag?arena.steps.filter(row=>!finished(row)):[current(arena)]){if(!step)continue;
+        if(['dispatching','running'].includes(step.status)||step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(step.reason)){
+          monitors.push({channel:'arena',mode:'arena',arenaId:arena.id,runId:arena.id,stepId:step.id,attempt:step.attempt,chatId:step.chatId,projectId:arena.projectId});
+          if(['dispatching','running'].includes(step.status)&&clock()-step.issuedAt>(step.status==='dispatching'?90000:45*60000)){usage(arena,step,'error');block(arena,step,step.status==='dispatching'?'send_unconfirmed':'response_timeout');}
+        }
+        if(step.leaseId)step.workerHealth=execution.health(step.leaseId);
+        if(!state.enabled||!supported(arena.count)||arena.status!=='running'||step.status!=='queued'||command||bootstrap||(!dag&&inflight)||(dag&&selected?.task.id!==step.id)||state.bootstraps.some(row=>row.issuedAt!==null&&!finished(row)))continue;
+        // The adapter must attest the exact Project chat; a same-named ordinary chat is insufficient.
+        if(!input.chats?.includes(step.chatId)||!input.projectChats?.some(row=>row.chatId===step.chatId&&row.projectId===arena.projectId))continue;
+        let preference;try{preference=orchestration?.route({roleId:step.kind==='judge'?'judge':'contestant'},browserCatalog(),null);}catch{step.status='blocked';step.reason='model_not_available';continue;}
+        let capability='';
+        if(flags().workspaceLocksEnabled){
+          const candidate=arena.candidates.find(row=>row.id===step.candidateId);
+          const root=step.kind==='judge'?arena.root:candidate.root,readScope=step.kind==='judge'?arena.rounds.find(row=>row.number===step.round).inputIds.flatMap(id=>{const item=arena.candidates.find(row=>row.id===id);return [item.root,item.versions.at(-1).snapshotRoot];}):['.'];
+          try{const lease=await execution.issue({...orchestration.settings(),root,taskId:step.id,attemptId:step.attempt,runId:arena.id,projectId:arena.projectId,workerId:step.chatId,readScope:step.kind==='judge'?[...readScope,'judge-reports']:readScope,writeScope:step.kind==='judge'?['judge-reports']:['.']});step.leaseId=lease.id;
+            capability=`\nChỉ dùng scope_read_file, scope_write_file, scope_list_directory; scopeToken: ${lease.scopeToken}. Đọc sha256 trước khi ghi expectedHash. Lệnh shell bị chặn; chủ máy duyệt lệnh kiểm chứng riêng. ${step.kind==='judge'?`Giám khảo chỉ đọc thí sinh trong vòng này; ghi báo cáo riêng vào ${join(arena.root,'judge-reports',`round-${step.round}.json`)}.`:'Không đọc memory/source đối thủ.'}\n`;
+          }catch(error){step.waitReason=error.message;state.schedulerCursor=arena.id;continue;}
+        }
+        step.status='dispatching';step.issuedAt=clock();state.schedulerCursor=arena.id;
+        const prompt=`[UmiBridge task ${step.attempt}]\n${step.continuation?'Tiếp tục sau đối chiếu thủ công, kiểm tra tiến độ trong chat và tệp trước khi làm tiếp.\n':''}${step.prompt}${capability}`;
+        step.inputTokens=countTextTokens(prompt);step.inputBytes=Buffer.byteLength(prompt);
+        command={channel:'arena',mode:'arena',arenaId:arena.id,runId:arena.id,stepId:step.id,attempt:step.attempt,chatId:step.chatId,projectId:arena.projectId,prompt,modelPreference:preference,kind:step.kind,round:step.round,candidateId:step.candidateId};history(arena,'dispatch',{stepId:step.id,kind:step.kind,candidateId:step.candidateId,round:step.round});
+        }
+      }
+      const openChats=state.enabled&&state.autoResume?state.arenas.filter(row=>row.status==='running'||row.status==='paused'&&!row.manualPaused&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(row.reason)).map(current).filter(Boolean).map(step=>({chatId:step.chatId,projectId:step.projectId,chatUrl:step.chatUrl})):[];
+      return {enabled:state.enabled,bootstrap,command,monitors,openChats};
+    }),
+    authorize:(token,input)=>serial(()=>{authenticate(token);const arena=arenaById(input.arenaId||input.runId),step=arena.steps.find(row=>row.id===input.stepId);return {allowed:state.enabled&&arena.status==='running'&&Boolean(step&&step.attempt===input.attempt&&step.status==='dispatching'&&step.issuedAt!==null&&clock()-step.issuedAt<90000)};}),
+    report:(token,input)=>processReport(token,input),
     resetMetadata:()=>transaction(()=>{if(state.arenas.some(row=>row.status==='running')||state.bootstraps.some(row=>row.status==='running'))throw Error('pause_arena_before_reset');state.arenas=[];state.bootstraps=[];state.events=[];state.usage=state.usage.map((row,index)=>({...row,id:`arena-history-${index+1}`,chatId:null,title:'Lịch sử Arena'}));state.enabled=false;lastSeen=0;return snapshot();}),
     close:()=>queue,
   };

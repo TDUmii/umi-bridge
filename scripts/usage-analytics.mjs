@@ -4,7 +4,7 @@ import { createInterface } from 'node:readline';
 const DAY = 86400_000;
 const nonnegative = value => Number.isFinite(value) && value >= 0;
 const label = value => typeof value === 'string' ? value.slice(0, 160) : '';
-const empty = () => ({ requests: 0, success: 0, errors: 0, pending: 0, measured: 0, partial: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, durationMs: 0, timed: 0, inputBytes: 0, outputBytes: 0 });
+const empty = () => ({ requests: 0, success: 0, errors: 0, pending: 0, measured: 0, partial: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, durationMs: 0, timed: 0, inputBytes: 0, outputBytes: 0,retryRequests:0,retryTokens:0,dependencyWaitMs:0,verifiedTasks:0,failedTasks:0,limitBlocked:0 });
 
 function normalize(entry, source) {
   if (!entry?.id || typeof entry.timestamp !== 'string' || !Number.isFinite(Date.parse(entry.timestamp))) return null;
@@ -16,6 +16,9 @@ function normalize(entry, source) {
   return { id: label(entry.id), timestamp: new Date(entry.timestamp).toISOString(), source, provider: label(entry.provider) || 'unknown',
     application: label(entry.clientName) || 'Unknown app', tool: label(entry.toolName) || 'unknown',
     chat: source !== 'mcp' ? label(entry.chatId) : '', task: source !== 'mcp' ? label(entry.title) : '',
+    project:label(entry.projectId),run:label(entry.runId),dagTask:label(entry.taskId),worker:label(entry.workerId),role:label(entry.roleId),attempt:label(entry.attemptId),
+    retries:nonnegative(entry.retryCount)?entry.retryCount:0,dependencyWaitMs:nonnegative(entry.dependencyWaitMs)?entry.dependencyWaitMs:0,
+    taskStatus:label(entry.taskStatus),verification:label(entry.verification),limitBlocked:entry.limitBlocked===true,
     status: entry.status === 'ok' ? 'ok' : entry.status === 'error' ? 'error' : 'pending',
     durationMs: nonnegative(entry.durationMs) ? entry.durationMs : null,
     inputTokens, outputTokens, totalTokens: inputTokens === null && outputTokens === null ? null : (inputTokens || 0) + (outputTokens || 0),
@@ -31,8 +34,11 @@ function add(bucket, row) {
   if (row.partial && row.totalTokens !== null) bucket.partial++;
   for (const key of ['inputTokens', 'outputTokens', 'totalTokens', 'inputBytes', 'outputBytes']) bucket[key] += row[key] || 0;
   if (row.durationMs !== null) { bucket.durationMs += row.durationMs; bucket.timed++; }
+  if(row.retries>0){bucket.retryRequests++;bucket.retryTokens+=row.totalTokens||0;}
+  bucket.dependencyWaitMs+=row.dependencyWaitMs;bucket.verifiedTasks+=Number(row.verification==='verified');bucket.failedTasks+=Number(row.taskStatus==='failed'||row.verification==='failed');bucket.limitBlocked+=Number(row.limitBlocked);
 }
 const finish = bucket => ({ ...bucket, unmeasured: bucket.requests - bucket.measured,
+  estimatedTokensPerVerifiedTask:bucket.verifiedTasks?Math.round(bucket.totalTokens/bucket.verifiedTasks):null,
   averageMs: bucket.timed ? Math.round(bucket.durationMs / bucket.timed) : null,
   successRate: bucket.success + bucket.errors ? Math.round(1000 * bucket.success / (bucket.success + bucket.errors)) / 10 : null });
 
@@ -45,7 +51,7 @@ export async function readUsageReport(filePath, filters = {}, corpUsage = [], no
   const limit = 50, keep = (page + 1) * limit;
   const source = ['mcp', 'corp', 'arena'].includes(filters.source) ? filters.source : 'all';
   const search = label(filters.search).toLowerCase();
-  const total = empty(), groups = { applications: new Map(), tools: new Map(), chats: new Map(), sources: new Map() };
+  const total = empty(), groups = Object.fromEntries(['applications','tools','chats','sources','projects','tasks','workers','roles','attempts'].map(key=>[key,new Map()]));
   const options = { applications: new Set(), tools: new Set() }, timeline = new Map();
   const hourly = period === 'today' || period === '24h', unit = hourly ? 3600_000 : DAY;
   const chartSince = Math.max(since, midnight - 59 * DAY);
@@ -63,7 +69,7 @@ export async function readUsageReport(filePath, filters = {}, corpUsage = [], no
     if (filters.status && filters.status !== 'all' && filters.status !== row.status) return;
     if (search && ![row.id, row.application, row.tool, row.chat, row.task].some(value => value.toLowerCase().includes(search))) return;
     add(total, row);
-    for (const [dimension, name] of Object.entries({ applications: row.application, tools: row.tool, chats: row.chat || 'unassigned', sources: row.source })) {
+    for (const [dimension, name] of Object.entries({ applications: row.application, tools: row.tool, chats: row.chat || 'unassigned', sources: row.source,projects:row.project||'unassigned',tasks:row.dagTask||'unassigned',workers:row.worker||'unassigned',roles:row.role||'unassigned',attempts:row.attempt||'unassigned' })) {
       const group = groups[dimension].get(name) || { name, ...empty() };
       add(group, row); groups[dimension].set(name, group);
     }

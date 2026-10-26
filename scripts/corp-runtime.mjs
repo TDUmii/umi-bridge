@@ -1,4 +1,6 @@
 import {modelCatalog,modelPreference} from './browser-models.mjs';
+import {normalizeTasks,scheduleRuns,graphHealth,inFlight} from './task-graph.mjs';
+import {backupBeforeMigration} from './orchestration-state.mjs';
 import {reviewTeams,productProfiles,reviewConfig} from './corp-review-teams.mjs';
 import { mkdir, readFile, writeFile, rename, lstat, realpath, access, open, unlink, rmdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
@@ -6,7 +8,7 @@ import { dirname, resolve, join, relative, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { countTextTokens } from './local-admin.mjs';
-import { companyRoles, staffRoles, deliveryOrder, ideaStages, suggestCompanyTeam, buildIdeaWorkflow, readIdeaReport, arenaRubric } from './corp-company.mjs';
+import { companyRoles, staffRoles, deliveryOrder, ideaStages, suggestCompanyTeam, buildIdeaWorkflow, readIdeaReport, arenaRubric,configureIdeaGraph } from './corp-company.mjs';
 
 const hash = value => createHash('sha256').update(String(value)).digest();
 const copy = value => structuredClone(value);
@@ -36,7 +38,7 @@ export function parseResetDelay(value) {
   return minutes > 0 && minutes <= 7 * 24 * 60 ? minutes * 60_000 : null;
 }
 
-export async function createCorpRuntime(filePath, { workspaces, createWorkspace, syncProject, projectsRoot = join(homedir(),'Documents','UmiBridge Projects'), clock = Date.now } = {}) {
+export async function createCorpRuntime(filePath, { workspaces, createWorkspace, syncProject, orchestration,execution,skillLibrary, projectsRoot = join(homedir(),'Documents','UmiBridge Projects'), clock = Date.now } = {}) {
   await mkdir(dirname(filePath), { recursive: true });
   let state = { schema: 1, enabled: false, office: true, autoResume: true, tokenHash: null, runs: [], events: [] };
   try {
@@ -45,6 +47,14 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     if (saved.schema !== 1 || !Array.isArray(saved.runs) || !Array.isArray(saved.events)) throw Error('corp_store_invalid');
     state = saved;
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  const flags=()=>orchestration?.settings().flags||{};
+  let taskMigrated=false;
+  if(flags().dagSchedulerEnabled&&state.orchestrationVersion!==2){
+    await backupBeforeMigration(filePath,2);
+    for(const run of state.runs)normalizeTasks(run,{legacy:true});
+    state.orchestrationVersion=2;
+    taskMigrated=true;
+  }
   if(state.modelSurface!=='chat'){state.modelSurface='chat';state.modelCatalog=[];state.modelScan=null;}
   state.autoResume ??= true;
   state.usage = Array.isArray(state.usage) ? state.usage : [];
@@ -66,16 +76,18 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     if (!step.sent || !step.pendingUsage) return;
     let row = state.usage.find(item => item.id === step.attempt);
     if (!row) {
-      row = { id: step.attempt, timestamp: new Date(step.issuedAt).toISOString(), provider: 'chatgpt', clientName: 'ChatGPT Corp',
+      row = { id: step.attempt, projectId:run.projectId??null,runId:run.id,taskId:step.id,attemptId:step.attempt,workerId:step.chatId,roleId:step.roleId??null,retryCount:step.attemptHistory?.length||0,dependencyWaitMs:step.dependencyWaitMs||0,timestamp: new Date(step.issuedAt).toISOString(), provider: 'chatgpt', clientName: 'ChatGPT Corp',
         toolName: 'chat_turn', chatId: step.chatId, title: run.title, usage: { ...step.pendingUsage, outputTokens: null, outputBytes: 0, estimated: true, method: 'o200k_base', partial: true } };
       state.usage.push(row); state.usage = state.usage.slice(-5000);
     }
     row.status = status;
+    row.taskStatus=step.status;row.verification=step.verification??null;row.limitBlocked=step.reason==='provider_limit'||step.reason==='limit_time_unknown';
     if (status === 'ok') {
       row.usage.outputTokens = countTextTokens(step.result);
       row.usage.outputBytes = Buffer.byteLength(step.result);
       row.usage.partial = row.usage.inputTokens === null || row.usage.outputTokens === null;
-      row.durationMs = Math.max(0, clock() - step.issuedAt);
+      row.durationMs = Math.max(0, (step.timestamps?.reportedAt??clock()) - step.issuedAt);
+      row.endToEndMs=step.timestamps?.verifiedAt?Math.max(0,step.timestamps.verifiedAt-Date.parse(run.createdAt)):null;
     }
   };
   let queue = Promise.resolve(), lastSeen = 0, connectedChats = [], extensionVersion = null;
@@ -104,7 +116,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     return Boolean(workspace && workspace.projectId === run.projectId && step.workspaceId === workspace.id && workspace.chats.some(chat => chat.chatId === step.chatId) && (!arena || arena.team.every(member => workspace.chats.some(chat => chat.chatId === member.chatId))));
   };
   const bootstrapRoles=job=>[...companyRoles,...(job.mode==='plan'?[]:reviewTeams.filter(team=>(job.reviewTeams||[]).includes(team.id)).map(team=>({...team,brief:team.checks})))];
-  const summary = () => ({ enabled: state.enabled, office: state.office, autoResume: state.autoResume, resetGeneration:state.resetGeneration||null, modelSurface:'chat',modelPreference:state.modelPreference??null,modelCatalog:copy(state.modelCatalog||[]),modelScan:copy(state.modelScan||null),
+  const summary = () => ({ orchestration:orchestration?.settings()??null,execution:execution?.snapshot()??null,enabled: state.enabled, office: state.office, autoResume: state.autoResume, resetGeneration:state.resetGeneration||null, modelSurface:'chat',modelPreference:state.modelPreference??null,modelCatalog:copy(state.modelCatalog||[]),modelScan:copy(state.modelScan||null),
     paired: Boolean(state.tokenHash), connected: lastSeen > 0 && clock() - lastSeen < 45_000,
     lastSeen: lastSeen ? new Date(lastSeen).toISOString() : null, connectedChats: [...connectedChats],extensionVersion,
     runs: copy(state.runs), events: copy(state.events), teams:copy(state.teams), companyRoles:copy(companyRoles),reviewTeams:copy(reviewTeams),productProfiles:copy(productProfiles), deliveryOrder:[...deliveryOrder],
@@ -113,7 +125,11 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
   const authenticate = token => {
     if (!state.tokenHash || !token || token.length > 200 || !timingSafeEqual(Buffer.from(state.tokenHash, 'hex'), hash(token))) throw Error('invalid_corp_key');
   };
-  const newAttempt = step => { step.attempt = randomUUID(); step.sent = false; step.issuedAt = null; step.status = 'queued'; step.reason = null; };
+  const newAttempt = step => {
+    if(step.retryPolicy&&(step.attemptHistory?.length||0)+1>=step.retryPolicy.maxAttempts)throw Error('task_retry_exhausted');
+    if(step.taskId){step.attemptHistory??=[];step.attemptHistory.push({attemptId:step.attempt,status:step.status,reason:step.reason,at:clock()});}
+    step.attempt = randomUUID(); step.attemptId=step.attempt;step.sent = false; step.issuedAt = null; step.status = 'queued'; step.reason = null;step.verification='unverified';delete step.leaseId;step.evidenceRefs=[];
+  };
   const arenaRunCount = arena => arena.count + (arena.format === 'group_knockout' ? arena.count * 2 + arena.count / 5 * 2 - 1 : arena.count - 1);
   const reservedArenaRuns = (excludeKey) => state.arenas.filter(arena => !['done','cancelled'].includes(arena.status)).reduce((sum,arena) => sum + Math.max(0,arenaRunCount(arena)-state.runs.filter(run=>run.arenaId===arena.id).length),0) + state.bootstraps.filter(job=>job.kind==='arena'&&!['done','cancelled'].includes(job.status)&&job.id!==excludeKey&&!state.arenas.some(arena=>arena.requestKey===job.id)).reduce((sum,job)=>sum+arenaRunCount(job),0);
   const createRun = (input, options = {}) => {
@@ -142,6 +158,14 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       return {id:randomUUID(),workspaceId:workspace.id,...(run.projectId?{projectId:run.projectId}:{}),chatId:chat.id,chatUrl:chat.url,
         role:text(item.role,80)||member.name,prompt,status:'queued',attempt:randomUUID(),sent:false,issuedAt:null,resetAt:null,limitText:null,result:null,reason:null};
     });
+    if(flags().dagSchedulerEnabled){
+      normalizeTasks(run);
+      input.steps.forEach((item,index)=>{
+        const step=run.steps[index];
+        if(item.dependencies!==undefined){if(!Array.isArray(item.dependencies)||item.dependencies.some(value=>!Number.isInteger(value)||value<0||value>=run.steps.length))throw Error('invalid_task_dependencies');step.dependencies=item.dependencies.map(value=>run.steps[value].id);}
+        for(const key of ['priority','readScope','writeScope','acceptanceCriteria'])if(item[key]!==undefined)step[key]=copy(item[key]);
+      });normalizeTasks(run);
+    }
     if(input.requestKey!==undefined)Object.assign(run,{requestKey:input.requestKey,requestDigest});
     state.runs.push(run);event('created',run);return run;
   };
@@ -159,6 +183,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     const plan=buildIdeaWorkflow({project,members:stateTeamBefore,idea:input.idea,mode:input.mode,requestKey:input.requestKey,...config});
     const run=createRun({...plan,customerName:input.customerName},{idea:true});run.idea={...plan.idea,repairRounds:1};
     run.steps.forEach((step,index)=>Object.assign(step,{stage:plan.steps[index].stage,title:plan.steps[index].title,roleId:plan.steps[index].roleId,requiresPass:plan.steps[index].requiresPass}));
+    if(flags().dagSchedulerEnabled){configureIdeaGraph(run);normalizeTasks(run);}
     state.teams=state.teams.filter(team=>team.workspaceId!==project.id);state.teams.push({workspaceId:project.id,members:[...(stateTeamBefore||[]).filter(member=>project.chats.some(chat=>chat.chatId===member.chatId)&&staffRoles.some(role=>role.id===member.roleId)&&!plan.team.some(row=>row.chatId===member.chatId)),...plan.team]});
     if(input.start!==false&&state.enabled){run.status='running';event('start',run,run.steps[0]);}return run;
   };
@@ -383,9 +408,70 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         status:input.start!==false&&state.enabled?'running':'paused',createdAt:new Date(clock()).toISOString(),projectUrl:null,projectId:null,workspaceId:null,chats:[],attempt:null,issuedAt:null,reason:null,runId:null};
       state.bootstraps.push(job);return copy(job);
   };
-  if (JSON.stringify(state.arenas) !== arenasBeforeMigration) await save();
+  if (taskMigrated||JSON.stringify(state.arenas) !== arenasBeforeMigration) await save();
+  const finishStep = async (run,step) => {
+    const arena=arenaForRun(run);
+    if(step.leaseId)await execution?.release(step.leaseId,'completed');
+    step.timestamps??={};step.timestamps.completedAt=clock();
+        step.status = 'done'; step.reason = null;
+        recordUsage(run, step, 'ok');
+        event('done', run, step);
+        const next = current(run);
+        if (next) event('handoff', run, next, { from: step.chatId, to: next.chatId, task: next.prompt.slice(0, 180) });
+        else {
+          if (arena && run.arenaKind === 'candidate') {
+            const candidate = arena.candidateRuns.find(item => item.runId === run.id);
+            const gates = ['plan','repair','qa-final','local-run','docs','delivery'];
+            if (gates.some(stage => run.steps.filter(item => item.stage === stage).at(-1)?.assessment?.outcome !== 'pass')) {
+              step.status='blocked';step.reason='idea_quality_failed';markArenaBlocked(run,step.reason);return {ok:true};
+            }
+            candidate.status='done';candidate.reason=null;candidate.artifacts=[...step.assessment.artifacts];candidate.completedAt=new Date(clock()).toISOString();
+            arenaHistory(arena,'candidate_completed',{candidateId:candidate.id,runId:run.id,artifacts:[...candidate.artifacts],summary:step.assessment.summary});
+          } else if (arena && run.arenaKind === 'judge') {
+            const match=arenaMatches(arena).find(item=>item.id===run.arenaMatchId);
+            match.winnerId=step.assessment.winner;match.decision=copy(step.assessment);match.status='done';match.reason=null;match.completedAt=new Date(clock()).toISOString();
+            arenaHistory(arena,'match_completed',{matchId:match.id,stage:match.stage,groupId:match.groupId,round:match.round,leftId:match.leftId,rightId:match.rightId,winnerId:match.winnerId,decision:copy(match.decision)});
+            if (match.stage === 'group') updateArenaStandings(arena);
+          }
+          run.status='done';event('finished',run);
+          if (arena) {run.compacted=true;for(const item of run.steps){delete item.prompt;delete item.result;delete item.pendingUsage;}}
+        }
+        if (arena && run.status === 'done') await advanceArena(arena);
+    return {ok:true};
+  };
   return {
     snapshot: summary,
+    prepareOrchestration:()=>transaction(async()=>{
+      if(state.runs.some(run=>run.status==='running'||run.steps.some(step=>inFlight(step)||step.status==='reported_complete')))throw Error('pause_and_reconcile_before_feature_change');
+      await backupBeforeMigration(filePath,2);
+      for(const run of state.runs)normalizeTasks(run,{legacy:true});state.orchestrationVersion=2;return {ok:true};
+    }),
+    verifyTask:(runId,taskId,input={})=>transaction(async()=>{
+      const run=find(runId),step=run.steps.find(row=>row.id===taskId);
+      if(!flags().evidenceGateEnabled||!step||!['reported_complete','done'].includes(step.status)||step.verification==='verified')throw Error('task_not_verifiable');
+      const root=run.idea?.root||workspaces().find(row=>row.id===run.workspaceId)?.root;
+      if(!root)throw Error('project_folder_required');
+      if(!step.leaseId||execution.health(step.leaseId)==='released'){
+        const lease=await execution.issue({...orchestration.settings(),root,taskId:step.id,attemptId:step.attempt,runId:run.id,projectId:run.projectId,workerId:step.chatId,readScope:step.readScope||['.'],writeScope:[]});step.leaseId=lease.id;
+      }
+      const acceptFindings=input.acceptFailureFindings===true&&step.assessment?.outcome==='needs_changes'&&(step.roleId==='qa'||step.roleId==='security'||step.stage?.startsWith('review-'));
+      const criteria=acceptFindings?step.acceptanceCriteria.map(row=>row.type==='command'?{...row,requireSuccess:false}:row):step.acceptanceCriteria;
+      const evidence=await execution.verify(step.leaseId,{artifacts:step.assessment?.artifacts||input.artifacts||[],criteria,command:input.command});
+      step.evidenceRefs.push(evidence.id);step.verification=evidence.status;event('verification',run,step,{evidenceId:evidence.id,status:evidence.status});
+      if(evidence.status==='verified'){step.timestamps??={};step.timestamps.verifiedAt=clock();}
+      recordUsage(run,step,'ok');
+      if(evidence.status!=='verified'){step.status='blocked';step.reason='evidence_'+evidence.status;run.status='paused';event('blocked',run,step);return {ok:false,evidence};}
+      if(step.status==='done'){await execution.release(step.leaseId,'historical_verification');return {ok:true,evidence};}
+      return {...await finishStep(run,step),evidence};
+    }),
+    taskAction:(runId,taskId,action)=>transaction(async()=>{
+      const run=find(runId),step=run.steps.find(row=>row.id===taskId);if(!step||!['blocked','queued','reported_complete'].includes(step.status)||!['retry','fail','cancel'].includes(action))throw Error('task_action_unavailable');
+      const leaseId=step.leaseId;
+      if(action==='retry'){if(step.status!=='blocked')throw Error('retry_not_available');if(step.resetAt&&clock()<step.resetAt)throw Error('provider_limit_not_reset');step.continuation=Boolean(step.sent);newAttempt(step);}
+      else{step.status=action==='fail'?'failed':'cancelled';step.reason='owner_'+action;}
+      if(leaseId)await execution?.release(leaseId,'manual_'+action);
+      run.status='paused';event('task_'+action,run,step);if(flags().dagSchedulerEnabled)run.graph=graphHealth(run);return copy(run);
+    }),
     deletedTargets:()=>copy(state.deletedTargets||[]),
     recordDeletion:input=>transaction(()=>{const target={projectId:input.projectId,chatId:input.chatId||null};state.deletedTargets??=[];if(!state.deletedTargets.some(row=>row.projectId===target.projectId&&row.chatId===target.chatId))state.deletedTargets.push({...target,at:new Date(clock()).toISOString()});for(const run of state.runs.filter(row=>row.projectId===target.projectId&&(!target.chatId||row.steps.some(step=>step.chatId===target.chatId))))if(!['done','cancelled'].includes(run.status)){run.status='cancelled';for(const step of run.steps.filter(active)){recordUsage(run,step,'error');step.status='cancelled';step.reason=target.chatId?'chat_deleted':'project_deleted';}event('cancel',run,current(run),{reason:target.chatId?'chat_deleted':'project_deleted'});}return {ok:true};}),
     usage: () => copy(state.usage),
@@ -409,7 +495,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     authenticate,
     authorize: (token, input) => serial(() => {
       authenticate(token);
-      const run = find(input.runId), step = current(run);
+      const run = find(input.runId), step = flags().dagSchedulerEnabled?run.steps.find(row=>row.id===input.stepId):current(run);
       return { allowed: Boolean(state.enabled && run.status === 'running' && step?.id === input.stepId && step.attempt === input.attempt && inScope(run, step) && (!run.workspaceId || input.chatId === step.chatId && input.projectId === step.projectId) && step.status === 'dispatching' && clock() - step.issuedAt < 90_000) };
     }),
     settings: input => transaction(() => {
@@ -493,7 +579,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       }else throw Error('invalid_bootstrap_report');
       job.attempt=null;job.issuedAt=null;job.reason=null;return {ok:true};
     }),
-    action: (id, action) => transaction(() => {
+    action: (id, action) => transaction(async () => {
       const run = find(id), step = current(run);
       if (run.arenaId) throw Error('arena_run_owned');
       if (action === 'delete') {
@@ -506,12 +592,12 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         if (step?.status === 'blocked') throw Error('check_chat_before_retry');
         run.status = 'running';
       } else if (action === 'pause') run.status = 'paused';
-      else if (action === 'cancel') { run.status = 'cancelled'; for (const item of run.steps.filter(active)) { recordUsage(run, item, 'error'); item.status = 'cancelled'; } }
+      else if (action === 'cancel') { run.status = 'cancelled'; for (const item of run.steps.filter(active)) { recordUsage(run, item, 'error'); item.status = 'cancelled';if(item.leaseId)await execution?.release(item.leaseId,'cancelled'); } }
       else if (action === 'retry') {
         if (!step || !['blocked', 'limit_wait'].includes(step.status)) throw Error('retry_not_available');
         if (step.resetAt && clock() < step.resetAt) throw Error('provider_limit_not_reset');
         // Explicit user reconciliation is needed for an ambiguous send; never retry it on a timer.
-        step.continuation = Boolean(step.continuation || step.sent); newAttempt(step); run.status = 'paused';
+        const leaseId=step.leaseId;step.continuation = Boolean(step.continuation || step.sent); newAttempt(step);if(leaseId)await execution?.release(leaseId,'manual_retry');run.status = 'paused';
       } else throw Error('invalid_corp_action');
       event(action, run, step); return copy(run);
     }),
@@ -526,6 +612,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       const monitors = [];
       let command = null;
       let bootstrap = null;
+      const issuedLeases=[];
       try {
         for (const arena of state.arenas.filter(item => item.status === 'running')) await advanceArena(arena);
         for(const job of state.bootstraps){
@@ -537,9 +624,12 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         }
         // One lane per conversation avoids concurrent writes to the same chat.
         const occupied = new Set(state.runs.flatMap(run => run.steps.filter(step => ['dispatching', 'running', 'limit_wait', 'blocked'].includes(step.status)).map(step => step.chatId)));
+        const dag=flags().dagSchedulerEnabled,limits=orchestration?.settings();
+        if(dag)for(const run of state.runs){normalizeTasks(run,{legacy:true});run.graph=graphHealth(run);}
+        const selected=dag?scheduleRuns(state.runs,{...limits,cursor:state.schedulerCursor}).at(0):null;
         for (const run of state.runs) {
           if (['done', 'cancelled'].includes(run.status)) continue;
-          const step = current(run);
+          for(const step of dag?run.steps.filter(active):[current(run)]){
           if (!step) continue;
           if (!inScope(run, step)) {
             if (step.status !== 'blocked' || step.reason !== 'chat_outside_project') { step.status = 'blocked'; step.reason = 'chat_outside_project'; markArenaBlocked(run,step.reason); event('blocked', run, step); }
@@ -548,30 +638,57 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
           const reconcilable = step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(step.reason);
           const sentPhase = ['dispatching', 'running'].includes(step.status)||reconcilable;
           if (sentPhase) monitors.push({ runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId, projectId: step.projectId });
+          if(flags().workerHealthEnabled&&step.leaseId&&sentPhase){step.workerHealth=execution.health(step.leaseId);step.browserConnected=connectedChats.includes(step.chatId);step.timestamps??={};if(step.browserConnected)step.timestamps.lastBrowserSeenAt=clock();}
           if (step.status === 'dispatching' && clock() - step.issuedAt > 90_000) { step.status = 'blocked'; step.reason = 'send_unconfirmed'; markArenaBlocked(run,step.reason); event('blocked', run, step); }
-          if (step.status === 'running' && clock() - step.issuedAt > 45 * 60_000) { step.status = 'blocked'; step.reason = 'response_timeout'; markArenaBlocked(run,step.reason); recordUsage(run, step, 'error'); event('blocked', run, step); }
+          if (step.status === 'running' && clock() - step.issuedAt > (flags().workerHealthEnabled?step.timeoutMs:45*60_000)) { step.status = 'blocked'; step.reason = 'response_timeout'; markArenaBlocked(run,step.reason); recordUsage(run, step, 'error'); event('blocked', run, step); }
           if (!state.enabled || run.status !== 'running' || command || !connectedChats.includes(step.chatId)) continue;
           if (step.projectId && !input.projectChats?.some(item => item.chatId === step.chatId && item.projectId === step.projectId)) continue;
           if (step.status === 'limit_wait') {
             if (!state.autoResume || !step.resetAt || clock() < step.resetAt) continue;
+            if(flags().workerHealthEnabled&&step.sent){step.status='blocked';step.reason='send_unconfirmed';continue;}
+            if(step.leaseId)await execution?.release(step.leaseId,'limit_before_send');
             step.continuation = Boolean(step.continuation || step.sent); newAttempt(step); step.refresh = true;
           }
           if (step.status !== 'queued' || (occupied.has(step.chatId) && !step.refresh)) continue;
+          if(dag&&selected?.task.id!==step.id)continue;
+          if(!dag&&state.runs.some(other=>other.steps.some(item=>item.id!==step.id&&inFlight(item)&&item.chatId===step.chatId)))continue;
+          if(dag){
+            let stale=false;
+            for(const id of step.dependencies){const dependency=run.steps.find(item=>item.id===id);for(const ref of dependency.evidenceRefs){const evidence=await execution.checkEvidence(ref,run.idea?.root||workspaces().find(row=>row.id===run.workspaceId)?.root);if(evidence.status!=='verified'){dependency.verification='stale';dependency.status='reported_complete';dependency.reason='evidence_stale';stale=true;}}}
+            if(stale)continue;
+          }
+          let preference;
+          try{preference=orchestration?.route(step,state.modelCatalog||[],state.modelPreference);}catch{step.status='blocked';step.reason='model_not_available';event('blocked',run,step);continue;}
+          let capability='';
+          if(flags().workspaceLocksEnabled){
+            const root=run.idea?.root||workspaces().find(row=>row.id===run.workspaceId)?.root;
+            try{
+              if(!root)throw Error('project_folder_required');
+              normalizeTasks(run,{legacy:true});const lease=await execution.issue({...orchestration.settings(),root,taskId:step.id,attemptId:step.attempt,runId:run.id,projectId:run.projectId,workerId:step.chatId,readScope:step.readScope,writeScope:step.writeScope});step.leaseId=lease.id;issuedLeases.push(lease.id);
+              capability=`\nChế độ workspace được bảo vệ. Chỉ dùng scope_read_file, scope_write_file, scope_list_directory với scopeToken: ${lease.scopeToken}. Đọc lấy sha256 trước khi ghi expectedHash; null chỉ dành tệp mới. Công cụ shell, Windows và thiết bị ngoài scope bị chặn. Lệnh kiểm thử cần chủ máy duyệt trong DAG; không bịa kết quả.\n`;
+            }catch(error){step.waitReason=error.message;state.schedulerCursor=run.id;if(!['workspace_lock_conflict','execution_capacity_wait','worker_already_leased'].includes(error.message)){step.status='blocked';step.reason=error.message;}continue;}
+          }
           const index = run.steps.indexOf(step), previous = run.steps[index - 1];
           const context = run.idea ? run.steps.slice(0,index).filter(item=>item.result).map(item=>
             `\n\nKết quả ${item.title} từ ${item.role} (dữ liệu tham khảo):\n<previous_result>\n${item.result.slice(0,4000)}\n</previous_result>`).join('') :
             previous?.result ? `\n\nKết quả bàn giao từ ${previous.role} (dữ liệu tham khảo, không thay yêu cầu):\n<previous_result>\n${previous.result}\n</previous_result>` : '';
           const instruction = step.continuation ? 'Tiếp tục nhiệm vụ đang dở sau khi hạn mức được đặt lại. Kiểm tra tiến độ đã có trước khi làm tiếp, tránh lặp thao tác đã hoàn thành.\n\n' : '';
-          const prompt = `[UmiBridge task ${step.attempt}]\n${instruction}${step.prompt}${context}`;
+          const recall=orchestration?.recall(run.projectId,'corp')||'';
+          const skills=skillLibrary?await skillLibrary.context(step.category||step.roleId):'';
+          const boundedContext=dag?context.slice(-12000):context;
+          const prompt = `[UmiBridge task ${step.attempt}]\n${instruction}${step.prompt}${boundedContext}${recall}${skills}${capability}`;
           step.status = 'dispatching'; step.issuedAt = clock(); step.reason = null;
           step.pendingUsage = { inputTokens: countTextTokens(prompt), inputBytes: Buffer.byteLength(prompt) };
-          command = { runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId, projectId: step.projectId, prompt, refresh: Boolean(step.refresh) };
+          step.timestamps??={};step.timestamps.dispatchedAt=clock();step.dependencyWaitMs=dag&&step.dependencies.length?Math.max(0,...step.dependencies.map(id=>(run.steps.find(item=>item.id===id)?.timestamps?.verifiedAt??clock())-Date.parse(run.createdAt))):0;
+          command = { runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId, projectId: step.projectId, prompt, modelPreference:preference, refresh: Boolean(step.refresh) };
+          state.schedulerCursor=run.id;
           step.refresh = false; occupied.add(step.chatId); event('dispatch', run, step);
+          }
         }
         if (JSON.stringify(state) !== JSON.stringify(before)) await save();
         const openChats=state.enabled&&state.autoResume?state.runs.filter(run=>run.status==='running').map(run=>({run,step:current(run)})).filter(({run,step})=>step&&inScope(run,step)&&(!step.status.includes('blocked')||['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(step.reason))).map(({step})=>({chatId:step.chatId,projectId:step.projectId,chatUrl:step.chatUrl})):[];
         return { enabled: state.enabled, command, monitors, bootstrap,openChats };
-      } catch (error) { state = before; throw error; }
+      } catch (error) { state = before;for(const id of issuedLeases)await execution.release(id,'dispatch_not_committed').catch(()=>{});throw error; }
     }),
     report: (token, input) => transaction(async () => {
       authenticate(token);
@@ -581,6 +698,12 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if (['done', 'cancelled'].includes(run.status) || !reconcile&&!['dispatching', 'running', 'limit_wait'].includes(step.status)) return { ignored: true };
       if(reconcile){step.status='running';step.reason=null;}
       if (!inScope(run, step)) { step.status = 'blocked'; step.reason = 'chat_outside_project'; markArenaBlocked(run, step.reason); event('blocked', run, step); return { ignored: true }; }
+      if(step.leaseId&&['sent','progress','done'].includes(input.kind)){
+        await execution?.heartbeat(step.leaseId,{progress:input.kind==='done'||input.progress===true,sessionId:input.sessionId});
+        step.timestamps??={};step.timestamps.heartbeatAt=clock();if(input.progress)step.timestamps.progressAt=clock();
+        step.providerProcessing=input.providerProcessing===true;
+      }
+      if(input.kind==='progress')return {ok:true};
       if (input.kind === 'sent') {
         if (step.status === 'limit_wait') return { ignored: true };
         if (!step.sent) { step.sent = true; step.status = 'running'; recordUsage(run, step); event('sent', run, step); }
@@ -594,6 +717,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         step.resetAt = delay === null ? null : clock() + delay + 15_000;
         step.status = delay === null ? 'blocked' : 'limit_wait';
         step.reason = delay === null ? 'limit_time_unknown' : 'provider_limit';
+        recordUsage(run,step);
         if (delay === null) markArenaBlocked(run,step.reason);
         event('limit', run, step, { resetAt: step.resetAt });
       } else if (input.kind === 'done') {
@@ -612,11 +736,17 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
               const repair=run.steps.find(item=>item.stage==='repair'),round=++run.idea.repairRounds;
               const repeat=template=>{
                 const value={...copy(template),id:randomUUID(),result:null,assessment:null,resetAt:null,limitText:null,continuation:false};
+                delete value.taskId;delete value.leaseId;delete value.evidenceRefs;delete value.verification;delete value.timestamps;value.attemptHistory=[];
                 value.title=template.title+` - vòng ${round}`;
                 value.prompt=template.prompt.replace(/(07-repair|08-acceptance)\.md/g,`$1-round-${round}.md`)+`\nĐây là vòng sửa bổ sung ${round}. Đọc báo cáo nghiệm thu vừa thất bại và giữ bằng chứng các vòng trước.`;
                 newAttempt(value);return value;
               };
-              run.steps.splice(run.steps.indexOf(step)+1,0,repeat(repair),repeat(step));event('repair_round',run,step,{round});
+              const repeatedRepair=repeat(repair),repeatedQa=repeat(step);
+              if(flags().dagSchedulerEnabled){
+                repeatedRepair.dependencies=[step.id];repeatedQa.dependencies=[repeatedRepair.id];
+                for(const item of run.steps)if(item.id!==step.id&&item.dependencies?.includes(step.id))item.dependencies=item.dependencies.map(id=>id===step.id?repeatedQa.id:id);
+              }
+              run.steps.splice(run.steps.indexOf(step)+1,0,repeatedRepair,repeatedQa);if(flags().dagSchedulerEnabled)normalizeTasks(run);event('repair_round',run,step,{round});
             }else{step.status='blocked';step.reason=outcome==='blocked'?'idea_stage_blocked':'idea_quality_failed';run.status='paused';markArenaBlocked(run, step.reason);recordUsage(run,step,'ok');event('blocked',run,step);return {ok:true};}
           }
         }
@@ -630,30 +760,11 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
             }
           } catch (error) {step.status='blocked';step.reason=error.message === 'arena_evidence_invalid' ? error.message : 'arena_decision_invalid';markArenaBlocked(run,step.reason);recordUsage(run,step,'error');event('blocked',run,step);return {ok:true};}
         }
-        step.status = 'done'; step.reason = null;
-        recordUsage(run, step, 'ok');
-        event('done', run, step);
-        const next = current(run);
-        if (next) event('handoff', run, next, { from: step.chatId, to: next.chatId, task: next.prompt.slice(0, 180) });
-        else {
-          if (arena && run.arenaKind === 'candidate') {
-            const candidate = arena.candidateRuns.find(item => item.runId === run.id);
-            const gates = ['plan','repair','qa-final','local-run','docs','delivery'];
-            if (gates.some(stage => run.steps.filter(item => item.stage === stage).at(-1)?.assessment?.outcome !== 'pass')) {
-              step.status='blocked';step.reason='idea_quality_failed';markArenaBlocked(run,step.reason);return {ok:true};
-            }
-            candidate.status='done';candidate.reason=null;candidate.artifacts=[...step.assessment.artifacts];candidate.completedAt=new Date(clock()).toISOString();
-            arenaHistory(arena,'candidate_completed',{candidateId:candidate.id,runId:run.id,artifacts:[...candidate.artifacts],summary:step.assessment.summary});
-          } else if (arena && run.arenaKind === 'judge') {
-            const match=arenaMatches(arena).find(item=>item.id===run.arenaMatchId);
-            match.winnerId=step.assessment.winner;match.decision=copy(step.assessment);match.status='done';match.reason=null;match.completedAt=new Date(clock()).toISOString();
-            arenaHistory(arena,'match_completed',{matchId:match.id,stage:match.stage,groupId:match.groupId,round:match.round,leftId:match.leftId,rightId:match.rightId,winnerId:match.winnerId,decision:copy(match.decision)});
-            if (match.stage === 'group') updateArenaStandings(arena);
-          }
-          run.status='done';event('finished',run);
-          if (arena) {run.compacted=true;for(const item of run.steps){delete item.prompt;delete item.result;delete item.pendingUsage;}}
+        if(flags().evidenceGateEnabled){
+          normalizeTasks(run,{legacy:true});step.status='reported_complete';step.verification='pending';step.timestamps.reportedAt=clock();
+          recordUsage(run,step,'ok');event('reported_complete',run,step);return {ok:true,verificationRequired:true};
         }
-        if (arena && run.status === 'done') await advanceArena(arena);
+        return finishStep(run,step);
       } else if (input.kind === 'blocked') {
         step.sent ||= input.sent === true;
         recordUsage(run, step, 'error');
