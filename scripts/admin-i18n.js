@@ -5,6 +5,13 @@
 (() => {
   'use strict';
   const VI_TO_EN = {
+  "Thông tin": "Information",
+  "Chọn thông tin": "Choose information",
+  "Thông tin hiển thị": "Visible information",
+  "Đội ngũ": "Team",
+  "Trao đổi": "Conversation",
+  "Khách": "Clients",
+  "Bàn giao": "Handoffs",
   "Cuộc họp sửa dự án": "Change request meeting",
   "Đội ngũ đang làm việc": "Team at work",
   "Đang chuẩn bị nhân sự": "Preparing staff",

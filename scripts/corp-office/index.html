@@ -24,8 +24,10 @@
       <button id="ambient" type="button" aria-pressed="true">Sinh hoạt: Bật</button>
       <button id="room-plan" type="button" aria-pressed="false">Sơ đồ phòng</button>
       <button id="toggle-roster" type="button" aria-expanded="false" aria-controls="office-roster">Thông tin</button>
+      <button id="info-settings-toggle" type="button" aria-expanded="false" aria-controls="info-settings">Chọn thông tin</button>
     </div>
   </header>
+  <div id="info-settings" class="info-settings" hidden aria-label="Chọn thông tin hiển thị"><strong>Thông tin hiển thị</strong><label><input type="checkbox" data-info="team" checked> Đội ngũ</label><label><input type="checkbox" data-info="conversation" checked> Trao đổi</label><label><input type="checkbox" data-info="customers"> Khách</label><label><input type="checkbox" data-info="handoffs" checked> Bàn giao</label></div>
   <main>
     <section class="office" aria-label="Văn phòng pixel">
       <div class="scene" id="scene" tabindex="0" aria-label="Văn phòng. Trỏ hoặc dùng Tab vào nhân viên để xem tên, vai trò và nhiệm vụ."><div id="stage" hidden><canvas id="room" aria-label="Nhân viên và bàn làm việc."></canvas><div id="seat-labels" aria-label="Nhân viên tại bàn làm việc"></div></div>

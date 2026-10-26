@@ -42,3 +42,5 @@ main{grid-template-columns:minmax(0,1fr) 300px}aside{gap:0}.conversation-section
 
 /* One badge anchor in map, roster and tooltip. */
 .person{position:relative;padding-left:19px}.person strong>.status-dot{position:absolute;top:8px;left:5px;margin:0}.seat-label>.status-dot{top:0;left:0;right:auto;width:10px;height:10px}.tooltip-name{position:relative;padding-left:15px}.tooltip-name>.status-dot{position:absolute;top:4px;left:0}
+
+.info-settings{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 10px;background:#29413a;border-bottom:1px solid var(--line);color:var(--text);font-size:12px}.info-settings strong{font-weight:600}.info-settings label{display:flex;align-items:center;gap:4px;color:var(--muted)}.info-settings input{accent-color:#9bc9a5}
