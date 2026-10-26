@@ -21,9 +21,9 @@ Opening UmiBridge checks for updates. Local projects, pairing and settings are p
 
 Browser control is opt-in. Chrome internal pages, password and file inputs require direct interaction. Page content and screenshots are not stored in request history. Tests, chat data, credentials and machine-specific files stay local.
 
-## New in 1.8.3
+## New in 1.8.4
 
-Corp staff is created on demand. Follow-up requests start with a real change meeting across the departments before implementation.
+Corp Office opens in a focused map view in Chrome; roster and handoff details stay behind one Information button.
 
 ---
 
@@ -50,9 +50,9 @@ App tự kiểm cập nhật khi mở, giữ dự án và cài đặt local.
 
 Điều khiển trình duyệt cần bật quyền. Trang nội bộ Chrome, ô mật khẩu và chọn file cần thao tác trực tiếp. Không lưu nội dung trang/ảnh chụp vào lịch sử request. Test, chat, khóa và dữ liệu riêng giữ local.
 
-### Mới trong 1.8.3
+### Mới trong 1.8.4
 
-Corp tạo nhân sự khi cần. Yêu cầu bổ sung bắt đầu bằng cuộc họp thật giữa các bộ phận trước khi sửa sản phẩm.
+Văn phòng Corp mở map tập trung trong Chrome; roster và bàn giao nằm sau một nút Thông tin.
 
 ## Source
 
