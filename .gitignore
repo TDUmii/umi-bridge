@@ -1,5 +1,6 @@
 node_modules/
 .runtime/
+.archify/
 npm-debug.log*
 .local-data/
 local-bin/
