@@ -36,13 +36,16 @@ class OfficeLife {
     let away=[...this.people.values()].filter(p=>!['desk','handoff'].includes(p.activity)).length;
     for(const p of this.people.values()){
       this.init(p);
-      if(this.working(p)&&!p.activity.startsWith('install'))this.interrupt(p);
+      if(p.meeting&&p.activity==='desk'&&this.floor?.courtyard){const index=[...this.people.values()].filter(person=>person.meeting).findIndex(person=>person.id===p.id),c=this.floor.courtyard;if(index>=8)continue;this.routeTo(p,{x:c.x+84+(index%4)*100,y:index<4?c.y-24:c.y+c.h+24});this.begin(p,'walk_meeting');}
+      if(!p.meeting&&['walk_meeting','meeting'].includes(p.activity))this.home(p);
+      if(this.working(p)&&!p.meeting&&!p.activity.startsWith('install'))this.interrupt(p);
       p.motionBlocked=!!p.route.length&&this.traffic!==p.id;if(!p.motionBlocked)this.move(p,dt);
       const elapsed=this.time-p.phaseAt;
-      if(p.activity==='install_walk'&&!p.route.length&&!p.pathBlocked){this.begin(p,'install_place');}
+      if(p.activity==='walk_meeting'&&!p.route.length&&!p.pathBlocked)this.begin(p,'meeting');
+      else if(p.activity==='install_walk'&&!p.route.length&&!p.pathBlocked){this.begin(p,'install_place');}
       else if(p.activity==='install_place'&&elapsed>=1.2){p.furniture=++p.installPart;p.carry=null;if(p.installPart===3){this.begin(p,'desk');this.emit('install_done',p.id);}else{this.routeTo(p,p.installSupply);this.begin(p,'install_fetch');}}
       else if(p.activity==='install_fetch'&&!p.route.length&&!p.pathBlocked){p.carry=['desk','chair','monitor'][p.installPart];this.routeTo(p,p.seat);this.begin(p,'install_walk');}
-      else if(p.activity==='desk'&&!this.working(p)&&ambient&&this.time>=p.nextBreak&&away<2){
+      else if(p.activity==='desk'&&!p.meeting&&!this.working(p)&&ambient&&this.time>=p.nextBreak&&away<2){
         const choice=OfficeLife.hash(p.id)+(p.breakCount||0);p.breakCount=(p.breakCount||0)+1;p.nextBreak=this.time+36+choice%18;
         const bed=this.beds.indexOf(null);
         if(choice%5===2){p.ambientKind='stretch';this.begin(p,'ambient_pause');this.emit('stretch',p.id);away++;}

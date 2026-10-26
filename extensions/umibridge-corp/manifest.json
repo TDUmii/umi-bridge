@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "UmiBridge - Chrome, Corp & Arena",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Chrome page control and separate Corp/Arena coordination through your paired local UmiBridge. Browser control is opt-in.",
   "permissions": [
     "storage",

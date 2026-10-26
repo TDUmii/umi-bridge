@@ -5,6 +5,9 @@
 (() => {
   'use strict';
   const VI_TO_EN = {
+  "Cuộc họp sửa dự án": "Change request meeting",
+  "Đội ngũ đang làm việc": "Team at work",
+  "Đang chuẩn bị nhân sự": "Preparing staff",
   "Sân trong": "Courtyard",
   "Sơ đồ hệ thống": "System map",
   "Từ ý tưởng": "From idea",

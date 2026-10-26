@@ -131,21 +131,21 @@
     const chosenReviews=[...$('corpReviewTeams').querySelectorAll('input:checked')].map(input=>input.value);
     const extras=(data.reviewTeams||[]).filter(row=>chosenReviews.includes(row.id)).map(row=>({id:'review-'+row.id,roleId:row.id,title:row.department}));
     const stages=(data.ideaStages||[]).filter((stage,index)=>mode==='build'||index<3).flatMap(stage=>stage.id==='repair'?[...extras,stage]:stage.id==='qa-final'?[stage,...extras.map(row=>({...row,id:row.id+'-final',title:row.title+' - nghiệm thu'}))]:[stage]);
-    const required=[...new Set([...stages.map(stage=>stage.roleId),...($('corpIdeaMode').value==='build'?chosenReviews:[])])];
+    const required=[...new Set([...stages.map(stage=>stage.roleId),...($('corpIdeaMode').value==='build'?chosenReviews:[])])],displayRequired=isNew?['ceo']:required;
     const ready=data.ideaProjects?.find(item=>item.workspaceId===project?.id),members=[...(ready?.members||[])];
     for(const member of teamMembers())if(!members.some(row=>row.chatId===member.chatId))members.push(member);
     const version=data.extensionVersion?.split('.').map(Number),supported=!!version&&(version[0]>0||version[1]>=7);
     const missing=required.filter(id=>!members.some(member=>member.roleId===id));
-    $('corpIdeaProject').textContent=isNew?`Tự tạo Project mới, ${8+(mode==='build'?chosenReviews.length:0)} chat và phân công bộ phận.`:project?'Project: '+project.name:'Chọn Project ở thanh phía trên để bắt đầu.';
+    $('corpIdeaProject').textContent=isNew?'Tự tạo Project mới; tạo Điều hành trước, các bộ phận khác mở theo chặng.':project?'Project: '+project.name:'Chọn Project ở thanh phía trên để bắt đầu.';
     $('corpIdeaProject').hidden=isNew;
     $('corpIdeaRoot').textContent=project?.root||'Chưa có thư mục làm việc.';$('corpIdeaRoot').hidden=isNew;$('corpIdeaFolder').hidden=!isNew;
     $('corpIdeaParentRoot').readOnly=ideaSending||folderPicking==='corpIdeaParentRoot';$('corpIdeaBrowse').disabled=ideaSending||!!folderPicking;
-    $('corpIdeaReadiness').textContent=isNew?!data.paired?'Kết nối extension Corp để tạo Project.':!supported?'Nạp lại extension Corp 0.7.0.':'':!project?'Chọn Project đã đồng bộ chat.':!stages.length?'Khởi động lại UmiBridge.':`${required.length-missing.length}/${required.length} bộ phận sẵn sàng.`;
+    $('corpIdeaReadiness').textContent=isNew?(!data.paired?'Kết nối extension Corp để tạo Project.':!supported?'Nạp lại extension Corp.':'Bắt đầu bằng Điều hành; các bộ phận khác chỉ tạo khi chặng cần đến.'):!project?'Chọn Project đã đồng bộ chat.':!stages.length?'Khởi động lại UmiBridge.':`${required.length-missing.length}/${required.length} bộ phận sẵn sàng.`;
     $('corpIdeaReadiness').hidden=!$('corpIdeaReadiness').textContent;
-    const signature=JSON.stringify([isNew,project?.id,required,members,project?.chats]);
+    const signature=JSON.stringify([isNew,project?.id,displayRequired,members,project?.chats]);
     if($('corpIdeaTeam').dataset.signature!==signature){
       $('corpIdeaTeam').dataset.signature=signature;$('corpIdeaTeam').replaceChildren();
-      for(const id of required){const role=[...(data.companyRoles||[]),...(data.reviewTeams||[])].find(role=>role.id===id),member=members.find(member=>member.roleId===id);
+      for(const id of displayRequired){const role=[...(data.companyRoles||[]),...(data.reviewTeams||[])].find(role=>role.id===id),member=members.find(member=>member.roleId===id);
         const row=node('div'),name=node('dt',role.department),chat=node('dd',isNew?role.name:member?(project.chats.find(chat=>chat.chatId===member.chatId)?.name.split('\n')[0]||member.chatId):'Chưa có chat');
         if(!isNew&&!member)row.className='missing';if(!isNew&&member?.suggested)chat.append(node('small','Gợi ý theo tên chat'));row.append(name,chat);$('corpIdeaTeam').append(row);
       }
@@ -169,10 +169,10 @@
     const reasons={bootstrap_unconfirmed:'Chưa xác nhận được thao tác tạo. Kiểm tra tab ChatGPT trước khi tiếp tục.',bootstrap_recovery_required:'Không còn tab khởi tạo cũ. Kiểm tra Project/chat đã tạo; hệ thống giữ tiến độ để tránh tạo trùng.',project_create_ui_missing:'Chưa thấy nút tạo Project. Kiểm tra đã đăng nhập ChatGPT và tải lại extension.',bootstrap_ui_timeout:'ChatGPT chưa phản hồi đúng giao diện trong thời gian chờ. Kiểm tra tab khởi tạo.',project_dialog_busy:'Hộp thoại tạo Project đang có nội dung khác. Kiểm tra rồi thử tiếp.',composer_busy:'Chat có bản nháp hoặc đang trả lời. Hoàn tất trước khi tiếp tục.',bootstrap_content_unavailable:'Chưa kết nối được trang ChatGPT. Tải lại extension và tab ChatGPT.',bootstrap_stopped:'Khởi tạo đã dừng theo lựa chọn điều phối.',bootstrap_project_changed:'Tab đã chuyển khỏi Project khởi tạo. Kiểm tra trước khi tiếp tục.'};
     for(const job of jobs){
       const row=node('article',undefined,'corp-bootstrap');row.append(node('strong',job.name));
-      row.append(node('p',`${{running:'Đang khởi tạo',paused:'Tạm dừng',blocked:'Cần kiểm tra'}[job.status]} · ${job.projectId?'Đã tạo Project':'Đang chuẩn bị Project'} · ${job.chats.length}/${8+(job.mode==='plan'?0:(job.reviewTeams||[]).length)} chat bộ phận`));
+      row.append(node('p',`${{running:'Đang chuẩn bị nhân sự',partial:'Đội ngũ đang làm việc',paused:'Tạm dừng',blocked:'Cần kiểm tra'}[job.status]} · ${job.projectId?'Đã tạo Project':'Đang chuẩn bị Project'} · ${job.lazy?job.chats.length+' bộ phận đã có · thêm khi cần':job.chats.length+'/'+(8+(job.mode==='plan'?0:(job.reviewTeams||[]).length))+' chat bộ phận'}`));
       if(job.reason)row.append(node('p',reasons[job.reason]||'Khởi tạo bị chặn: '+job.reason,'corp-reason'));
       const actions=node('div',undefined,'actions');
-      if(job.status!=='running'){const start=button(job.status==='blocked'?'Kiểm tra và tiếp tục':'Bắt đầu',()=>act('/projects/'+job.id+'/start'));start.disabled=!data.enabled;actions.append(start);}
+      if(!['running','partial'].includes(job.status)){const start=button(job.status==='blocked'?'Kiểm tra và tiếp tục':'Bắt đầu',()=>act('/projects/'+job.id+'/start'));start.disabled=!data.enabled;actions.append(start);}
       else actions.append(button('Tạm dừng',()=>act('/projects/'+job.id+'/pause')));
       if(job.projectUrl){const link=node('a','Mở Project','btn small');link.href=job.projectUrl;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);}
       actions.append(button('Hủy khởi tạo',()=>act('/projects/'+job.id+'/cancel')));row.append(actions);$('corpBootstraps').append(row);
@@ -221,13 +221,15 @@
       if(role){agent.roleId=role.id;agent.department=role.department;agent.role=role.name;agent.roles=[role.name];}
       else agent.department='Chưa phân công';
     }
+    const activeMeeting=runs.find(run=>run.status==='running'&&run.meeting&&run.steps.some(step=>step.stage?.startsWith('meeting-')&&!['done','cancelled'].includes(step.status)));
+    for(const agent of agents.values())agent.meeting=!!activeMeeting?.meeting.participants.includes(agent.roleId);
     const order=[...(data.companyRoles||[]),...(data.reviewTeams||[])].map(role=>role.id);
     const handoffs = data.events.filter(event => event.type === 'handoff' && runs.some(run => run.id === event.runId)).map(event => ({ id:event.id, from:event.from, to:event.to, task:event.task, at:event.at }));
     const conversations=runs.flatMap(run=>run.steps.flatMap((step,index)=>{if(!step.result&&!step.recoveredFromArtifact)return [];const next=run.steps[index+1],handoff=data.events.find(event=>event.type==='handoff'&&event.runId===run.id&&event.stepId===next?.id&&event.from===step.chatId),recorded=data.events.find(event=>['done','blocked'].includes(event.type)&&event.runId===run.id&&event.stepId===step.id);return [{id:run.id+':'+step.id,from:step.chatId,to:handoff?.to||null,fromName:step.role,toName:handoff?next.role:null,at:step.completedAt||step.finishedAt||recorded?.at||null,task:step.title||run.title,text:step.result||'[Khôi phục từ artifact đã ghi, không phải phản hồi ChatGPT mới]\n'+step.assessment.summary+'\n'+step.assessment.artifacts.join('\n'),summary:step.assessment?.summary||'',status:step.assessment?.outcome||step.status}];}));
     const project=selectedProject(),projectJob=(data.bootstraps||[]).find(row=>row.workspaceId===project?.id),job=projectJob&&!['done','cancelled'].includes(projectJob.status)?projectJob:null;
     const expected=job?8+(job.mode==='plan'?0:(job.reviewTeams||[]).length):teamMembers().length||agents.size;
-    const registered=job?.chats.length??agents.size,rosterConfirmed=!project||projectJob?.status==='done'||project.sync?.status==='complete',staffing={ready:!job&&rosterConfirmed&&agents.size>0,expected,registered,message:job?'Đang chuẩn bị đội ngũ. Văn phòng mở khi đủ nhân sự.':!rosterConfirmed?'Đồng bộ danh sách chat đầy đủ trước khi tạo văn phòng.':agents.size?'':'Thêm và phân công nhân sự để tạo văn phòng.'};
-    return { project:project?.id || 'umibridge-corp', name:project?.name || 'UmiBridge Corp', coordinator:data.enabled, office:data.office, staffing,conversations,agents:[...agents.values()].sort((a,b)=>(order.indexOf(a.roleId)<0?99:order.indexOf(a.roleId))-(order.indexOf(b.roleId)<0?99:order.indexOf(b.roleId))), handoffs, customers:runs.filter(run=>!['done','cancelled'].includes(run.status)).map(run=>({id:run.id,name:run.customerName||'Chưa đặt tên',title:run.title,status:run.status})), baseline:first };
+    const registered=job?.chats.length??agents.size,rosterConfirmed=!project||projectJob?.status==='done'||project.sync?.status==='complete',staffing={ready:((job?.lazy&&agents.size>0)||!job&&rosterConfirmed&&agents.size>0),expected,registered,message:job?.lazy?'Đang chuẩn bị bộ phận nhận việc đầu tiên.':job?'Đang chuẩn bị đội ngũ. Văn phòng mở khi đủ nhân sự.':!rosterConfirmed?'Đồng bộ danh sách chat đầy đủ trước khi tạo văn phòng.':agents.size?'':'Thêm và phân công nhân sự để tạo văn phòng.'};
+    return { project:project?.id || 'umibridge-corp', name:project?.name || 'UmiBridge Corp', coordinator:data.enabled, office:data.office, staffing,meeting:activeMeeting?{request:activeMeeting.meeting.request}:null,conversations,agents:[...agents.values()].sort((a,b)=>(order.indexOf(a.roleId)<0?99:order.indexOf(a.roleId))-(order.indexOf(b.roleId)<0?99:order.indexOf(b.roleId))), handoffs, customers:runs.filter(run=>!['done','cancelled'].includes(run.status)).map(run=>({id:run.id,name:run.customerName||'Chưa đặt tên',title:run.title,status:run.status})), baseline:first };
   }
   function syncScene() {
     if (!data || !scene.contentWindow) return;
@@ -348,7 +350,7 @@
   $('corpIdeaForm').onsubmit=async event=>{
     event.preventDefault();if(ideaSending||directSending||folderPicking)return;const project=selectedProject(),isNew=$('corpIdeaTarget').value==='new';if(!isNew&&!project)return;
     const followUp=$('corpIdeaTarget').value==='follow-up',projectSpec=Object.fromEntries([...$('corpProjectSpecFields').querySelectorAll('textarea')].map(field=>[field.dataset.spec,field.value.trim()]));
-    const value={...(isNew?{parentRoot:$('corpIdeaParentRoot').value.trim()}:{workspaceId:project.id}),parallel:$('corpParallel').checked,projectSpec,cleanupAfterDelivery:$('corpCleanupAfterDelivery').checked,customerName:$('corpIdeaCustomer').value.trim(),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,productProfile:$('corpProductProfile').value||'general',productGoal:$('corpProductGoal').value.trim(),reviewTeams:[...$('corpReviewTeams').querySelectorAll('input:checked')].map(input=>input.value),start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked}:{})};
+    const value={...(isNew?{parentRoot:$('corpIdeaParentRoot').value.trim()}:{workspaceId:project.id}),parallel:$('corpParallel').checked,projectSpec,cleanupAfterDelivery:$('corpCleanupAfterDelivery').checked,customerName:$('corpIdeaCustomer').value.trim(),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,productProfile:$('corpProductProfile').value||'general',productGoal:$('corpProductGoal').value.trim(),reviewTeams:[...$('corpReviewTeams').querySelectorAll('input:checked')].map(input=>input.value),start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked,staffingMode:'lazy'}:{})};
     if(isNew)window.umiFolderDialog.remember($('corpIdeaParentRoot'));
     const signature=JSON.stringify(value);if(ideaRequest?.signature!==signature)ideaRequest={signature,key:crypto.randomUUID()};
     ideaSending=true;$('corpIdeaForm').setAttribute('aria-busy','true');$('corpIdeaText').readOnly=true;$('corpIdeaCustomer').readOnly=true;$('corpIdeaMode').disabled=true;$('corpIdeaTarget').disabled=true;$('corpProject').disabled=true;renderIdea();$('corpIdeaError').hidden=true;

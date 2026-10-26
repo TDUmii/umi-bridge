@@ -176,6 +176,26 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     if(input.requestKey!==undefined)Object.assign(run,{requestKey:input.requestKey,requestDigest});
     state.runs.push(run);event('created',run);return run;
   };
+  const recruitRole=job=>bootstrapRoles(job).find(role=>role.id===job.recruitRoleId)||bootstrapRoles(job)[job.chats.length];
+  const lazyReady=(run,planned)=>{const dependencies=planned.dependencies?.length?planned.dependencies.map(id=>run.steps.find(step=>step.id===run.planLinks?.[id])):[run.steps[0]];return dependencies.every(step=>step?.status==='done'&&(!flags().evidenceGateEnabled||step.verification==='verified'));};
+  const appendLazyStep=(run,job,workspace,role)=>{
+    const index=run.deferredPlan.findIndex(step=>step.roleId===role.id&&lazyReady(run,step));if(index<0)throw Error('recruitment_stage_mismatch');const planned=run.deferredPlan.splice(index,1)[0],chat=job.chats.find(chat=>chat.roleId===role.id);
+    const step={...planned,id:randomUUID(),workspaceId:workspace.id,projectId:run.projectId,providerProjectId:run.projectId,chatId:chat.chatId,chatUrl:chat.chatUrl,dependencies:planned.dependencies?.length?planned.dependencies.map(id=>run.planLinks[id]):[run.steps[0].id],status:'queued',attempt:randomUUID(),sent:false,issuedAt:null,resetAt:null,limitText:null,result:null,reason:null};
+    run.planLinks[planned.id]=step.id;run.steps.push(step);if(flags().dagSchedulerEnabled)normalizeTasks(run);run.status=job.runAfterSetup&&state.enabled&&(run.status==='running'||job.status==='running')?'running':'paused';job.status=run.status==='running'?'partial':'paused';job.recruitRoleId=null;return step;
+  };
+  const pumpRecruitment=(run,job)=>{
+    if(!state.enabled||!['running','partial'].includes(job.status)||job.issuedAt!==null||run.status!=='running'&&!(job.status==='running'&&job.recruitRoleId))return;
+    while(true){const planned=run.deferredPlan?.find(step=>lazyReady(run,step));if(!planned)return;const known=job.chats.find(chat=>chat.roleId===planned.roleId);if(!known){job.recruitRoleId=planned.roleId;job.status='running';return;}const workspace=workspaces().find(item=>item.id===job.workspaceId);appendLazyStep(run,job,workspace,bootstrapRoles(job).find(role=>role.id===planned.roleId));}
+  };
+  const createLazyRun=(job,workspace,role)=>{
+    const roles=bootstrapRoles(job),virtual={...workspace,chats:roles.map(item=>({chatId:'planned-'+item.id,chatUrl:'https://chatgpt.com/c/planned-'+item.id,name:item.name}))};
+    const plan=buildIdeaWorkflow({project:virtual,members:roles.map(item=>({chatId:'planned-'+item.id,roleId:item.id})),idea:job.idea,mode:job.mode,requestKey:job.id,projectSpec:job.projectSpec,...reviewConfig(job)});
+    const first={...plan.steps[0],workspaceId:workspace.id,chatId:job.chats[0].chatId,role:role.name,roleId:role.id,title:'Tiếp nhận yêu cầu khách hàng',stage:'intake',requiresPass:false,prompt:plan.steps[0].prompt.replace(/Chặng: [^\n]+/,'Chặng: Tiếp nhận yêu cầu khách hàng').replace(/Tệp đầu ra: [^\n]+/,'Tệp đầu ra: '+plan.idea.artifactDir+'/00-customer-request.md').replace(/Nhiệm vụ: [\s\S]*$/,'Nhiệm vụ: Tiếp nhận yêu cầu của khách hàng, xác định mục tiêu, giả định và phạm vi cần làm; chưa sửa source. Ghi lại phần nào cần làm rõ và bộ phận cần tham gia. Không tự làm thay các bộ phận khác.')};
+    const run=createRun({title:job.name,workspaceId:workspace.id,customerName:job.customerName,steps:[first]},{idea:true});Object.assign(run.steps[0],{stage:first.stage,title:first.title,roleId:first.roleId,category:first.roleId,requiresPass:false});
+    run.idea={...plan.idea,lazy:true,parallel:!!flags().dagSchedulerEnabled&&job.parallel!==false,parallelRequested:job.parallel!==false,repairRounds:1};
+    if(flags().dagSchedulerEnabled){configureIdeaGraph(run);normalizeTasks(run);}const deferred={steps:plan.steps.map(step=>({...step,id:randomUUID(),status:'queued'}))};configureIdeaGraph(deferred);if(!run.idea.parallel)deferred.steps.forEach((step,index)=>step.dependencies=index?[deferred.steps[index-1].id]:[]);
+    run.deferredPlan=deferred.steps;run.planLinks={};run.lazyRecruit={jobId:job.id};run.status=job.runAfterSetup&&state.enabled&&job.status==='running'?'running':'paused';job.runId=run.id;return run;
+  };
   const createIdeaRun = input => {
     const config=reviewConfig(input),spec=normalizeProjectSpec(input.projectSpec);
     if(typeof input.requestKey!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestKey))throw Error('invalid_idea_request');
@@ -192,7 +212,17 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     const plan=buildIdeaWorkflow({project,members:stateTeamBefore,idea:input.idea,mode:input.mode,requestKey:input.requestKey,projectSpec:spec,...config});
     const run=createRun({...plan,customerName:input.customerName},{idea:true});run.idea={...plan.idea,repairRounds:1};
     run.steps.forEach((step,index)=>Object.assign(step,{stage:plan.steps[index].stage,title:plan.steps[index].title,roleId:plan.steps[index].roleId,requiresPass:plan.steps[index].requiresPass}));
-    if(flags().dagSchedulerEnabled){configureIdeaGraph(run);if(input.parallel===false)run.steps.forEach((step,index)=>step.dependencies=index?[run.steps[index-1].id]:[]);normalizeTasks(run);}
+    let meetingSteps=[];
+    if(parent){
+      const participants=(stateTeamBefore||[]).map(member=>({member,role:staffRoles.find(role=>role.id===member.roleId)})).filter(({member,role})=>role&&project.chats.some(chat=>chat.chatId===member.chatId));
+      const chair=participants.find(item=>item.role.id==='ceo');
+      const agenda=[...(chair?[{...chair,intake:true}]:[]),...participants,...(chair?[{...chair,decision:true}]:[])];
+      meetingSteps=agenda.map(({member,role,intake,decision},index)=>{const chat=project.chats.find(chat=>chat.chatId===member.chatId),file=plan.idea.artifactDir+`/meeting-${index+1}.md`;return {id:randomUUID(),workspaceId:project.id,projectId:project.projectId,providerProjectId:project.projectId,chatId:member.chatId,chatUrl:chat.chatUrl,role:role.name,roleId:role.id,stage:decision?'meeting-decision':intake?'meeting-intake':'meeting-discussion',title:decision?'Chốt phương án sửa':intake?'Khách hàng yêu cầu bổ sung':'Họp sửa dự án - '+(role.department||role.name),requiresPass:decision===true,prompt:`Yêu cầu mới của khách hàng: ${input.idea}. Đây là cuộc họp nội bộ trước khi sửa dự án đã bàn giao. Đọc báo cáo phiên trước tại ${parent.idea.artifactDir} và ý kiến thực từ các bộ phận trước trong cuộc họp. ${intake?'Tiếp nhận yêu cầu, nêu mục tiêu, ràng buộc và mời cả đội góp ý.':decision?'Tổng hợp ý kiến của tất cả bộ phận, giải quyết điểm chưa thống nhất và chốt phạm vi sửa, tiêu chí nghiệm thu, người nhận việc. Nếu chưa đủ thông tin để chốt thì nêu rõ trở ngại; không cho triển khai.':'Góp ý từ chuyên môn của bạn, phản hồi ý kiến trước, chỉ ra phần cần sửa, phần giữ nguyên, rủi ro và bằng chứng cần kiểm tra.'} Chỉ đọc source và ghi biên bản, chưa sửa sản phẩm.
+Tệp đầu ra: ${file}
+Nhiệm vụ: ${decision?'Chốt phương án sửa dựa trên toàn bộ cuộc họp.':'Thảo luận yêu cầu sửa và bàn giao ý kiến cho bộ phận tiếp theo.'}`,status:'queued',attempt:randomUUID(),sent:false,issuedAt:null,resetAt:null,limitText:null,result:null,reason:null};});
+      run.steps=[...meetingSteps,...run.steps];run.meeting={request:input.idea,participants:participants.map(({role})=>role.id)};
+    }
+    if(flags().dagSchedulerEnabled){configureIdeaGraph(run);if(meetingSteps.length){const lastMeeting=meetingSteps.at(-1).id;for(const step of run.steps.filter(step=>!meetingSteps.includes(step)))step.dependencies=[...new Set([...(step.dependencies||[]),lastMeeting])];}if(input.parallel===false)run.steps.forEach((step,index)=>step.dependencies=index?[run.steps[index-1].id]:[]);normalizeTasks(run);}
     run.idea.parallelRequested=input.parallel!==false;run.idea.parallel=Boolean(flags().dagSchedulerEnabled&&run.idea.parallelRequested);
     if(parent){run.parentRunId=parent.id;run.revision=(parent.revision||1)+1;run.title=`Bổ sung ${run.revision}: ${run.title}`;for(const step of run.steps)step.prompt+=`\nBổ sung cho dự án đã bàn giao. Giữ source và dữ liệu hiện có; đây không phải tạo lại sản phẩm. Đọc ý tưởng gốc và báo cáo ${parent.idea.artifactDir} trước khi sửa. Ý tưởng gốc (dữ liệu): ${JSON.stringify(parent.idea.text)}. Lượt mới có thư mục báo cáo riêng ${run.idea.artifactDir}.`;
       }
@@ -417,7 +447,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       const contents=`# ${name}\n\n${input.idea.trim()}\n`,ideaHandle=await open(ideaFile,'wx');ideaCreated=true;
       try{await ideaHandle.writeFile(contents,'utf8');}finally{await ideaHandle.close();}
       const job={id:input.requestKey,cleanupAfterDelivery:input.cleanupAfterDelivery===true,...config,projectSpec:spec,parallel:input.parallel!==false,customerName:text(input.customerName,80),idea:input.idea.trim(),name,parentRoot,root,kind,count,...(kind==='arena'?{format:input.format??'knockout'}:{}),mode:input.mode||'build',runAfterSetup:kind==='arena'?false:input.runAfterSetup!==false,
-        status:input.start!==false&&state.enabled?'running':'paused',createdAt:new Date(clock()).toISOString(),projectUrl:null,projectId:null,workspaceId:null,chats:[],attempt:null,issuedAt:null,reason:null,runId:null};
+        status:input.start!==false&&state.enabled?'running':'paused',lazy:kind==='idea'&&input.staffingMode==='lazy',recruitIndex:0,createdAt:new Date(clock()).toISOString(),projectUrl:null,projectId:null,workspaceId:null,chats:[],attempt:null,issuedAt:null,reason:null,runId:null};
       state.bootstraps.push(job);return copy(job);
   };
   if (taskMigrated||JSON.stringify(state.arenas) !== arenasBeforeMigration) await save();
@@ -431,6 +461,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         const next = current(run);
         if (next) event('handoff', run, next, { from: step.chatId, to: next.chatId, task: next.prompt.slice(0, 180) });
         else {
+          if(run.lazyRecruit){const job=state.bootstraps.find(item=>item.id===run.lazyRecruit.jobId);if(job&&run.deferredPlan?.length){pumpRecruitment(run,job);if(!current(run))run.status='paused';event('staff_needed',run,step,{roleId:job.recruitRoleId});return {ok:true};}if(job){job.status='done';job.recruitRoleId=null;}run.lazyRecruit=null;}
           if (arena && run.arenaKind === 'candidate') {
             const candidate = arena.candidateRuns.find(item => item.runId === run.id);
             const gates = ['plan','repair','qa-final','local-run','docs','delivery'];
@@ -589,8 +620,8 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         state.bootstraps=state.bootstraps.filter(row=>row.id!==id);state.teams=state.teams.filter(row=>row.workspaceId!==job.workspaceId);return {ok:true};
       }
       if(['done','cancelled'].includes(job.status))throw Error('bootstrap_finished');
-      if(action==='start'){if(!state.enabled)throw Error('enable_corp_first');job.status='running';job.reason=null;job.issuedAt=null;job.attempt=null;}
-      else if(action==='pause')job.status='paused';else if(action==='cancel')job.status='cancelled';else throw Error('invalid_corp_action');return copy(job);
+      if(action==='start'){if(!state.enabled)throw Error('enable_corp_first');const run=job.lazy&&job.runId?find(job.runId):null;job.status=run&&!job.recruitRoleId?'partial':'running';if(run)run.status='running';job.reason=null;job.issuedAt=null;job.attempt=null;}
+      else if(action==='pause'){job.status='paused';if(job.lazy&&job.runId)find(job.runId).status='paused';}else if(action==='cancel'){job.status='cancelled';if(job.lazy&&job.runId){const run=find(job.runId);run.status='cancelled';for(const step of run.steps.filter(active))step.status='cancelled';}}else throw Error('invalid_corp_action');return copy(job);
     }),
     bootstrapAuthorize:(token,input)=>serial(()=>{
       authenticate(token);const job=bootstrapById(input.jobId);
@@ -605,10 +636,17 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         if(existing&&(existing.root!==job.root||existing.name!==job.name))throw Error('bootstrap_project_conflict');
         const workspace=existing||await createWorkspace({name:job.name,root:job.root,chatUrl:link.projectUrl});Object.assign(job,link,{workspaceId:workspace.id});
       }else if(input.kind==='chat'&&job.projectId){
-        const role=bootstrapRoles(job)[job.chats.length];if(!role||input.roleId!==role.id)throw Error('bootstrap_role_mismatch');
+        const role=recruitRole(job);if(!role||input.roleId!==role.id)throw Error('bootstrap_role_mismatch');
         const chat=chatId(input.chatUrl),path=new URL(chat.url).pathname;
         if(!path.startsWith(`/g/${job.projectId}/c/`)||job.chats.some(item=>item.chatId===chat.id))throw Error('chat_outside_project');
         const chats=[...job.chats,{roleId:role.id,chatId:chat.id,name:role.name,chatUrl:chat.url}];
+        if(job.lazy){
+          job.chats=chats;const workspace=workspaces().find(item=>item.id===job.workspaceId);if(!workspace)throw Error('project_not_found');
+          await syncProject({workspaceId:workspace.id,projectUrl:job.projectUrl,requested:workspace.sync.requested,status:'partial',chats:chats.map(({name,chatUrl})=>({name,chatUrl}))});
+          state.teams=state.teams.filter(team=>team.workspaceId!==job.workspaceId);state.teams.push({workspaceId:job.workspaceId,members:chats.map(({chatId,roleId})=>({chatId,roleId}))});
+          if(!job.runId)createLazyRun(job,workspace,role);else appendLazyStep(find(job.runId),job,workspace,role);
+          job.status=find(job.runId).status==='running'?'partial':'paused';job.attempt=null;job.issuedAt=null;job.reason=null;return {ok:true,recruited:role.department};
+        }
         const workspace=workspaces().find(item=>item.id===job.workspaceId);if(!workspace)throw Error('project_not_found');
         await syncProject({workspaceId:workspace.id,projectUrl:job.projectUrl,requested:workspace.sync.requested,status:'partial',chats:chats.map(({name,chatUrl})=>({name,chatUrl}))});job.chats=chats;
         if(chats.length===bootstrapRoles(job).length){
@@ -642,6 +680,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         // Explicit user reconciliation is needed for an ambiguous send; never retry it on a timer.
         const leaseId=step.leaseId;step.continuation = Boolean(step.continuation || step.sent); newAttempt(step);if(leaseId)await execution?.release(leaseId,'manual_retry');run.status = 'paused';
       } else throw Error('invalid_corp_action');
+      if(run.lazyRecruit){const job=state.bootstraps.find(job=>job.id===run.lazyRecruit.jobId);if(job){if(action==='pause')job.status='paused';if(action==='start')job.status=job.recruitRoleId?'running':'partial';if(action==='cancel')job.status='cancelled';}}
       event(action, run, step); return publicRun(run);
     }),
     poll: async (token, input = {}) => {
@@ -664,11 +703,12 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       const issuedLeases=[];
       try {
         for (const arena of state.arenas.filter(item => item.status === 'running')) await advanceArena(arena);
-        for(const job of state.bootstraps){
+        for(const job of state.bootstraps){if(job.lazy&&job.runId)pumpRecruitment(find(job.runId),job);
+
           if(job.status!=='running')continue;
           if(job.issuedAt!==null){if(clock()-job.issuedAt>120000){job.status='blocked';job.reason='bootstrap_unconfirmed';}continue;}
-          if(!state.enabled||bootstrap||!bootstrapSupported())continue;job.attempt=randomUUID();job.issuedAt=clock();const role=bootstrapRoles(job)[job.chats.length];
-          bootstrap={jobId:job.id,attempt:job.attempt,type:job.projectId?'bootstrap-chat':'bootstrap-project',projectName:job.name,projectUrl:job.projectUrl,projectId:job.projectId,
+          if(!state.enabled||bootstrap||!bootstrapSupported())continue;job.attempt=randomUUID();job.issuedAt=clock();const role=recruitRole(job);
+          bootstrap={jobId:job.id,awaitSeed:job.lazy===true,attempt:job.attempt,type:job.projectId?'bootstrap-chat':'bootstrap-project',projectName:job.name,projectUrl:job.projectUrl,projectId:job.projectId,
             ...(job.projectId?{roleId:role.id,roleName:role.name,seed:`[UmiBridge setup ${job.id}:${role.id}]\nBạn là bộ phận ${role.department}, vai trò ${role.name}. Thư mục dự án local: ${job.root}. Chờ nhiệm vụ riêng do Corp gửi sau. Không tự tạo việc hoặc thao tác tệp lúc khởi tạo. Chỉ trả lời ngắn gọn: UMI_READY ${role.id}.`}:{})};
         }
         if(bootstrap?.seed&&readableChats()){const role=bootstrapRoles(state.bootstraps.find(job=>job.id===bootstrap.jobId)).find(role=>role.id===bootstrap.roleId);bootstrap.marker=`Bạn phụ trách bộ phận ${role.department} trong dự án ${bootstrap.projectName}.`;bootstrap.seed=bootstrap.marker+'\n\nĐây là bước chuẩn bị đội ngũ. Chờ công việc riêng do Corp gửi; chưa tạo tệp hoặc tự bắt đầu công việc. Trả lời một câu xác nhận sẵn sàng bằng văn thường.';}

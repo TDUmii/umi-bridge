@@ -31,7 +31,8 @@
       if(projectId()&&/\/project\/?$/.test(location.pathname)&&heading)return {kind:'project',projectUrl:`https://chatgpt.com/g/${projectId()}/project`};
     }else if(projectId()===command.projectId&&chatId()){
       const marker=setupMarker(command);
-      if([...document.querySelectorAll(messageSelector)].some(el=>author(el)==='user'&&el.textContent.includes(marker)))return {kind:'chat',roleId:command.roleId,chatUrl:`https://chatgpt.com/g/${command.projectId}/c/${chatId()}`};
+      const messages=[...document.querySelectorAll(messageSelector)].filter(node=>!node.parentElement?.closest(messageSelector)),user=messages.findIndex(el=>author(el)==='user'&&el.textContent.includes(marker));
+      if(user>=0){if(command.awaitSeed){const answer=messages.slice(user+1).find(node=>author(node)==='assistant'),turn=answer?.closest('[data-talvt-turn-state], article, [data-testid^="conversation-turn-"]')??answer?.parentElement,state=turn?.getAttribute('data-talvt-turn-state');if(!answer||sending()||!(state?state==='complete':turn?.querySelector('[data-testid="copy-turn-action-button"], button[aria-label="Copy"], button[aria-label="Sao chép"]')))return null;}return {kind:'chat',roleId:command.roleId,chatUrl:`https://chatgpt.com/g/${command.projectId}/c/${chatId()}`};}
     }
     return null;
   }

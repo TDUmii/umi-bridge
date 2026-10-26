@@ -118,6 +118,7 @@
   }
   function renderUI() {
     const data=model.current;if(!data)return;
+    document.querySelector('.conversation-section h2').textContent=data.meeting?'Cuộc họp sửa dự án':'Trao đổi công việc';
     $('health').textContent=error?'Mất cập nhật. Trạng thái hiển thị đã cũ; đang thử lại.':
       `${data.coordinator?'Điều phối: Bật':'Điều phối: Tắt'} · ${data.agents.length} nhân viên`;
     $('connection').classList.toggle('error',error);
