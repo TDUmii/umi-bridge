@@ -465,7 +465,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(evidence.status==='verified'){step.timestamps??={};step.timestamps.verifiedAt=clock();}
       recordUsage(run,step,'ok');
       if(evidence.status!=='verified'){step.status='blocked';step.reason='evidence_'+evidence.status;run.status='paused';event('blocked',run,step);return {ok:false,evidence};}
-      if(step.assessment?.outcome==='pending_verification'){step.assessment.reportedOutcome=step.assessment.outcome;step.assessment.outcome='pass';step.assessment.verificationRef=evidence.id;step.assessment.verifiedChecks=copy(evidence.checks);}
+      if(step.assessment?.outcome==='pending_verification'){step.assessment.reportedOutcome=step.assessment.outcome;step.assessment.outcome=step.assessment.checks.some(check=>check.status==='fail')?'needs_changes':'pass';step.assessment.verificationRef=evidence.id;step.assessment.verifiedChecks=copy(evidence.checks);}
       if(step.status==='done'){await execution.release(step.leaseId,'historical_verification');return {ok:true,evidence};}
       return {...await finishStep(run,step),evidence};
     }),

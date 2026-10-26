@@ -116,5 +116,5 @@ export function readIdeaReport(result,{allowPending=false}={}) {
     !Array.isArray(value.checks) || value.checks.length>40 || value.checks.some(check=>!check||typeof check.name!=='string'||!check.name.trim()||!['pass','fail','unverified'].includes(check.status)||typeof check.evidence!=='string'||check.evidence.length>2000)) throw Error('idea_report_invalid');
   if (value.outcome==='pass' && (!value.artifacts.length || !value.checks.length || value.checks.some(check=>check.status!=='pass'||!check.evidence.trim()))) throw Error('idea_report_invalid');
   if(value.outcome==='pending_verification'&&(!value.artifacts.length||!value.checks.length))throw Error('idea_report_invalid');
-  return {outcome:value.outcome,summary:value.summary,artifacts:value.artifacts,checks:value.checks};
+  return {outcome:value.outcome==='pending_verification'&&value.checks.some(check=>check.status==='fail')?'needs_changes':value.outcome,summary:value.summary,artifacts:value.artifacts,checks:value.checks};
 }
