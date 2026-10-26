@@ -3,7 +3,7 @@
   const progressSeen=new Map(),sessionId=globalThis.crypto?.randomUUID?.()??`web-session-${Date.now()}`;
   const channelOf = command => command?.channel === 'arena' ? 'arena' : 'corp';
   const attemptKey = command => channelOf(command)+':'+command.attempt;
-  const setupMarker = command => `[UmiBridge ${channelOf(command)==='arena'?'arena ':''}setup ${command.jobId}:${command.roleId}]`;
+  const setupMarker = command => command.marker||`[UmiBridge ${channelOf(command)==='arena'?'arena ':''}setup ${command.jobId}:${command.roleId}]`;
   let dispatching = false;
   const chatId = () => location.pathname.match(/(?:^|\/)c\/([a-zA-Z0-9-]+)\/?$/)?.[1];
   const projectId = () => location.pathname.match(/^\/g\/(g-p-[a-f0-9]{32})(?:-[a-zA-Z0-9_-]+)?\//)?.[1];
@@ -135,7 +135,7 @@
   function inspect(command) {
     const base = { runId: command.runId, stepId: command.stepId, attempt: command.attempt,channel:channelOf(command) };
     if (!matches(command)) return { ...base, kind: 'blocked', reason: 'chat_changed' };
-    const marker = `[UmiBridge task ${command.attempt}]`;
+    const marker = command.marker||`[UmiBridge task ${command.attempt}]`;
     const messages = [...document.querySelectorAll(messageSelector)].filter(node => !node.parentElement?.closest(messageSelector));
     const user = messages.findIndex(node => author(node) === 'user' && node.textContent.includes(marker));
     const notice = limitNotice();

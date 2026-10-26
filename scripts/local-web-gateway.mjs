@@ -1,3 +1,4 @@
+import {corpChatTools} from './corp-chat.mjs';
 import {createChromeBridge,chromeTool} from './chrome-bridge.mjs';
 import express from 'express';
 import { existsSync, readFileSync } from 'node:fs';
@@ -256,8 +257,8 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       const backendCatalog = listed._meta?.[CATALOG_META] ?? listed.tools ?? [];
       const paused = existsSync(resolve(configDir, '..', 'windows-tools-disabled'));
       const protectedMode=orchestration.settings().flags.workspaceLocksEnabled;
-      const protectedNames=new Set([...scopedToolSpecs.map(row=>row.name),'list_skills','read_skill','windows_status',chromeTool.name]);
-      const catalog = [...backendCatalog, ...deviceToolSpecs,...scopedToolSpecs,chromeTool].map(tool => ({ ...tool, available: (tool.name!==chromeTool.name||chromeBridge.available())&&(!protectedMode||protectedNames.has(tool.name))&&!(paused && tool.name.startsWith('windows_') && tool.name !== 'windows_status') }));
+      const protectedNames=new Set([...scopedToolSpecs.map(row=>row.name),'list_skills','read_skill','windows_status',chromeTool.name,...corpChatTools.map(tool=>tool.name)]);
+      const catalog = [...backendCatalog, ...deviceToolSpecs,...scopedToolSpecs,chromeTool,...corpChatTools].map(tool => ({ ...tool, available: (tool.name!==chromeTool.name||chromeBridge.available())&&(!protectedMode||protectedNames.has(tool.name))&&!(paused && tool.name.startsWith('windows_') && tool.name !== 'windows_status') }));
       const names = new Set(catalog.map(tool => tool.name));
       const policyCatalog = [...catalog, ...WINDOWS_TOOL_NAMES.filter(name => !names.has(name)).map(name => ({ name, available: false, description: 'Named Windows desktop operation on linked devices. The local worker does not currently expose this operation.' }))];
       const skills = await skillLibrary.list().catch(() => []);
@@ -431,7 +432,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       try { res.json(await action(req)); }
       catch (error) { res.status(['invalid_corp_key','invalid_arena_key'].includes(error.message) ? 401 : error.message.endsWith('_not_found') ? 404 : 400).json({ error: error.message }); }
     };
-    const protectedTool=name=>scopedToolSpecs.some(tool=>tool.name===name)||['list_skills','read_skill','windows_status',chromeTool.name].includes(name);
+    const protectedTool=name=>scopedToolSpecs.some(tool=>tool.name===name)||['list_skills','read_skill','windows_status',chromeTool.name,...corpChatTools.map(tool=>tool.name)].includes(name);
     app.get('/admin/api/orchestration',localAdmin,corpHandler(()=>({settings:orchestration.settings(),execution:execution.snapshot()})));
     app.post('/admin/api/orchestration',localAdmin,adminWrite,corpJson,corpHandler(async req=>{
       const currentFlags=orchestration.settings().flags,structural=Object.entries(req.body.flags||{}).some(([key,value])=>currentFlags[key]!==value);
@@ -757,6 +758,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
           if (paused && request.params.name === 'windows_on_device') throw new Error('Windows desktop tools are paused. Enable them in Dashboard Settings.');
           result = scopedToolSpecs.some(tool=>tool.name===request.params.name)
             ? (orchestration.settings().flags.workspaceLocksEnabled?{content:[{type:'text',text:JSON.stringify(await execution.execute(request.params.name,request.params.arguments??{}))}]}:{isError:true,content:[{type:'text',text:'Error: protected_workspace_disabled'}]})
+            : corpChatTools.some(tool=>tool.name===request.params.name)?{content:[{type:'text',text:JSON.stringify(await corp[request.params.name==='corp_task_details'?'taskDetails':'submitResult'](request.params.arguments??{}))}]}
             : request.params.name===chromeTool.name?await chromeBridge.call(request.params.arguments??{})
             : deviceToolsByName.has(request.params.name)
             ? await callDeviceTool(request.params.name, request.params.arguments ?? {})
@@ -764,8 +766,9 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
         } catch (cause) {
           result = { isError: true, content: [{ type: 'text', text: `Error: ${cause instanceof Error ? cause.message : String(cause)}` }] };
         }
-        const historyArgs=request.params.name===chromeTool.name?{action:request.params.arguments?.action,tab_id:request.params.arguments?.tab_id}:request.params.arguments?.scopeToken?{...request.params.arguments,scopeToken:'[redacted]'}:request.params.arguments;
-        await requestHistory.add(request.params.name, historyArgs, request.params.name===chromeTool.name?{content:[{type:'text',text:result.isError?'Chrome action failed':'Chrome action completed'}],isError:result.isError}:result, performance.now() - startedAt, clientName);
+        const privateCorp=corpChatTools.some(tool=>tool.name===request.params.name);
+        const historyArgs=privateCorp?{operation:request.params.name}:request.params.name===chromeTool.name?{action:request.params.arguments?.action,tab_id:request.params.arguments?.tab_id}:request.params.arguments?.scopeToken?{...request.params.arguments,scopeToken:'[redacted]'}:request.params.arguments;
+        await requestHistory.add(request.params.name, historyArgs,privateCorp?{content:[{type:'text',text:result.isError?'Corp tool failed':'Corp tool completed'}],isError:result.isError}:request.params.name===chromeTool.name?{content:[{type:'text',text:result.isError?'Chrome action failed':'Chrome action completed'}],isError:result.isError}:result, performance.now() - startedAt, clientName);
         return deliverContext(result, context, req.auth?.clientId);
       });
       if (capabilities.resources) {

@@ -21,9 +21,9 @@ Opening UmiBridge checks for updates. Local projects, pairing and settings are p
 
 Browser control is opt-in. Chrome internal pages, password and file inputs require direct interaction. Page content and screenshots are not stored in request history. Tests, chat data, credentials and machine-specific files stay local.
 
-## New in 1.8.1
+## New in 1.8.2
 
-Central courtyard with garden seating, glass rooms at the perimeter and open team desks.
+Corp chat messages use plain language; assignment details and result validation stay in UmiBridge tools.
 
 ---
 
@@ -50,9 +50,9 @@ App tự kiểm cập nhật khi mở, giữ dự án và cài đặt local.
 
 Điều khiển trình duyệt cần bật quyền. Trang nội bộ Chrome, ô mật khẩu và chọn file cần thao tác trực tiếp. Không lưu nội dung trang/ảnh chụp vào lịch sử request. Test, chat, khóa và dữ liệu riêng giữ local.
 
-### Mới trong 1.8.1
+### Mới trong 1.8.2
 
-Sân giữa có cây và ghế nghỉ, phòng kính ven biên và cụm bàn đội nhóm mở.
+Tin nhắn Corp dùng văn thường; chi tiết giao việc và kiểm chứng kết quả nằm trong công cụ UmiBridge.
 
 ## Source
 

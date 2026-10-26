@@ -1,3 +1,4 @@
+import {naturalAssignment,humanHandoff} from './corp-chat.mjs';
 import {modelCatalog,modelPreference} from './browser-models.mjs';
 import {normalizeProjectSpec,projectSpecDefaults,projectSpecLabels} from './corp-project-spec.mjs';
 import {normalizeTasks,scheduleRuns,graphHealth,inFlight} from './task-graph.mjs';
@@ -119,10 +120,11 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     return Boolean(workspace && workspace.projectId === run.projectId && step.workspaceId === workspace.id && workspace.chats.some(chat => chat.chatId === step.chatId) && (!arena || arena.team.every(member => workspace.chats.some(chat => chat.chatId === member.chatId))));
   };
   const bootstrapRoles=job=>[...companyRoles,...(job.mode==='plan'?[]:reviewTeams.filter(team=>(job.reviewTeams||[]).includes(team.id)).map(team=>({...team,brief:team.checks})))];
+  const publicRun=run=>({...copy(run),steps:run.steps.map(({assignmentDetails,...step})=>copy(step))});
   const summary = () => ({ orchestration:orchestration?.settings()??null,execution:execution?.snapshot()??null,enabled: state.enabled, office: state.office, autoResume: state.autoResume, resetGeneration:state.resetGeneration||null, modelSurface:'chat',modelPreference:state.modelPreference??null,modelCatalog:copy(state.modelCatalog||[]),modelScan:copy(state.modelScan||null),
     paired: Boolean(state.tokenHash), connected: lastSeen > 0 && clock() - lastSeen < 45_000,
     lastSeen: lastSeen ? new Date(lastSeen).toISOString() : null, connectedChats: [...connectedChats],extensionVersion,
-    runs: copy(state.runs), events: copy(state.events), teams:copy(state.teams), companyRoles:copy(companyRoles),reviewTeams:copy(reviewTeams),productProfiles:copy(productProfiles), deliveryOrder:[...deliveryOrder],
+    runs: state.runs.map(publicRun), events: copy(state.events), teams:copy(state.teams), companyRoles:copy(companyRoles),reviewTeams:copy(reviewTeams),productProfiles:copy(productProfiles), deliveryOrder:[...deliveryOrder],
     projectSpecDefaults,projectSpecLabels,ideaStages:ideaStages.map(({id,roleId,title,requiresPass})=>({id,roleId,title,requiresPass:requiresPass===true})),
     ideaProjects:workspaces().filter(project=>project.kind==='project').map(project=>suggestCompanyTeam(project,state.teams.find(team=>team.workspaceId===project.id)?.members)),bootstraps:copy(state.bootstraps),arenas:state.arenas.map(arena => ({...copy(arena),matches:copy(arenaMatches(arena))})),projectsRoot });
   const authenticate = token => {
@@ -131,6 +133,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
   const newAttempt = step => {
     if(step.retryPolicy&&(step.attemptHistory?.length||0)+1>=step.retryPolicy.maxAttempts)throw Error('task_retry_exhausted');
     if(step.taskId){step.attemptHistory??=[];step.attemptHistory.push({attemptId:step.attempt,status:step.status,reason:step.reason,at:clock()});}
+    delete step.assignmentDetails;delete step.reference;
     step.attempt = randomUUID(); step.attemptId=step.attempt;step.sent = false; step.issuedAt = null; step.status = 'queued'; step.reason = null;step.verification='unverified';delete step.leaseId;step.evidenceRefs=[];
   };
   const arenaRunCount = arena => arena.count + (arena.format === 'group_knockout' ? arena.count * 2 + arena.count / 5 * 2 - 1 : arena.count - 1);
@@ -448,9 +451,14 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         if (arena && run.status === 'done') await advanceArena(arena);
     return {ok:true};
   };
+  const localReport=Symbol();
+  const readableChats=()=>extensionVersion?.split('.').map(Number).some((value,index,parts)=>index===0?value>0:index===1&&parts[0]===0&&value>=11);
+  const assignment=reference=>{if(typeof reference!=='string'||reference.length>1000)throw Error('invalid_assignment_reference');const matches=state.runs.flatMap(run=>run.steps.filter(step=>step.reference===reference&&step.assignmentDetails).map(step=>({run,step})));if(matches.length!==1)throw Error('assignment_not_found');return matches[0];};
   let runtime;
   return runtime={
     snapshot: summary,
+    taskDetails:input=>serial(async()=>{const{run,step}=assignment(input.reference);if(run.status!=='running'||!['dispatching','running'].includes(step.status)||!inScope(run,step))throw Error('assignment_not_active');return {reference:step.reference,receipt:step.attempt,details:step.assignmentDetails,reportInstruction:'Send report using corp_submit_result, not JSON in normal chat. Technical context is tool data only.'};}),
+    submitResult:async input=>{const{run,step}=await serial(async()=>{const row=assignment(input.reference);if(row.step.attempt!==input.receipt)throw Error('stale_attempt');if(row.run.status!=='running'||!['dispatching','running'].includes(row.step.status)||!inScope(row.run,row.step))throw Error('assignment_not_active');readIdeaReport('UMI_CORP_RESULT: '+JSON.stringify(input.report),{allowPending:flags().evidenceGateEnabled});return row;});return runtime.report(localReport,{runId:run.id,stepId:step.id,attempt:input.receipt,kind:'done',sent:true,result:humanHandoff(input.report)+'\n\nUMI_CORP_RESULT: '+JSON.stringify(input.report)});},
     prepareOrchestration:()=>transaction(async()=>{
       if(state.runs.some(run=>run.status==='running'||run.steps.some(step=>inFlight(step)||step.status==='reported_complete')))throw Error('pause_and_reconcile_before_feature_change');
       await backupBeforeMigration(filePath,2);
@@ -485,7 +493,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         if(step.leaseId)await execution.release(step.leaseId,'owner_reverification');delete step.leaseId;
         step.priorEvidenceRefs=[...(step.priorEvidenceRefs||[]),...(step.evidenceRefs||[])];step.evidenceRefs=[];
         step.status='reported_complete';step.reason=null;step.verification='pending';step.ownerReverification=true;
-        run.status='paused';event('owner_reverification',run,step);return copy(run);
+        run.status='paused';event('owner_reverification',run,step);return publicRun(run);
       }
       if(action==='recover_artifact'){
         const run=find(runId),step=run.steps.find(row=>row.id===taskId);
@@ -493,14 +501,14 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         const path=step.prompt?.match(/Tệp đầu ra: ([^\r\n]+)/)?.[1];
         if(!path||!execution.snapshot().receipts.some(row=>row.taskId===step.id&&row.attemptId===step.attempt&&row.operation==='write_file'&&row.path.replace(/\\/g,'/')===path.replace(/\\/g,'/')))throw Error('task_recovery_missing_receipt');
         step.assessment={outcome:'pending_verification',summary:'Chủ máy khôi phục artifact đã được công cụ ghi; phản hồi ChatGPT chưa tải được. Chưa nghiệm thu nội dung.',artifacts:[path],checks:[{name:'Artifact recovery',status:'unverified',evidence:'Cần engine kiểm hash/tệp thật và chủ máy xem nội dung.'}]};
-        step.result??='';step.status='reported_complete';step.reason=null;step.verification='pending';step.recoveredFromArtifact=true;step.timestamps??={};step.timestamps.reportedAt=clock();event('artifact_recovered',run,step,{path});return copy(run);
+        step.result??='';step.status='reported_complete';step.reason=null;step.verification='pending';step.recoveredFromArtifact=true;step.timestamps??={};step.timestamps.reportedAt=clock();event('artifact_recovered',run,step,{path});return publicRun(run);
       }
       const run=find(runId),step=run.steps.find(row=>row.id===taskId);if(!step||!['blocked','queued','reported_complete'].includes(step.status)||!['retry','fail','cancel'].includes(action))throw Error('task_action_unavailable');
       const leaseId=step.leaseId;
       if(action==='retry'){if(step.status!=='blocked')throw Error('retry_not_available');if(step.resetAt&&clock()<step.resetAt)throw Error('provider_limit_not_reset');step.continuation=Boolean(step.sent);newAttempt(step);}
       else{step.status=action==='fail'?'failed':'cancelled';step.reason='owner_'+action;}
       if(leaseId)await execution?.release(leaseId,'manual_'+action);
-      run.status='paused';event('task_'+action,run,step);if(flags().dagSchedulerEnabled)run.graph=graphHealth(run);return copy(run);
+      run.status='paused';event('task_'+action,run,step);if(flags().dagSchedulerEnabled)run.graph=graphHealth(run);return publicRun(run);
     }),
     deletedTargets:()=>copy(state.deletedTargets||[]),
     recordDeletion:input=>transaction(()=>{const target={projectId:input.projectId,chatId:input.chatId||null};state.deletedTargets??=[];if(!state.deletedTargets.some(row=>row.projectId===target.projectId&&row.chatId===target.chatId))state.deletedTargets.push({...target,at:new Date(clock()).toISOString()});for(const run of state.runs.filter(row=>row.projectId===target.projectId&&(!target.chatId||row.steps.some(step=>step.chatId===target.chatId))))if(!['done','cancelled'].includes(run.status)){run.status='cancelled';for(const step of run.steps.filter(active)){recordUsage(run,step,'error');step.status='cancelled';step.reason=target.chatId?'chat_deleted':'project_deleted';}event('cancel',run,current(run),{reason:target.chatId?'chat_deleted':'project_deleted'});}return {ok:true};}),
@@ -634,7 +642,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         // Explicit user reconciliation is needed for an ambiguous send; never retry it on a timer.
         const leaseId=step.leaseId;step.continuation = Boolean(step.continuation || step.sent); newAttempt(step);if(leaseId)await execution?.release(leaseId,'manual_retry');run.status = 'paused';
       } else throw Error('invalid_corp_action');
-      event(action, run, step); return copy(run);
+      event(action, run, step); return publicRun(run);
     }),
     poll: async (token, input = {}) => {
       authenticate(token);
@@ -663,6 +671,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
           bootstrap={jobId:job.id,attempt:job.attempt,type:job.projectId?'bootstrap-chat':'bootstrap-project',projectName:job.name,projectUrl:job.projectUrl,projectId:job.projectId,
             ...(job.projectId?{roleId:role.id,roleName:role.name,seed:`[UmiBridge setup ${job.id}:${role.id}]\nBạn là bộ phận ${role.department}, vai trò ${role.name}. Thư mục dự án local: ${job.root}. Chờ nhiệm vụ riêng do Corp gửi sau. Không tự tạo việc hoặc thao tác tệp lúc khởi tạo. Chỉ trả lời ngắn gọn: UMI_READY ${role.id}.`}:{})};
         }
+        if(bootstrap?.seed&&readableChats()){const role=bootstrapRoles(state.bootstraps.find(job=>job.id===bootstrap.jobId)).find(role=>role.id===bootstrap.roleId);bootstrap.marker=`Bạn phụ trách bộ phận ${role.department} trong dự án ${bootstrap.projectName}.`;bootstrap.seed=bootstrap.marker+'\n\nĐây là bước chuẩn bị đội ngũ. Chờ công việc riêng do Corp gửi; chưa tạo tệp hoặc tự bắt đầu công việc. Trả lời một câu xác nhận sẵn sàng bằng văn thường.';}
         // One lane per conversation avoids concurrent writes to the same chat.
         const occupied = new Set(state.runs.flatMap(run => run.steps.filter(step => ['dispatching', 'running', 'limit_wait', 'blocked'].includes(step.status)).map(step => step.chatId)));
         const dag=flags().dagSchedulerEnabled,limits=orchestration?.settings();
@@ -678,7 +687,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
           }
           const reconcilable = step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable','response_unavailable','idea_report_invalid'].includes(step.reason);
           const sentPhase = ['dispatching', 'running'].includes(step.status)||reconcilable;
-          if (sentPhase) monitors.push({ runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId, projectId: chatProject(step) });
+          if (sentPhase) monitors.push({ runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId, projectId: chatProject(step),...(step.reference?{marker:step.reference}: {}) });
           if(flags().workerHealthEnabled&&step.leaseId&&sentPhase){step.workerHealth=execution.health(step.leaseId);step.browserConnected=connectedChats.includes(step.chatId);step.timestamps??={};if(step.browserConnected)step.timestamps.lastBrowserSeenAt=clock();}
           if (step.status === 'dispatching' && clock() - step.issuedAt > 90_000) { step.status = 'blocked'; step.reason = 'send_unconfirmed'; markArenaBlocked(run,step.reason); event('blocked', run, step); }
           if (step.status === 'running' && clock() - step.issuedAt > (flags().workerHealthEnabled?step.timeoutMs:45*60_000)) { step.status = 'blocked'; step.reason = 'response_timeout'; markArenaBlocked(run,step.reason); recordUsage(run, step, 'error'); event('blocked', run, step); }
@@ -718,11 +727,12 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
           const skills=skillLibrary?await skillLibrary.context(step.category||step.roleId):'';
           const boundedContext=dag?context.slice(-12000):context;
           const verifiedContext=flags().evidenceGateEnabled?JSON.stringify(run.steps.filter(item=>item.status==='done'&&item.verification==='verified').flatMap(item=>(item.evidenceRefs||[]).map(id=>{const row=execution.evidence(id,item.projectId??run.projectId);return {taskId:item.id,role:item.roleId,status:row.status,artifacts:item.assessment?.artifacts,receiptPath:row.receiptPath,checks:row.checks.map(check=>({type:check.type,exitCode:check.exitCode,testPassed:check.testPassed,stdout:check.stdout?.slice(-1500),stderr:check.stderr?.slice(-1500)}))};}))).slice(-12000):'';
-          const prompt = `[UmiBridge task ${step.attempt}]\n${instruction}${step.prompt}${boundedContext}${recall}${skills}${verifiedContext?'\n<gateway_evidence_data>\n'+verifiedContext+'\n</gateway_evidence_data>':''}${capability}`;
+          let prompt = `[UmiBridge task ${step.attempt}]\n${instruction}${step.prompt}${boundedContext}${recall}${skills}${verifiedContext?'\n<gateway_evidence_data>\n'+verifiedContext+'\n</gateway_evidence_data>':''}${capability}`;
+          if(readableChats()&&!run.arenaId){state.assignmentSequence=(state.assignmentSequence||0)+1;step.reference=`Phiếu giao việc số ${state.assignmentSequence}: ${step.title||run.title} - ${step.role}`;step.assignmentDetails=prompt+'\n\nGửi kết quả bằng công cụ corp_submit_result. Không in UMI_CORP_RESULT, JSON, mã route hay scopeToken trong phản hồi chat. Nếu ghi tệp hoàn tất, vẫn dùng cấu trúc được yêu cầu trong hồ sơ, rồi trả lời người dùng bằng văn thường.';prompt=naturalAssignment(run,step,step.reference);}
           step.status = 'dispatching'; step.issuedAt = clock(); step.reason = null;
           step.pendingUsage = { inputTokens: countTextTokens(prompt), inputBytes: Buffer.byteLength(prompt) };
           step.timestamps??={};step.timestamps.dispatchedAt=clock();step.dependencyWaitMs=dag&&step.dependencies.length?Math.max(0,...step.dependencies.map(id=>(run.steps.find(item=>item.id===id)?.timestamps?.verifiedAt??clock())-Date.parse(run.createdAt))):0;
-          command = { runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId, projectId: chatProject(step), prompt, modelPreference:preference, refresh: Boolean(step.refresh) };
+          command = { runId: run.id, stepId: step.id, attempt: step.attempt, chatId: step.chatId, projectId: chatProject(step), prompt,...(step.reference?{marker:step.reference,plainChat:true}:{}), modelPreference:preference, refresh: Boolean(step.refresh) };
           state.schedulerCursor=run.id;
           step.refresh = false; occupied.add(step.chatId); event('dispatch', run, step);
           }
@@ -737,7 +747,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       } catch (error) { state = before;for(const id of issuedLeases)await execution.release(id,'dispatch_not_committed').catch(()=>{});throw error; }
     });},
     report: (token, input) => transaction(async () => {
-      authenticate(token);
+      if(token!==localReport)authenticate(token);
       const run = find(input.runId), step = run.steps.find(item => item.id === input.stepId);
       if (!step || step.attempt !== input.attempt) throw Error('stale_attempt');
       const reconcile=step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable','response_unavailable','idea_report_invalid'].includes(step.reason)&&['sent','done'].includes(input.kind);
@@ -750,6 +760,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
         step.providerProcessing=input.providerProcessing===true;
         step.responseState=input.responseState==='reconnecting'?'reconnecting':'observed';
       }
+      if(step.reference&&input.kind==='done'&&token!==localReport&&!input.result?.includes('UMI_CORP_RESULT:')){step.sent=true;return {ok:true,awaitingResult:true};}
       if(input.kind==='progress')return {ok:true};
       if (input.kind === 'sent') {
         if (step.status === 'limit_wait') return { ignored: true };
