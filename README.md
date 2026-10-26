@@ -22,7 +22,9 @@ Khuyến cáo số đội dùng RAM/CPU của máy tại thời điểm chạy, 
 
 ## Model, giao diện và phân tích
 
-Dùng extension **0.9.0** trong extensions/umibridge-corp, ghép vào địa chỉ local đang chạy. Trong Cài đặt → Model, quét picker thật của ChatGPT Trò chuyện rồi chọn model/effort đọc được. Adapter chọn và xác minh trước lượt gửi; không có lựa chọn sẽ chặn, không thay bằng lời yêu cầu trong prompt. Giữ lựa chọn hiện tại để tắt đổi model. Nạp lại extension và tab ChatGPT sau khi cập nhật extension.
+Dùng extension **0.9.2** trong extensions/umibridge-corp, ghép vào địa chỉ local đang chạy. Trong Cài đặt → Model, quét picker thật của ChatGPT Trò chuyện rồi chọn model/effort đọc được. Adapter chọn và xác minh trước lượt gửi; không có lựa chọn sẽ chặn, không thay bằng lời yêu cầu trong prompt. Giữ lựa chọn hiện tại để tắt đổi model. Nạp lại extension và tab ChatGPT sau khi cập nhật extension.
+
+Corp tự đóng tab chat thuộc Project đã quản lý sau khi gateway nhận bàn giao. Tab đang sinh phản hồi, có bản nháp hoặc lượt gửi chưa xác nhận được giữ để đối chiếu. Nhiệm vụ sẵn sàng sẽ mở lại đúng chat cũ theo giới hạn điều phối; nhánh DAG độc lập không cần giữ sẵn mọi tab bộ phận.
 
 Cài đặt chia tab Model, Giao diện, Kết nối, Hệ thống và Bảo trì. Có màu nhấn, mật độ, độ trong bảng và nền PNG/JPEG/WebP từ máy. Nền được thu nhỏ và lưu trong trình duyệt, không upload. Nút VI/EN đổi ngôn ngữ bằng một lần bấm.
 
@@ -61,7 +63,7 @@ Trong Corp → Hàng đợi → Điều phối DAG có tab Sơ đồ, Bằng ch�
 2. Trong Cấu hình, bật `dagSchedulerEnabled`. Giao diện đồng thời chọn `workspaceLocksEnabled`, `evidenceGateEnabled`, `workerHealthEnabled`; server cũng bắt buộc nhóm bảo vệ này. Chọn giới hạn toàn cục 1–16 và giới hạn mỗi Project không vượt giới hạn toàn cục.
 3. Bật tùy chọn `projectMemoryEnabled` và `capabilityRoutingEnabled` khi cần. Model/effort theo vai trò chỉ được chọn từ catalog đã quét thật trên ChatGPT Web; lựa chọn không có sẽ chặn, không đổi provider.
 4. Chỉ workflow mới tạo trong chế độ DAG mới tự mở các nhánh review QA/Security/đội độc lập. Workflow cũ giữ chuỗi dependency theo thứ tự cũ, ID và attempt không đổi. Kết quả hoàn thành cũ có nhãn `legacy_completed`; không tự chuyển thành `verified`.
-5. Nạp extension 0.9.0 và các tab ChatGPT để có heartbeat/progress từ DOM. Extension cũ vẫn có cơ chế acknowledge, nhưng không cung cấp đủ tín hiệu progress mới. Việc nạp extension thuộc trang quản lý extension của người dùng.
+5. Nạp extension 0.9.2 và các tab ChatGPT để có heartbeat/progress từ DOM cùng quản lý tab Corp. Extension cũ vẫn có cơ chế acknowledge, nhưng không cung cấp đủ tín hiệu progress mới. Việc nạp extension thuộc trang quản lý extension của người dùng.
 
 Dữ liệu task dùng schema bổ sung `taskSchema: 2`, giữ container `schema: 1` để không reset store cũ. Trước migration, Corp tạo `corp-state.json.before-v2.bak` theo chế độ không ghi đè backup. Các file mới trong thư mục state riêng: `orchestration-settings.json`, `execution-ledger.json`, `project-memory.json`, thư mục `skills/`. Không chép hoặc sửa cấu hình Codex.
 

@@ -10,7 +10,7 @@
   const matches = command => chatId() === command.chatId && (!command.projectId || projectId() === command.projectId);
   const visible = element => Boolean(element?.getClientRects().length && getComputedStyle(element).visibility !== 'hidden');
   const composer = () => [...document.querySelectorAll('#prompt-textarea, textarea[data-id="root"], [contenteditable="true"][data-lexical-editor], [contenteditable="true"][role="textbox"]')].find(element => visible(element) && !/start writing|document|canvas/i.test(element.getAttribute('aria-label') || ''));
-  const sending = () => [...document.querySelectorAll('button')].some(button => visible(button) && (button.dataset.testid === 'stop-button' || /^(stop|stop generating|stop streaming|dừng tạo)$/i.test(button.getAttribute('aria-label') || '')));
+  const sending = () => [...document.querySelectorAll('[data-talvt-turn-state="in_progress"]')].some(visible) || [...document.querySelectorAll('button')].some(button => visible(button) && (button.dataset.testid === 'stop-button' || /^(stop|stop generating|stop streaming|dừng|dừng tạo|ngừng|ngừng tạo)$/i.test((button.getAttribute('aria-label') || button.textContent || '').trim())));
   const value = element => element?.value ?? element?.innerText ?? '';
   // Lexical renders adjacent paragraphs with an extra innerText newline. Keep all non-newline draft edits significant.
   const sameDraft = (element, prompt) => element instanceof HTMLTextAreaElement ? value(element).trim() === prompt.trim() : value(element).replace(/\n+/g, '\n').trim() === prompt.replace(/\n+/g, '\n').trim();
@@ -149,6 +149,7 @@
     const finished = turnState ? turnState === 'complete' : turn?.querySelector('[data-testid="copy-turn-action-button"], button[aria-label="Copy"], button[aria-label="Sao chép"]');
     const result = answer ? (answer.querySelector('[data-markdown-text-style="assistant-message"]') ?? answer).innerText.trim() : '';
     if (/^(?:không thể tải phản hồi này|unable to load this response|couldn['’]t load this response)[.!]?$/iu.test(result)) {
+      if(sending()||turnState&&turnState!=='complete')return {...base,kind:'sent',progress:false,providerProcessing:sending(),responseState:'reconnecting',sessionId};
       memory.delete(attemptKey(command));return {...base,kind:'blocked',sent:true,reason:'response_unavailable'};
     }
     if (answer && finished && !sending()) {
@@ -243,6 +244,7 @@
   chrome.runtime.onMessage.addListener((command, sender, respond) => {
     if (sender.id !== chrome.runtime.id) return;
     if(command.type==='lifecycle-ready'){respond({ready:true});return;}
+    if(command.type==='idle-check'){respond({idle:matches(command)&&Boolean(composer())&&!dispatching&&!sending()&&!value(composer()).trim()});return;}
     if(command.type==='lifecycle-prepare'){prepareDeletion(command).then(respond,error=>respond({status:'blocked',reason:String(error.message).slice(0,120)}));return true;}
     if(command.type==='model-catalog'){
       if(dispatching||sending()||value(composer()).trim()){respond({models:[],error:'composer_busy'});return;}

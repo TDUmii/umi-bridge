@@ -4,7 +4,7 @@
   let ideaSending=false,ideaRequest=null,directSending=false,directRequest=null;
   let folderPicking=null;
   let focusBootstrap=localStorage.getItem('umibridge.corp.bootstrap');
-  const labels = { queued:'Chờ giao việc', dispatching:'Đang gửi', running:'Chờ phản hồi', limit_wait:'Chờ reset hạn mức', blocked:'Cần kiểm tra', paused:'Tạm dừng', done:'Hoàn thành', cancelled:'Đã hủy' };
+  const labels = { reported_complete:'Chờ kiểm chứng',failed:'Thất bại',queued:'Chờ giao việc', dispatching:'Đang gửi', running:'Chờ phản hồi', limit_wait:'Chờ reset hạn mức', blocked:'Cần kiểm tra', paused:'Tạm dừng', done:'Hoàn thành', cancelled:'Đã hủy' };
   const reasons = {chat_mode_unconfirmed:'Chưa xác nhận Chat thường. Chọn Trò chuyện trên web rồi thử lại.', send_unconfirmed:'Chưa xác nhận đã gửi. Mở chat kiểm tra trước khi thử lại.', composer_busy:'Chat đang trả lời hoặc còn bản nháp. Corp giữ nguyên bản nháp.', composer_missing:'Chưa thấy ô nhập. Kiểm tra đăng nhập và giao diện chat.', chat_changed:'Chat đã thay đổi hoặc có lượt gửi khác. Kiểm tra trước khi tiếp tục.', browser_unavailable:'Không kết nối được tab chat.', response_timeout:'Chưa xác nhận kết quả sau 45 phút. Mở chat kiểm tra.', response_too_large:'Kết quả vượt 48.000 ký tự. Chia nhiệm vụ nhỏ hơn.', limit_time_unknown:'Có thông báo hạn mức nhưng không đọc được giờ reset. Cần kiểm tra thủ công.' };
   const node = (tag, value, className) => { const el = document.createElement(tag); if (value !== undefined) el.textContent = value; if (className) el.className = className; return el; };
   reasons.model_selection_unconfirmed='Chưa chọn/xác minh được model và mức suy nghĩ. Kiểm tra Cài đặt và model picker trên ChatGPT trước khi thử lại.';
@@ -184,7 +184,7 @@
       }
       a.count++; if (a.task_id && step.status === 'queued') continue;
       a.role = step.role; a.roles = [step.role]; a.task = step.title||run.title; a.taskDetail=step.assessment?.summary||run.title; a.task_id = step.id.slice(0, 8);
-      a.status = { queued:'QUEUED', dispatching:'DISPATCHED', running:'WAITING', limit_wait:'LIMIT', blocked:'BLOCKED' }[step.status] || 'IDLE';
+      a.status = { queued:'QUEUED', dispatching:'DISPATCHED', running:'WAITING', reported_complete:'REVIEW',failed:'BLOCKED', limit_wait:'LIMIT', blocked:'BLOCKED' }[step.status] || 'IDLE';
       if (run.status === 'paused') a.status = 'PAUSED';
       a.pose = ['dispatching','running'].includes(step.status) && data.enabled && run.status === 'running' ? 'type' : 'idle';
       a.resetAt = step.resetAt;
@@ -196,7 +196,7 @@
     }
     const order=[...(data.companyRoles||[]),...(data.reviewTeams||[])].map(role=>role.id);
     const handoffs = data.events.filter(event => event.type === 'handoff' && runs.some(run => run.id === event.runId)).map(event => ({ id:event.id, from:event.from, to:event.to, task:event.task, at:event.at }));
-    const conversations=runs.flatMap(run=>run.steps.flatMap((step,index)=>{if(!step.result)return [];const next=run.steps[index+1],handoff=data.events.find(event=>event.type==='handoff'&&event.runId===run.id&&event.stepId===next?.id&&event.from===step.chatId),recorded=data.events.find(event=>['done','blocked'].includes(event.type)&&event.runId===run.id&&event.stepId===step.id);return [{id:run.id+':'+step.id,from:step.chatId,to:handoff?.to||null,fromName:step.role,toName:handoff?next.role:null,at:step.completedAt||step.finishedAt||recorded?.at||null,task:step.title||run.title,text:step.result,summary:step.assessment?.summary||'',status:step.assessment?.outcome||step.status}];}));
+    const conversations=runs.flatMap(run=>run.steps.flatMap((step,index)=>{if(!step.result&&!step.recoveredFromArtifact)return [];const next=run.steps[index+1],handoff=data.events.find(event=>event.type==='handoff'&&event.runId===run.id&&event.stepId===next?.id&&event.from===step.chatId),recorded=data.events.find(event=>['done','blocked'].includes(event.type)&&event.runId===run.id&&event.stepId===step.id);return [{id:run.id+':'+step.id,from:step.chatId,to:handoff?.to||null,fromName:step.role,toName:handoff?next.role:null,at:step.completedAt||step.finishedAt||recorded?.at||null,task:step.title||run.title,text:step.result||'[Khôi phục từ artifact đã ghi, không phải phản hồi ChatGPT mới]\n'+step.assessment.summary+'\n'+step.assessment.artifacts.join('\n'),summary:step.assessment?.summary||'',status:step.assessment?.outcome||step.status}];}));
     const project=selectedProject(),projectJob=(data.bootstraps||[]).find(row=>row.workspaceId===project?.id),job=projectJob&&!['done','cancelled'].includes(projectJob.status)?projectJob:null;
     const expected=job?8+(job.mode==='plan'?0:(job.reviewTeams||[]).length):teamMembers().length||agents.size;
     const registered=job?.chats.length??agents.size,rosterConfirmed=!project||projectJob?.status==='done'||project.sync?.status==='complete',staffing={ready:!job&&rosterConfirmed&&agents.size>0,expected,registered,message:job?'Đang chuẩn bị đội ngũ. Văn phòng mở khi đủ nhân sự.':!rosterConfirmed?'Đồng bộ danh sách chat đầy đủ trước khi tạo văn phòng.':agents.size?'':'Thêm và phân công nhân sự để tạo văn phòng.'};

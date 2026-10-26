@@ -2,7 +2,7 @@ import {lstat,realpath,readFile,readdir,mkdir,writeFile,rename,open} from 'node:
 import {resolve,relative,isAbsolute,join,dirname,parse} from 'node:path';
 import {createHash,randomUUID,randomBytes} from 'node:crypto';
 import {spawn} from 'node:child_process';
-import {atomicJson} from './orchestration-state.mjs';
+import {atomicJson,backupBeforeMigration} from './orchestration-state.mjs';
 
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const within=(root,path)=>{const delta=relative(root,path);return delta===''||delta!=='..'&&!delta.startsWith('../')&&!delta.startsWith('..\\')&&!isAbsolute(delta);};
@@ -25,13 +25,14 @@ export async function canonicalWorkspacePath(root,value,{allowRoot=false}={}) {
   return target;
 }
 const ignored=new Set(['.git','node_modules','.local-data','.umibridge-arenas','.umibridge-corp','.umibridge-projects']);
-export async function sourceSnapshot(root) {
+export async function sourceSnapshot(root,{exclude=[]}={}) {
   const files=[];let bytes=0;
   async function visit(dir,depth){
     if(depth>24)throw Error('source_snapshot_limit');
     for(const entry of (await readdir(dir,{withFileTypes:true})).sort((a,b)=>a.name.localeCompare(b.name))){
       if(ignored.has(entry.name.toLowerCase()))continue;
       const path=await canonicalWorkspacePath(root,join(dir,entry.name));
+      if(exclude.some(output=>within(resolve(root,output),path)))continue;
       const info=await lstat(path);
       if(info.isDirectory())await visit(path,depth+1);
       else if(info.isFile()){
@@ -57,18 +58,35 @@ export const scopedToolSpecs=['scope_read_file','scope_write_file','scope_list_d
   description:'Protected attempt-scoped workspace operation. scopeToken comes from the assigned task. Read returns sha256; write requires exact expectedHash (null only for a new file). No shell or external workspace access.',
   annotations:{readOnlyHint:name!=='scope_write_file',destructiveHint:name==='scope_write_file',idempotentHint:name!=='scope_write_file',openWorldHint:false},
   inputSchema:{type:'object',additionalProperties:false,properties:{scopeToken:{type:'string'},path:{type:'string'},...(name==='scope_write_file'?{content:{type:'string'},expectedHash:{type:['string','null']}}:{})},required:['scopeToken','path',...(name==='scope_write_file'?['content','expectedHash']:[])]}}));
-export async function createWorkspaceExecution(stateDir,{clock=Date.now}={}) {
+export async function createWorkspaceExecution(stateDir,{clock=Date.now,completionMigration=false}={}) {
   const file=join(stateDir,'execution-ledger.json');let state={version:1,leases:[],receipts:[],verifications:[]},queue=Promise.resolve();
   try{if((await lstat(file)).isSymbolicLink())throw Error('execution_store_symlink');state=JSON.parse(await readFile(file,'utf8'));if(state.version!==1||!['leases','receipts','verifications'].every(key=>Array.isArray(state[key])))throw Error('execution_store_invalid');}catch(error){if(error.code!=='ENOENT')throw error;}
-  const transaction=fn=>{const result=queue.then(async()=>{const before=structuredClone(state);try{const result=await fn();await atomicJson(file,state);return result;}catch(error){state=before;throw error;}});queue=result.catch(()=>{});return result;};
+  if(completionMigration){
+    const active=state.leases.filter(row=>row.status==='active'&&!row.completionPath);
+    if(active.length){await backupBeforeMigration(file,'completion-1');for(const lease of active){if(!/^[a-zA-Z0-9_-]{1,120}$/.test(lease.taskId)||!/^[a-zA-Z0-9_-]{1,120}$/.test(lease.attemptId))throw Error('invalid_completion_identity');lease.completionPath=`.umibridge-projects/completions/${lease.taskId}/${lease.attemptId}.json`;const path=await canonicalWorkspacePath(lease.root,lease.completionPath);lease.reads.push(path);lease.writes.push(path);}await atomicJson(file,state);}
+  }
+  const serial=fn=>{const result=queue.then(fn);queue=result.catch(()=>{});return result;};
+  const transaction=fn=>serial(async()=>{const before=structuredClone(state);try{const result=await fn();await atomicJson(file,state);return result;}catch(error){state=before;throw error;}});
   const leaseFor=id=>{const lease=state.leases.find(row=>row.id===id);if(!lease)throw Error('lease_not_found');return lease;};
   const publicLease=({tokenHash,observed,source,...row})=>({...structuredClone(row),sourceHash:source?.sha256});
+  const completionHint=lease=>lease.completionPath?{path:lease.completionPath,taskId:lease.taskId,attemptId:lease.attemptId,format:{taskId:lease.taskId,attemptId:lease.attemptId,result:'JSON báo cáo UMI_CORP_RESULT/UMI_ARENA_PRODUCT/UMI_ARENA_RESULT'},instruction:'Khi đã hoàn thành artifact, có thể ghi JSON báo cáo cuối vào path này bằng scope_write_file với token hiện tại. Đây là báo cáo pending_verification, không phải xác nhận test pass. Ghi manifest cuối cùng để Gateway nhận kết quả ngay cả khi chat lỗi hiển thị.'}:undefined;
   const receipt=(lease,operation,extra={})=>{
     const row={id:randomUUID(),taskId:lease.taskId,attemptId:lease.attemptId,runId:lease.runId,projectId:lease.projectId,workerId:lease.workerId,at:clock(),operation,...extra};
     state.receipts.push(row);return row;
   };
   return {
     evidence:(id,projectId)=>{const row=state.verifications.find(row=>row.id===id&&row.projectId===projectId);if(!row)throw Error('project_evidence_not_found');return structuredClone(row);},
+    hasWrite:(taskId,root,path)=>state.receipts.some(row=>row.taskId===taskId&&row.operation==='write_file'&&same(resolve(root,row.path),resolve(root,path))),
+    completion:id=>serial(async()=>{
+      const lease=leaseFor(id);if(lease.status!=='active'||!lease.completionPath)return null;
+      const record=state.receipts.findLast(row=>row.attemptId===lease.attemptId&&row.taskId===lease.taskId&&row.operation==='write_file'&&row.path.replace(/\\/g,'/')===lease.completionPath);
+      if(!record)return null;
+      const path=await canonicalWorkspacePath(lease.root,lease.completionPath),bytes=await readFile(path);
+      if(bytes.length>240000||hash(bytes)!==record.sha256)return null;
+      let value;try{value=JSON.parse(bytes.toString('utf8'));}catch{return null;}
+      if(value.taskId!==lease.taskId||value.attemptId!==lease.attemptId||!value.result||typeof value.result!=='object'||Array.isArray(value.result))return null;
+      return structuredClone(value.result);
+    }),
     snapshot:()=>({leases:state.leases.map(publicLease),receipts:structuredClone(state.receipts.slice(-200)),verifications:structuredClone(state.verifications.slice(-200))}),
     issue:input=>transaction(async()=>{
       if(state.leases.some(row=>row.attemptId===input.attemptId&&row.status==='active'))throw Error('attempt_lease_exists');
@@ -82,10 +100,16 @@ export async function createWorkspaceExecution(stateDir,{clock=Date.now}={}) {
         return Promise.all(values.map(value=>canonicalWorkspacePath(root,value,{allowRoot:true})));
       };
       const reads=await scopes(input.readScope),writes=await scopes(input.writeScope);
+      let completionPath;
+      if(input.completionManifest===true){
+        if(!/^[a-zA-Z0-9_-]{1,120}$/.test(input.taskId)||!/^[a-zA-Z0-9_-]{1,120}$/.test(input.attemptId))throw Error('invalid_completion_identity');
+        completionPath=`.umibridge-projects/completions/${input.taskId}/${input.attemptId}.json`;
+        writes.push(await canonicalWorkspacePath(root,completionPath));reads.push(await canonicalWorkspacePath(root,completionPath));
+      }
       if(state.leases.some(row=>row.status==='active'&&row.writes.some(a=>writes.some(b=>overlap(a,b)))))throw Error('workspace_lock_conflict');
       const token=randomBytes(32).toString('base64url'),lease={id:randomUUID(),taskId:input.taskId,attemptId:input.attemptId,runId:input.runId,projectId:input.projectId,workerId:input.workerId,
-        root,reads,writes,tokenHash:hash(token),observed:{},status:'active',issuedAt:clock(),heartbeatAt:clock(),progressAt:clock(),expiresAt:clock()+120000,source:await sourceSnapshot(root)};
-      state.leases.push(lease);return {id:lease.id,scopeToken:token,expiresAt:lease.expiresAt};
+        root,reads,writes,...(completionPath?{completionPath}:{}),tokenHash:hash(token),observed:{},status:'active',issuedAt:clock(),heartbeatAt:clock(),progressAt:clock(),expiresAt:clock()+120000,source:await sourceSnapshot(root)};
+      state.leases.push(lease);return {id:lease.id,scopeToken:token,expiresAt:lease.expiresAt,...(completionPath?{completionPath}:{})};
     }),
     heartbeat:(id,{progress=false,sessionId=null}={})=>transaction(()=>{
       const lease=leaseFor(id);if(lease.status!=='active')return {ignored:true};
@@ -99,6 +123,7 @@ export async function createWorkspaceExecution(stateDir,{clock=Date.now}={}) {
       if(!scopedToolSpecs.some(tool=>tool.name===name))throw Error('scoped_operation_forbidden');
       const write=name==='scope_write_file',target=await canonicalWorkspacePath(lease.root,args.path,{allowRoot:name==='scope_list_directory'});
       if(privateTarget(lease.root,target))throw Error('workspace_private_path');
+      if(write&&/^\.umibridge-projects[\\/]verification(?:[\\/]|$)/i.test(relative(lease.root,target)))throw Error('verification_receipt_readonly');
       if(!(write?lease.writes:lease.reads).some(scope=>within(scope,target)))throw Error('workspace_scope_denied');
       if(write){
         if(await gitConflicts(lease.root))throw Error('workspace_git_conflict');
@@ -114,23 +139,28 @@ export async function createWorkspaceExecution(stateDir,{clock=Date.now}={}) {
           while(offset<buffer.length){const {bytesWritten}=await handle.write(buffer,offset,buffer.length-offset,offset);if(!bytesWritten)throw Error('workspace_short_write');offset+=bytesWritten;}
           await handle.truncate(buffer.length);await handle.sync();
         }finally{await handle.close();}
-        const next=hash(args.content);lease.observed[target]=next;lease.progressAt=clock();
-        const row=receipt(lease,'write_file',{path:relative(lease.root,target),sha256:next,exitCode:0});return {ok:true,sha256:next,receiptId:row.id};
+        const next=hash(args.content);lease.observed[target]=next;lease.progressAt=clock();lease.heartbeatAt=clock();lease.expiresAt=clock()+120000;
+        const row=receipt(lease,'write_file',{path:relative(lease.root,target),sha256:next,exitCode:0});return {ok:true,sha256:next,receiptId:row.id,completionRequest:completionHint(lease)};
       }
       if(name==='scope_list_directory'){
+        lease.heartbeatAt=clock();lease.expiresAt=clock()+120000;
         const entries=await readdir(target,{withFileTypes:true});return entries.filter(row=>!privateParts.has(row.name.toLowerCase())).slice(0,500).map(row=>({name:row.name,type:row.isSymbolicLink()?'blocked':row.isDirectory()?'directory':'file'}));
       }
       const info=await lstat(target);if(!info.isFile()||info.size>2*1024*1024)throw Error('workspace_file_invalid');
       const contents=await readFile(target),sha256=hash(contents);lease.observed[target]=sha256;lease.progressAt=clock();
-      const row=receipt(lease,'read_file',{path:relative(lease.root,target),sha256,exitCode:0});return {text:contents.toString('utf8'),sha256,receiptId:row.id};
+      lease.heartbeatAt=clock();lease.expiresAt=clock()+120000;
+      const row=receipt(lease,'read_file',{path:relative(lease.root,target),sha256,exitCode:0});return {text:contents.toString('utf8'),sha256,receiptId:row.id,completionRequest:completionHint(lease)};
     }),
     verify:(id,{artifacts=[],criteria=[{type:'artifact'}],command=null}={})=>transaction(async()=>{
       const lease=leaseFor(id);if(lease.status!=='active')throw Error('lease_not_active');
       if(await gitConflicts(lease.root))throw Error('workspace_git_conflict');
-      const sourceBefore=await sourceSnapshot(lease.root),files=[];
-      const changedRead=await Promise.all(Object.entries(lease.observed).map(async([path,expected])=>(await fileHash(await canonicalWorkspacePath(lease.root,path)))!==expected));
+      const plans=criteria.filter(row=>row.type==='command').map(row=>row.name?command?.[row.name]:command).filter(Boolean),snapshotExcludes=[];
+      for(const plan of plans){if(plan.outputPaths!==undefined&&(!Array.isArray(plan.outputPaths)||plan.outputPaths.length>20))throw Error('invalid_verification_outputs');for(const output of plan.outputPaths||[]){const target=await canonicalWorkspacePath(lease.root,output);if(privateTarget(lease.root,target))throw Error('invalid_verification_outputs');snapshotExcludes.push(relative(lease.root,target));}}
+      const isOutput=path=>snapshotExcludes.some(output=>within(resolve(lease.root,output),path));
+      const sourceBefore=await sourceSnapshot(lease.root,{exclude:snapshotExcludes}),files=[];
+      const changedRead=await Promise.all(Object.entries(lease.observed).filter(([path])=>!isOutput(path)).map(async([path,expected])=>(await fileHash(await canonicalWorkspacePath(lease.root,path)))!==expected));
       const sourceMap=new Map(sourceBefore.files.map(row=>[row.path,row.sha256]));
-      const changedOutsideScope=lease.source.files.some(row=>!lease.writes.some(scope=>within(scope,resolve(lease.root,row.path)))&&sourceMap.get(row.path)!==row.sha256)
+      const changedOutsideScope=lease.source.files.filter(row=>!isOutput(resolve(lease.root,row.path))).some(row=>!lease.writes.some(scope=>within(scope,resolve(lease.root,row.path)))&&sourceMap.get(row.path)!==row.sha256)
         ||sourceBefore.files.some(row=>!lease.writes.some(scope=>within(scope,resolve(lease.root,row.path)))&&!lease.source.files.some(old=>old.path===row.path));
       if(changedRead.some(Boolean)||changedOutsideScope){
         const row={id:randomUUID(),projectId:lease.projectId,runId:lease.runId,taskId:lease.taskId,attemptId:lease.attemptId,workerId:lease.workerId,at:clock(),files:[],checks:[],sourceHash:sourceBefore.sha256,status:'stale',reason:'workspace_changed_during_task'};
@@ -160,13 +190,20 @@ export async function createWorkspaceExecution(stateDir,{clock=Date.now}={}) {
           if(result.timedOut)break;
         }else throw Error('unknown_acceptance_criterion');
       }
-      const sourceAfter=await sourceSnapshot(lease.root),row={id:randomUUID(),projectId:lease.projectId,runId:lease.runId,taskId:lease.taskId,attemptId:lease.attemptId,workerId:lease.workerId,at:clock(),files,checks,sourceHash:sourceBefore.sha256,
+      for(const artifact of files){artifact.sha256=await fileHash(await canonicalWorkspacePath(lease.root,artifact.path));if(!artifact.sha256)throw Error('evidence_artifact_missing');}
+      const sourceAfter=await sourceSnapshot(lease.root,{exclude:snapshotExcludes}),row={id:randomUUID(),projectId:lease.projectId,runId:lease.runId,taskId:lease.taskId,attemptId:lease.attemptId,workerId:lease.workerId,at:clock(),files,checks,snapshotExcludes,sourceHash:sourceBefore.sha256,
         status:sourceBefore.sha256!==sourceAfter.sha256?'stale':checks.every(row=>row.pass)?'verified':'failed'};
+      // Export actual engine output inside the workspace for the next reviewer.
+      // Reports are excluded from source hashes; they never count as source edits.
+      row.receiptPath=`.umibridge-projects/verification/${row.id}.json`;
+      const receiptFile=await canonicalWorkspacePath(lease.root,row.receiptPath);
+      await mkdir(dirname(receiptFile),{recursive:true});await canonicalWorkspacePath(lease.root,receiptFile);
+      const receiptText=JSON.stringify(row,null,2);await writeFile(receiptFile,receiptText,{flag:'wx',mode:0o600});row.receiptSha256=hash(receiptText);
       state.verifications.push(row);receipt(lease,'verification',{verificationId:row.id,status:row.status});return structuredClone(row);
     }),
     checkEvidence:(id,root)=>transaction(async()=>{
       const row=state.verifications.find(row=>row.id===id);if(!row)throw Error('evidence_not_found');
-      if(row.checks.some(check=>check.type!=='artifact')&&(await sourceSnapshot(root)).sha256!==row.sourceHash)row.status='stale';
+      if(row.checks.some(check=>check.type!=='artifact')&&(await sourceSnapshot(root,{exclude:row.snapshotExcludes||[]})).sha256!==row.sourceHash)row.status='stale';
       for(const artifact of row.files)if(await fileHash(await canonicalWorkspacePath(root,artifact.path))!==artifact.sha256)row.status='stale';
       return structuredClone(row);
     }),

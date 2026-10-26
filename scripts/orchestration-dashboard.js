@@ -23,6 +23,7 @@
     const metadata=el('details');metadata.append(el('summary',t('Phạm vi, khóa và bằng chứng','Scopes, locks and evidence')),el('pre',JSON.stringify(info,null,2)));details.append(metadata);
     if(['blocked','queued','reported_complete'].includes(task.status)){
       const actions=el('div',undefined,'umi-actions');
+      if(task.status==='blocked'&&['response_unavailable','idea_report_invalid'].includes(task.reason))actions.append(button(t('Khôi phục báo cáo đã ghi','Recover saved report'),()=>act(async()=>{await api(`/corp/runs/${row.id}/tasks/${task.id}/action`,{action:'recover_artifact'});signature='';})));
       if(task.status==='blocked')actions.append(button(t('Đối chiếu xong - chuẩn bị thử lại node','Reconciled - prepare node retry'),()=>act(async()=>{if(!await window.umiConfirm(t('Thử lại node?','Retry node?'),t('Đối chiếu chat và tệp trước. Lượt gửi cũ có thể đã chạy; thử lại sẽ tạo attempt mới.','Check conversation and files first. Previous send may have executed; retry creates a new attempt.'),t('Chuẩn bị thử lại','Prepare retry')))return;await api(`/corp/runs/${row.id}/tasks/${task.id}/action`,{action:'retry'});signature='';})));
       actions.append(button(t('Đánh dấu thất bại','Mark failed'),()=>act(async()=>{await api(`/corp/runs/${row.id}/tasks/${task.id}/action`,{action:'fail'});signature='';})));details.append(actions);
     }

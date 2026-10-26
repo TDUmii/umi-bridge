@@ -5,6 +5,7 @@ export function normalizeTasks(run, {legacy = false} = {}) {
   run.taskSchema = taskSchemaVersion;
   for (const [index,task] of run.steps.entries()) {
     task.taskId = task.id; task.runId = run.id; task.projectId ??= run.projectId ?? run.workspaceId ?? run.id;
+    task.providerProjectId ??= run.projectId ?? task.chatUrl?.match(/\/g\/(g-p-[a-f0-9]{32})(?:-[^/]+)?\/c\//)?.[1] ?? null;
     task.roleId ??= task.role || 'worker'; task.attemptId = task.attempt;
     task.dependencies ??= index ? [run.steps[index-1].id] : [];
     task.priority ??= 0; task.readScope ??= ['.']; task.writeScope ??= ['.'];

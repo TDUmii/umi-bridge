@@ -107,13 +107,14 @@ export function configureIdeaGraph(run) {
   return run;
 }
 
-export function readIdeaReport(result) {
+export function readIdeaReport(result,{allowPending=false}={}) {
   const source=String(result).trim(),marker='UMI_CORP_RESULT:',index=source.lastIndexOf(marker);
   if (index<0) throw Error('idea_report_invalid');
   let value;try { value=JSON.parse(source.slice(index+marker.length).trim()); } catch { throw Error('idea_report_invalid'); }
-  if (!value || !['pass','needs_changes','blocked'].includes(value.outcome) || typeof value.summary !== 'string' || !value.summary.trim() || value.summary.length>2000 ||
+  if (!value || !['pass','needs_changes','blocked',...(allowPending?['pending_verification']:[])].includes(value.outcome) || typeof value.summary !== 'string' || !value.summary.trim() || value.summary.length>2000 ||
     !Array.isArray(value.artifacts) || value.artifacts.length>20 || value.artifacts.some(path=>typeof path!=='string'||!path.trim()||path.length>700) ||
     !Array.isArray(value.checks) || value.checks.length>40 || value.checks.some(check=>!check||typeof check.name!=='string'||!check.name.trim()||!['pass','fail','unverified'].includes(check.status)||typeof check.evidence!=='string'||check.evidence.length>2000)) throw Error('idea_report_invalid');
   if (value.outcome==='pass' && (!value.artifacts.length || !value.checks.length || value.checks.some(check=>check.status!=='pass'||!check.evidence.trim()))) throw Error('idea_report_invalid');
+  if(value.outcome==='pending_verification'&&(!value.artifacts.length||!value.checks.length))throw Error('idea_report_invalid');
   return {outcome:value.outcome,summary:value.summary,artifacts:value.artifacts,checks:value.checks};
 }

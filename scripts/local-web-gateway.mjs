@@ -76,7 +76,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
   const chatLinks = await createChatLinksStore(resolve(configDir, '..', 'chat-links.json'));
   const skillLibrary = createSkillLibrary({ stateDir: resolve(configDir, '..'), projectDir: ROOT });
   const orchestration=await createOrchestrationState(resolve(configDir,'..'),corpClock?{clock:corpClock}:{});
-  const execution=await createWorkspaceExecution(resolve(configDir,'..'),corpClock?{clock:corpClock}:{});
+  const execution=await createWorkspaceExecution(resolve(configDir,'..'),{...(corpClock?{clock:corpClock}:{}),completionMigration:orchestration.settings().flags.evidenceGateEnabled});
   const addCorpWorkspace=async item=>{let link;try{link=parseProjectLink(item.chatUrl);}catch{link=parseChatLink(item.chatUrl);}if(link.projectId&&arena.snapshot().arenas.some(row=>row.projectId===link.projectId))throw Error('arena_project_reserved');return chatLinks.addWorkspace(item);};
   const corp = await createCorpRuntime(resolve(configDir, '..', 'corp-state.json'), { skillLibrary,orchestration,execution,workspaces: () => chatLinks.workspaces(), createWorkspace:addCorpWorkspace, syncProject:input=>chatLinks.syncProject(input), ...(corpClock ? { clock: corpClock } : {}),...(corpProjectsRoot?{projectsRoot:corpProjectsRoot}:{}) });
   const arena = await createArenaRuntime(resolve(configDir,'..','arena-state.json'),{orchestration,execution,browserCatalog:()=>corp.snapshot().modelCatalog,authenticate:token=>corp.authenticate(token),isPaired:()=>corp.snapshot().paired,projectAllowed:id=>!chatLinks.workspaces().some(project=>project.projectId===id),...(corpClock?{clock:corpClock}:{}),...((arenaProjectsRoot||corpProjectsRoot)?{projectsRoot:arenaProjectsRoot||corpProjectsRoot}:{})});
@@ -244,7 +244,9 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       const listed = await backend.listTools({ _meta: { [CATALOG_META]: true } }, { timeout: 30_000 });
       const backendCatalog = listed._meta?.[CATALOG_META] ?? listed.tools ?? [];
       const paused = existsSync(resolve(configDir, '..', 'windows-tools-disabled'));
-      const catalog = [...backendCatalog, ...deviceToolSpecs,...scopedToolSpecs].map(tool => ({ ...tool, available: !(paused && tool.name.startsWith('windows_') && tool.name !== 'windows_status') }));
+      const protectedMode=orchestration.settings().flags.workspaceLocksEnabled;
+      const protectedNames=new Set([...scopedToolSpecs.map(row=>row.name),'list_skills','read_skill','windows_status']);
+      const catalog = [...backendCatalog, ...deviceToolSpecs,...scopedToolSpecs].map(tool => ({ ...tool, available: (!protectedMode||protectedNames.has(tool.name))&&!(paused && tool.name.startsWith('windows_') && tool.name !== 'windows_status') }));
       const names = new Set(catalog.map(tool => tool.name));
       const policyCatalog = [...catalog, ...WINDOWS_TOOL_NAMES.filter(name => !names.has(name)).map(name => ({ name, available: false, description: 'Named Windows desktop operation on linked devices. The local worker does not currently expose this operation.' }))];
       const skills = await skillLibrary.list().catch(() => []);
@@ -410,14 +412,18 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     const protectedTool=name=>scopedToolSpecs.some(tool=>tool.name===name)||['list_skills','read_skill','windows_status'].includes(name);
     app.get('/admin/api/orchestration',localAdmin,corpHandler(()=>({settings:orchestration.settings(),execution:execution.snapshot()})));
     app.post('/admin/api/orchestration',localAdmin,adminWrite,corpJson,corpHandler(async req=>{
-      if(arena.snapshot().arenas.some(row=>row.status==='running'||row.steps?.some(step=>['dispatching','running','reported_complete'].includes(step.status))))throw Error('pause_and_reconcile_before_feature_change');
-      await corp.prepareOrchestration();
+      const currentFlags=orchestration.settings().flags,structural=Object.entries(req.body.flags||{}).some(([key,value])=>currentFlags[key]!==value);
+      if(structural){
+        if(arena.snapshot().arenas.some(row=>row.status==='running'||row.steps?.some(step=>['dispatching','running','reported_complete'].includes(step.status))))throw Error('pause_and_reconcile_before_feature_change');
+        await corp.prepareOrchestration();
+      }
       for(const route of Object.values(req.body.routes||{}))if(!corp.snapshot().modelCatalog.some(row=>row.model===route.model&&row.efforts.includes(route.effort)))throw Error('model_not_available');
       return orchestration.update(req.body);
     }));
     app.post('/admin/api/corp/runs/:runId/tasks/:taskId/verify',localAdmin,adminWrite,corpJson,corpHandler(req=>corp.verifyTask(req.params.runId,req.params.taskId,req.body)));
     app.post('/admin/api/corp/runs/:runId/tasks/:taskId/action',localAdmin,adminWrite,corpJson,corpHandler(req=>corp.taskAction(req.params.runId,req.params.taskId,req.body.action)));
     app.post('/admin/api/arena/arenas/:arenaId/tasks/:taskId/verify',localAdmin,adminWrite,corpJson,corpHandler(req=>arena.verifyTask(req.params.arenaId,req.params.taskId,req.body)));
+    app.post('/admin/api/arena/arenas/:arenaId/tasks/:taskId/action',localAdmin,adminWrite,corpJson,corpHandler(req=>arena.taskAction(req.params.arenaId,req.params.taskId,req.body.action)));
     app.get('/admin/api/skill-categories',localAdmin,corpHandler(()=>skillLibrary.categoryMap()));
     app.post('/admin/api/skill-categories',localAdmin,adminWrite,corpJson,corpHandler(req=>skillLibrary.mapCategory(req.body.category,req.body.names)));
     app.post('/admin/api/skills/:name/import',localAdmin,adminWrite,corpJson,corpHandler(req=>skillLibrary.importCopy(req.params.name)));

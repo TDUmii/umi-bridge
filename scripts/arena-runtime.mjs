@@ -133,13 +133,15 @@ export async function createArenaRuntime(filePath,{orchestration,execution,brows
       if(finished(arena)||finished(step))return {ignored:true};
       if(step.status==='reported_complete'&&!verifiedReceipt)return {ignored:true};
       if(step.leaseId&&['sent','done'].includes(input.kind)){await execution?.heartbeat(step.leaseId,{progress:input.progress===true||input.kind==='done',sessionId:input.sessionId});step.providerProcessing=input.providerProcessing===true;step.timestamps??={};step.timestamps.heartbeatAt=clock();if(input.progress)step.timestamps.progressAt=clock();}
-      if(step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(step.reason)&&['sent','done'].includes(input.kind)){step.status='dispatching';step.reason=null;if(state.autoResume&&!arena.manualPaused&&arena.reason!=='manual_pause'){arena.status='running';arena.reason=null;}}
+      if(step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable','response_unavailable'].includes(step.reason)&&['sent','done'].includes(input.kind)){step.status='dispatching';step.reason=null;if(state.autoResume&&!arena.manualPaused&&arena.reason!=='manual_pause'){arena.status='running';arena.reason=null;}}
       if(input.kind==='sent'){if(step.status==='dispatching'){step.sent=true;step.status='running';usage(arena,step);}return {ok:true};}
       if(input.kind==='blocked'||input.kind==='limit'){step.sent ||= input.sent===true;usage(arena,step,'error');block(arena,step,input.kind==='limit'?'provider_limit':clean(input.reason,150)||'browser_unavailable');return {ok:true};}
       if(input.kind!=='done')throw Error('invalid_report');
       if(!input.sent||!bounded(input.result,240000))return {ignored:true};
       if(!['running','dispatching','blocked'].includes(step.status))return {ignored:true};
       if(flags().evidenceGateEnabled&&!verifiedReceipt){
+        let report;try{report=parseReport(input.result.trim(),step.kind==='judge'?'UMI_ARENA_RESULT:':'UMI_ARENA_PRODUCT:');}catch{block(arena,step,'arena_report_invalid');return {ok:true,blocked:true};}
+        if(report.status==='blocked'){step.sent=true;step.result=input.result.trim();usage(arena,step,'error');block(arena,step,'arena_worker_blocked');return {ok:true,blocked:true};}
         step.sent=true;step.result=input.result.trim();step.status='reported_complete';step.verification='pending';usage(arena,step,'ok');history(arena,'reported_complete',{stepId:step.id});return {ok:true,verificationRequired:true};
       }
       step.sent=true;step.result=input.result.trim();const evidenceCleanups=[];
@@ -147,7 +149,13 @@ export async function createArenaRuntime(filePath,{orchestration,execution,brows
       try{
         if(step.kind!=='judge'){
           const candidate=arena.candidates.find(row=>row.id===step.candidateId),report=parseReport(step.result,'UMI_ARENA_PRODUCT:');
-          if(report.status!=='complete'||!bounded(report.summary)||!Array.isArray(report.source)||!report.source.length||new Set(report.source).size!==report.source.length||report.source.some(path=>!bounded(path,1500)||!report.artifacts?.includes(path)||path===report.readme)||!bounded(report.readme,1500)||!report.artifacts?.includes(report.readme)||!Array.isArray(report.checks)||report.checks.length>20||report.checks.some(check=>!bounded(check.name)||check.status!=='pass'||!bounded(check.command)||!bounded(check.evidence)||!Array.isArray(check.artifacts)||!check.artifacts.length))throw Error('arena_product_incomplete');
+          const pending=verifiedReceipt&&report.status==='pending_verification';
+          if(!['complete',...(pending?['pending_verification']:[])].includes(report.status)||!bounded(report.summary)||!Array.isArray(report.source)||!report.source.length||new Set(report.source).size!==report.source.length||report.source.some(path=>!bounded(path,1500)||!report.artifacts?.includes(path)||path===report.readme)||!bounded(report.readme,1500)||!report.artifacts?.includes(report.readme)||!Array.isArray(report.checks)||report.checks.length>20||report.checks.some(check=>!bounded(check.name)||!(pending?['pass','unverified']:['pass']).includes(check.status)||!bounded(check.command)||!bounded(check.evidence)||!Array.isArray(check.artifacts)||!check.artifacts.length))throw Error('arena_product_incomplete');
+          if(pending){
+            const [proof]=await evidenceFiles(candidate.root,[verifiedReceipt.receiptPath]);if(proof.sha256!==verifiedReceipt.receiptSha256)throw Error('arena_history_changed');
+            for(const name of ['build','test','run']){const check=report.checks.find(row=>row.name===name),actual=verifiedReceipt.checks.find(row=>row.name===name&&row.type==='command'&&row.testPassed);if(!check||!actual)throw Error('arena_product_incomplete');check.reportedStatus=check.status;check.status='pass';check.command=JSON.stringify(actual.command);check.evidence=`Gateway receipt ${verifiedReceipt.id}; exit ${actual.exitCode}; ${actual.stdout.slice(-1500)}`;check.artifacts=[...new Set([...check.artifacts,verifiedReceipt.receiptPath])];}
+            report.status='complete';report.verificationRef=verifiedReceipt.id;
+          }
           for(const name of ['build','test','run'])if(!report.checks.some(check=>check.name===name&&check.status==='pass'&&bounded(check.command)&&bounded(check.evidence)&&Array.isArray(check.artifacts)&&check.artifacts.length))throw Error('arena_product_incomplete');
           const allPaths=[...new Set([...report.artifacts,...report.checks.flatMap(check=>check.artifacts||[])])],files=await evidenceFiles(candidate.root,allPaths);
           const readme=files.find(file=>file.path===report.readme)?.contents.toString('utf8')||'';
@@ -184,9 +192,27 @@ export async function createArenaRuntime(filePath,{orchestration,execution,brows
       step.status='done';step.completedAt=now();step.reason=null;arena.reason=null;if(verifiedReceipt){step.verification='verified';step.evidenceRefs=[verifiedReceipt.id];}if(step.leaseId)await execution.release(step.leaseId,'completed');usage(arena,step,'ok');advance(arena);return {ok:true};
     });
   return {
+    taskAction:(arenaId,stepId,action)=>transaction(async()=>{
+      const arena=arenaById(arenaId),step=arena.steps.find(row=>row.id===stepId);
+      const reportedBlocked=step?.status==='reported_complete'&&step.kind!=='judge'&&(()=>{try{return parseReport(step.result,'UMI_ARENA_PRODUCT:').status==='blocked';}catch{return false;}})();
+      if(!step||finished(arena)||step.status!=='blocked'&&!reportedBlocked||action!=='retry')throw Error('task_action_unavailable');
+      if((step.attemptHistory?.length||0)>=2)throw Error('task_retry_exhausted');
+      if(step.leaseId)await execution?.release(step.leaseId,'manual_node_retry');
+      step.attemptHistory??=[];step.attemptHistory.push({attemptId:step.attempt,status:step.status,reason:step.reason,at:now()});
+      Object.assign(step,{status:'queued',attempt:randomUUID(),issuedAt:null,sent:false,result:null,reason:null,verification:'unverified',evidenceRefs:[],continuation:true});delete step.leaseId;
+      arena.status='paused';arena.manualPaused=true;arena.reason='manual_pause';history(arena,'node_retry',{stepId});return clone(arena);
+    }),
     verifyTask:async(arenaId,stepId,input={})=>{
       const prepared=await transaction(async()=>{
-        const arena=arenaById(arenaId),step=arena.steps.find(row=>row.id===stepId);if(!flags().evidenceGateEnabled||step?.status!=='reported_complete')throw Error('task_not_verifiable');
+        const arena=arenaById(arenaId),step=arena.steps.find(row=>row.id===stepId);
+        if(flags().evidenceGateEnabled&&input.recoverArtifacts===true&&step?.status==='blocked'&&step.kind!=='judge'&&['arena_report_invalid','arena_worker_blocked','response_unavailable'].includes(step.reason)){
+          const candidate=arena.candidates.find(row=>row.id===step.candidateId);
+          if(!Array.isArray(input.source)||!input.source.length||input.source.length>30||input.source.some(path=>typeof path!=='string'||!execution.hasWrite(step.id,candidate.root,path))||!bounded(input.readme,1500))throw Error('product_recovery_missing_receipt');
+          await evidenceFiles(candidate.root,input.artifacts);
+          const report={status:'pending_verification',reportedBy:'local_owner_recovery',summary:'Chủ máy khôi phục báo cáo từ source do thí sinh đã ghi; engine chưa nghiệm thu.',source:input.source,readme:input.readme,artifacts:input.artifacts,checks:['build','test','run'].map(name=>({name,status:'unverified',command:JSON.stringify(input.command?.[name]||{}),evidence:'Chờ chạy kế hoạch do chủ máy duyệt.',artifacts:input.artifacts}))};
+          step.workerResult=step.result;step.result='UMI_ARENA_PRODUCT: '+JSON.stringify(report);step.status='reported_complete';step.reason=null;step.reportOrigin='local_owner_recovery';history(arena,'product_report_recovered',{stepId,candidateId:step.candidateId});
+        }
+        if(!flags().evidenceGateEnabled||step?.status!=='reported_complete')throw Error('task_not_verifiable');
         const report=parseReport(step.result,step.kind==='judge'?'UMI_ARENA_RESULT:':'UMI_ARENA_PRODUCT:');
         const artifacts=step.kind==='judge'?input.artifacts||[]:report.artifacts;
         const evidence=await execution.verify(step.leaseId,{artifacts,criteria:step.acceptanceCriteria||[{type:'artifact'},{type:'command'}],command:input.command});
@@ -254,7 +280,13 @@ export async function createArenaRuntime(filePath,{orchestration,execution,brows
       }else throw Error('invalid_bootstrap_report');
       job.lastAttempt=input.attempt;job.attempt=null;job.issuedAt=null;job.reason=null;return {ok:true};
     }),
-    poll:(token,input={})=>transaction(async()=>{
+    poll:async(token,input={})=>{
+      authenticate(token);
+      if(flags().evidenceGateEnabled){
+        const pending=await serial(()=>state.arenas.flatMap(arena=>arena.steps.filter(step=>step.leaseId&&(['dispatching','running'].includes(step.status)||step.status==='blocked'&&['response_unavailable','arena_report_invalid','restart_reconcile','response_timeout'].includes(step.reason))).map(step=>({arenaId:arena.id,stepId:step.id,attempt:step.attempt,leaseId:step.leaseId}))));
+        for(const row of pending){const report=await execution.completion(row.leaseId);if(report)await processReport(token,{...row,kind:'done',sent:true,result:(state.arenas.find(arena=>arena.id===row.arenaId).steps.find(step=>step.id===row.stepId).kind==='judge'?'UMI_ARENA_RESULT: ':'UMI_ARENA_PRODUCT: ')+JSON.stringify(report)});}
+      }
+      return transaction(async()=>{
       authenticate(token);lastSeen=clock();extensionVersion=/^\d+\.\d+\.\d+$/.test(input.extensionVersion)?input.extensionVersion:null;
       let bootstrap=null,command=null;
       const monitors=[];
@@ -271,7 +303,7 @@ export async function createArenaRuntime(filePath,{orchestration,execution,brows
       const selected=dag?scheduleRuns(state.arenas,{...orchestration.settings(),cursor:state.schedulerCursor}).at(0):null;
       for(const arena of state.arenas.filter(row=>!finished(row))){
         for(const step of dag?arena.steps.filter(row=>!finished(row)):[current(arena)]){if(!step)continue;
-        if(['dispatching','running'].includes(step.status)||step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(step.reason)){
+        if(['dispatching','running'].includes(step.status)||step.status==='blocked'&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable','response_unavailable'].includes(step.reason)){
           monitors.push({channel:'arena',mode:'arena',arenaId:arena.id,runId:arena.id,stepId:step.id,attempt:step.attempt,chatId:step.chatId,projectId:arena.projectId});
           if(['dispatching','running'].includes(step.status)&&clock()-step.issuedAt>(step.status==='dispatching'?90000:45*60000)){usage(arena,step,'error');block(arena,step,step.status==='dispatching'?'send_unconfirmed':'response_timeout');}
         }
@@ -284,8 +316,8 @@ export async function createArenaRuntime(filePath,{orchestration,execution,brows
         if(flags().workspaceLocksEnabled){
           const candidate=arena.candidates.find(row=>row.id===step.candidateId);
           const root=step.kind==='judge'?arena.root:candidate.root,readScope=step.kind==='judge'?arena.rounds.find(row=>row.number===step.round).inputIds.flatMap(id=>{const item=arena.candidates.find(row=>row.id===id);return [item.root,item.versions.at(-1).snapshotRoot];}):['.'];
-          try{const lease=await execution.issue({...orchestration.settings(),root,taskId:step.id,attemptId:step.attempt,runId:arena.id,projectId:arena.projectId,workerId:step.chatId,readScope:step.kind==='judge'?[...readScope,'judge-reports']:readScope,writeScope:step.kind==='judge'?['judge-reports']:['.']});step.leaseId=lease.id;
-            capability=`\nChỉ dùng scope_read_file, scope_write_file, scope_list_directory; scopeToken: ${lease.scopeToken}. Đọc sha256 trước khi ghi expectedHash. Lệnh shell bị chặn; chủ máy duyệt lệnh kiểm chứng riêng. ${step.kind==='judge'?`Giám khảo chỉ đọc thí sinh trong vòng này; ghi báo cáo riêng vào ${join(arena.root,'judge-reports',`round-${step.round}.json`)}.`:'Không đọc memory/source đối thủ.'}\n`;
+          try{const lease=await execution.issue({...orchestration.settings(),root,taskId:step.id,attemptId:step.attempt,runId:arena.id,projectId:arena.projectId,workerId:step.chatId,readScope:step.kind==='judge'?[...readScope,'judge-reports']:readScope,writeScope:step.kind==='judge'?['judge-reports']:['.'],completionManifest:true});step.leaseId=lease.id;
+            capability=`\nChỉ dùng scope_read_file, scope_write_file, scope_list_directory; scopeToken: ${lease.scopeToken}. Đọc sha256 trước khi ghi expectedHash. Lệnh shell bị chặn; chủ máy duyệt lệnh kiểm chứng riêng. ${step.kind==='judge'?`Giám khảo chỉ đọc thí sinh trong vòng này và receipt Gateway có trong thư mục thí sinh; ghi báo cáo riêng vào ${join(arena.root,'judge-reports',`round-${step.round}.json`)}.`:'Không đọc memory/source đối thủ. Tạo đầy đủ source, README, Node test và báo cáo evidence đề xuất lệnh, ghi rõ lệnh chưa chạy. Trả UMI_ARENA_PRODUCT status pending_verification, checks build/test/run status unverified cùng command đề xuất và artifacts báo cáo có thật. Engine sẽ chạy từng lệnh do chủ máy duyệt rồi đính kèm receipt; không khai pass cho lệnh chưa chạy, không blocked chỉ vì shell bị chặn.'} Cuối cùng ghi JSON ${lease.completionPath} có taskId ${step.id}, attemptId ${step.attempt}, result là JSON UMI_ARENA_PRODUCT hoặc UMI_ARENA_RESULT của nhiệm vụ. Đây là thao tác ghi cuối; kết thúc chat ngắn gọn, không cần lặp JSON dài.\n`;
           }catch(error){step.waitReason=error.message;state.schedulerCursor=arena.id;continue;}
         }
         step.status='dispatching';step.issuedAt=clock();state.schedulerCursor=arena.id;
@@ -294,9 +326,9 @@ export async function createArenaRuntime(filePath,{orchestration,execution,brows
         command={channel:'arena',mode:'arena',arenaId:arena.id,runId:arena.id,stepId:step.id,attempt:step.attempt,chatId:step.chatId,projectId:arena.projectId,prompt,modelPreference:preference,kind:step.kind,round:step.round,candidateId:step.candidateId};history(arena,'dispatch',{stepId:step.id,kind:step.kind,candidateId:step.candidateId,round:step.round});
         }
       }
-      const openChats=state.enabled&&state.autoResume?state.arenas.filter(row=>row.status==='running'||row.status==='paused'&&!row.manualPaused&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable'].includes(row.reason)).map(current).filter(Boolean).map(step=>({chatId:step.chatId,projectId:step.projectId,chatUrl:step.chatUrl})):[];
+      const openChats=state.enabled&&state.autoResume?state.arenas.filter(row=>row.status==='running'||row.status==='paused'&&!row.manualPaused&&['send_unconfirmed','response_timeout','restart_reconcile','browser_unavailable','response_unavailable'].includes(row.reason)).map(current).filter(Boolean).map(step=>({chatId:step.chatId,projectId:step.projectId,chatUrl:step.chatUrl})):[];
       return {enabled:state.enabled,bootstrap,command,monitors,openChats};
-    }),
+    });},
     authorize:(token,input)=>serial(()=>{authenticate(token);const arena=arenaById(input.arenaId||input.runId),step=arena.steps.find(row=>row.id===input.stepId);return {allowed:state.enabled&&arena.status==='running'&&Boolean(step&&step.attempt===input.attempt&&step.status==='dispatching'&&step.issuedAt!==null&&clock()-step.issuedAt<90000)};}),
     report:(token,input)=>processReport(token,input),
     resetMetadata:()=>transaction(()=>{if(state.arenas.some(row=>row.status==='running')||state.bootstraps.some(row=>row.status==='running'))throw Error('pause_arena_before_reset');state.arenas=[];state.bootstraps=[];state.events=[];state.usage=state.usage.map((row,index)=>({...row,id:`arena-history-${index+1}`,chatId:null,title:'Lịch sử Arena'}));state.enabled=false;lastSeen=0;return snapshot();}),

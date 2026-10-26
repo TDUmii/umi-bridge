@@ -126,7 +126,7 @@ async function tick() {
     }
     if(response.lifecycle){try{await lifecycleCommand(response.lifecycle);}catch(error){await api('lifecycle-report',{channel:channelOf(response.lifecycle),ticket:response.lifecycle.ticket,index:response.lifecycle.index,status:'blocked',reason:String(error.message).slice(0,120)},channelOf(response.lifecycle)).catch(()=>{});}}
     for(const chat of (response.openChats||[]).slice(0,1)){
-      if(!tabs.some(tab=>matches(tab,chat))){const url=new URL(chat.chatUrl);if(url.origin==='https://chatgpt.com'&&conversation(url.href)===chat.chatId&&(!chat.projectId||project(url.href)===chat.projectId))await chrome.tabs.create({url:url.href,active:false});}
+      if(!tabs.some(tab=>matches(tab,chat))){const url=new URL(chat.chatUrl);if(url.origin==='https://chatgpt.com'&&conversation(url.href)===chat.chatId&&(!chat.projectId||project(url.href)===chat.projectId)){const opened=await chrome.tabs.create({url:url.href,active:false});tabs.push(opened);}}
     }
     for (const monitor of response.monitors || []) {
       const tab = tabs.find(item => matches(item, monitor));
@@ -152,6 +152,14 @@ async function tick() {
     }
     if(response.bootstrap){
       try{await bootstrap({...response.bootstrap,channel});}catch(error){await report({bootstrap:true,jobId:response.bootstrap.jobId,attempt:response.bootstrap.attempt,channel,kind:'blocked',reason:String(error.message||'bootstrap_unconfirmed').slice(0,150)});}
+    }
+    // Server acknowledgement precedes closing; never close a draft or a generating reply.
+    await flush();
+    for(const scope of response.closeChats||[]){
+      if(!scope.projectId||response.monitors?.some(row=>row.chatId===scope.chatId)||response.command?.chatId===scope.chatId)continue;
+      for(const tab of tabs.filter(tab=>matches(tab,scope))){
+        try{if((await chrome.tabs.sendMessage(tab.id,{type:'idle-check',...scope}))?.idle){await chrome.tabs.remove(tab.id);tabs.splice(tabs.indexOf(tab),1);}}catch{}
+      }
     }
     statuses.push(channel+': OK');
     }catch(error){statuses.push(channel+': '+error.message);}
