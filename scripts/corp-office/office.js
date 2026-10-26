@@ -53,8 +53,8 @@
       if (!p) continue;
       label.style.left = `${p.seat.x * zoom}px`;
       label.style.top = `${(p.seat.y - 20) * zoom}px`;
-      label.style.width = `${64 * zoom}px`;
-      label.style.height = `${64 * zoom}px`;
+      label.style.width = `${44 * zoom}px`;
+      label.style.height = `${44 * zoom}px`;
     }
 
     draw();
@@ -227,7 +227,7 @@
       if(['engineering','devops','security'].includes(room.roleId)){for(let y=room.y+10;y<room.y+room.h-7;y+=20)for(let x=room.x+10;x<room.x+room.w-7;x+=20){rect(x,y,18,18,'#ffffff18');rect(x,y,18,1,'#314b5c15');}}
       else{for(let y=room.y+8;y<room.y+room.h-6;y+=12){rect(room.x+8,y,room.w-16,1,'#5c503b1c');for(let x=room.x+18+(y%24?28:0);x<room.x+room.w-8;x+=56)rect(x,y,1,12,'#5c503b15');}}
       rect(room.x+28,room.y+64,room.w-56,84,accent);rect(room.x+32,room.y+68,room.w-64,76,surface);rect(room.x+36,room.y+72,room.w-72,68,accent+'65');
-      rect(room.x,room.y,room.w,7,trim);rect(room.x,room.y,7,room.h,trim);rect(room.x+room.w-7,room.y,7,room.h,trim);
+      rect(room.x,room.y,room.w,7,trim);rect(room.x,room.y,7,room.open?Math.floor(room.h*.56):room.h,trim);rect(room.x+room.w-7,room.y,7,room.open?Math.floor(room.h*.56):room.h,trim);
       rect(room.x,room.y+room.h-7,room.w/2-30,7,trim);rect(room.x+room.w/2+30,room.y+room.h-7,room.w/2-30,7,trim);
       sprite(room.index%3===1?'KENNEY_PLANT':room.index%2?'PLANT_2':'LARGE_PLANT',room.plant.x,room.plant.y-10,room.index%3===1?2:1);
       sprite(art,room.x+room.w/2-16,room.y+12,art.startsWith('KENNEY')?2:1);
@@ -238,14 +238,14 @@
       for(const [index,island]of room.islands.entries()){
         const members=[...people.values()].filter(p=>p.seat.room===room.name&&p.seat.island===index);
         if(members.some(p=>p.furniture>0)){
-          const wood={executive:'#ac8054',collaboration:'#c9aa74',benches:'#b4a18b',corner:'#a9b3a4',paired:'#c49a66'}[island.kind];
+          const wood={single:'#b69b71',executive:'#ac8054',collaboration:'#c9aa74',benches:'#b4a18b',corner:'#a9b3a4',paired:'#c49a66'}[island.kind];
           for(const part of island.parts){rect(part.x+3,part.y+5,part.w,part.h,'#48624b30');rect(part.x,part.y,part.w,part.h,'#855e3c');rect(part.x+3,part.y+2,part.w-6,part.h-6,wood);}
           if(island.kind==='collaboration'){rect(island.x+68,island.y+8,28,18,'#f1e8ca');rect(island.x+72,island.y+12,9,5,'#9cb7a2');rect(island.x+84,island.y+12,8,9,'#b49582');}
           else if(island.kind==='benches'){rect(island.x+40,island.y+10,20,16,'#5a6a65');rect(island.x+44,island.y+13,12,7,'#a6b7a5');}
           else if(island.kind==='corner'){rect(island.x+5,island.y+38,16,6,'#64817c');rect(island.x+5,island.y+45,16,5,'#d3c5a0');}
           else if(island.kind==='executive'){rect(island.x+79,island.y-26,16,10,'#ece2bd');rect(island.x+82,island.y-24,10,2,'#749080');}
         }
-        if(island.guest&&members.some(p=>p.furniture>=2))drawChair(island.guest,true);
+
         for(const p of members){const {x,y,facing}=p.seat;if(p.furniture>=2)drawChair(p.seat);
           if(p.furniture>=3){
             if(facing==='left'||facing==='right'){const mx=x+(facing==='right'?32:-42);rect(mx,y-33,10,25,'#3c5053');rect(mx+2,y-31,6,19,life.working(p)?'#a1c8ba':'#547378');rect(mx-2,y-7,14,3,'#52605a');}
@@ -268,7 +268,7 @@
   }
   function drawChair(seat,guest=false) {
     if(seat.facing==='left'||seat.facing==='right'){const back=seat.facing==='right'?seat.x-12:seat.x+8;rect(seat.x-12,seat.y-8,24,9,guest?'#84988c':'#967854');rect(back,seat.y-23,4,23,'#5b705f');rect(seat.x-9,seat.y+1,3,8,'#5b705f');rect(seat.x+6,seat.y+1,3,8,'#5b705f');}
-    else sprite(seat.facing==='down'?'CUSHIONED_CHAIR_BACK':'WOODEN_CHAIR_FRONT',seat.x-12,seat.y-17,1.5);
+    else sprite(seat.facing==='down'?'CUSHIONED_CHAIR_BACK':'WOODEN_CHAIR_FRONT',seat.x-12,seat.y-(seat.facing==='down'?17:35),1.5);
   }
   function drawCharacter(palette,frame,dir,x,y,{angle=0}={}) {
     const image=images[`char_${palette}`];if(!image?.naturalWidth)return;
@@ -297,7 +297,7 @@
     const dir=moving?p.dir:p.activity==='desk'?p.seat.facing:'down';
     const typing=!error&&!reduced&&!moving&&working&&p.pose==='type';
     const reading=!error&&!reduced&&!moving&&!working&&p.pose==='read';
-    const frame=moving?[0,1,2,1][Math.floor(now*8)%4]:typing?3+Math.floor(now*3)%2:p.activity==='snack'?5+Math.floor(now*3)%2:reading?5+Math.floor(now*2)%2:1;
+    const frame=moving?[0,1,2,1][Math.floor(now*8)%4]:typing?3+Math.floor(now*3)%2:p.activity==='snack'?5+Math.floor(now*3)%2:reading?5+Math.floor(now*2)%2:p.activity==='desk'?3:1;
     ctx.fillStyle='#304d4329';ctx.beginPath();ctx.ellipse(p.x,p.y,12,4,0,0,Math.PI*2);ctx.fill();
     drawCharacter(p.palette,frame,dir,p.x,p.y);
     if(p.carry){const item=p.carry;if(item==='desk'){rect(p.x-14,p.y-26,28,10,'#b5824f');rect(p.x-12,p.y-16,4,10,'#694b34');rect(p.x+8,p.y-16,4,10,'#694b34');}else if(item==='chair')sprite('WOODEN_CHAIR_FRONT',p.x-12,p.y-35,1);else sprite('PC_FRONT_OFF',p.x-12,p.y-38,1.5);}

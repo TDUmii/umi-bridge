@@ -1,5 +1,5 @@
 (() => {
-  const $=id=>document.getElementById(id),vi=()=>localStorage.getItem('umibridge.admin.language')!=='en',word=(a,b)=>vi()?a:b;
+  const $=id=>document.getElementById(id),vi=()=>localStorage.getItem('umibridge.admin.language')==='vi',word=(a,b)=>vi()?a:b;
   const el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e;};
   const topics=[
     {id:'update',name:['Cài và tự cập nhật UmiBridge','Install and update UmiBridge'],keys:'setup cai dat cap nhat update clone download',steps:[['Tải bộ cài','Tải UmiBridge-Setup.cmd từ GitHub Releases chính thức. Không cần clone hoặc Git.','https://github.com/TDUmii/umi-bridge/releases/latest','Download UmiBridge-Setup.cmd from official GitHub Releases. No clone or Git needed.'],['Mở file setup','Nhấp đúp. Bộ cài kiểm SHA-256, chuẩn bị runtime và tạo lối mở trên Desktop.','#settings','Double-click. Setup verifies SHA-256, prepares runtime and adds a desktop shortcut.'],['Mở app lần sau','Dùng UmiBridge trên Desktop. Bản managed tự kiểm bản mới; dữ liệu và ghép kết nối được giữ.','#settings','Open UmiBridge from Desktop. Managed installs check updates and retain data and pairing.']]},

@@ -88,7 +88,13 @@ function Start-TrayWorker([switch]$Restart, [switch]$Initial, [switch]$StopOnly)
         $command += '; exit $LASTEXITCODE'
     }
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
-    $script:worker = Start-Process -FilePath $shell -ArgumentList @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $encoded) -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput (Join-Path $stateDir 'tray-worker.log') -RedirectStandardError (Join-Path $stateDir 'tray-worker-error.log') -PassThru
+    $startInfo = New-Object Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $shell
+    $startInfo.Arguments = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand ' + $encoded
+    $startInfo.WorkingDirectory = $root
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $script:worker = [Diagnostics.Process]::Start($startInfo)
     $script:workerStarted = [DateTime]::UtcNow
 }
 

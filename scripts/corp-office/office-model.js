@@ -36,22 +36,26 @@ class OfficeFloor {
     this.width=1080;this.rooms=[];this.seats=new Map();this.obstacles=[];
     const groups=new Map();
     for(const agent of agents){const key=agent.department||'Chưa phân công';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(agent);}
-    const entries=[...groups],cols=Math.min(4,Math.max(1,entries.length)),roomWidth=(this.width-80-(cols-1)*40)/cols;
+    const entries=[...groups],cols=Math.min(4,Math.max(1,entries.length)),baseWidth=(this.width-80-(cols-1)*40)/cols;
     let y=214;
     for(let row=0;row<Math.ceil(entries.length/cols);row++){
-      const batch=entries.slice(row*cols,(row+1)*cols),height=Math.max(194,...batch.map(([,members])=>Math.ceil(members.length/4)*180+24));
+      const batch=entries.slice(row*cols,(row+1)*cols),height=Math.max(194,...batch.map(([,members])=>Math.ceil(members.length/4)*180+48));
       batch.forEach(([name,members],column)=>{
-        const x=40+column*(roomWidth+40),role=members[0].roleId||'',index=this.rooms.length;
+        const widths=batch.map((_,i)=>baseWidth*(cols===4?[1.08,.92,1.04,.96][i]:1)),roomWidth=widths[column],x=40+widths.slice(0,column).reduce((sum,w)=>sum+w+40,0),roomY=y+(column%2?20:0),role=members[0].roleId||'',index=this.rooms.length;
         const style=role==='ceo'?'executive':/design|product/.test(role)?'collaboration':/engineer|devops|developer/.test(role)?'benches':/qa|security|test/.test(role)?'corner':['executive','collaboration','benches','corner'][index%4];
-        const room={id:name,name,roleId:role,x,y,w:roomWidth,h:height,index,style,islands:[]};
+        const room={id:name,name,roleId:role,x,y:roomY,w:roomWidth,h:height-(column%2?20:0),index,style,open:!['ceo','security','docs'].includes(role),islands:[]};
         this.rooms.push(room);
+        const top=room.y,bottom=room.y+room.h,wallHeight=room.open?Math.floor(room.h*.56):room.h;
         // Each room has a south doorway into a continuous cross-corridor.
-        this.obstacles.push({x,y,w:roomWidth,h:7},{x,y,w:7,h:height},{x:x+roomWidth-7,y,w:7,h:height},
-          {x,y:y+height-7,w:roomWidth/2-30,h:7},{x:x+roomWidth/2+30,y:y+height-7,w:roomWidth/2-30,h:7});
+        this.obstacles.push({x,y:top,w:roomWidth,h:7},{x,y:top,w:7,h:wallHeight},{x:x+roomWidth-7,y:top,w:7,h:wallHeight},
+          {x,y:bottom-7,w:roomWidth/2-30,h:7},{x:x+roomWidth/2+30,y:bottom-7,w:roomWidth/2-30,h:7});
         for(let i=0;i<Math.ceil(members.length/4);i++){
-          const cx=x+roomWidth/2,cy=y+100+i*180,occupants=members.slice(i*4,i*4+4),kind=occupants.length>2?'paired':style;
+          const cx=x+roomWidth/2+((i+index)%2?10:-10),cy=top+106+i*180,occupants=members.slice(i*4,i*4+4),kind=occupants.length===1?'single':occupants.length>2?'paired':style;
           let parts,positions;
-          if(kind==='executive'){
+          if(kind==='single'){
+            const offset=index%2?16:-16;parts=[{x:cx-43,y:cy-18+offset,w:86,h:36}];
+            positions=[{x:cx+(index%2?18:-18),y:cy+(index%3===0?-44:48)+offset,facing:index%3===0?'down':'up'}];
+          }else if(kind==='executive'){
             parts=[{x:cx-50,y:cy-18,w:100,h:36},{x:cx+26,y:cy-50,w:24,h:32}];
             positions=[{x:cx-12,y:cy-44,facing:'down'},{x:cx-12,y:cy+48,facing:'up'}];
           }else if(kind==='collaboration'){
@@ -67,12 +71,12 @@ class OfficeFloor {
             parts=[{x:cx-70,y:cy-22,w:140,h:44}];
             positions=[{x:cx-36,y:cy-48,facing:'down'},{x:cx+36,y:cy-48,facing:'down'},{x:cx-36,y:cy+52,facing:'up'},{x:cx+36,y:cy+52,facing:'up'}];
           }
-          const island={...parts[0],kind,parts,guest:occupants.length===1?positions[1]:null};room.islands.push(island);this.obstacles.push(...parts);
+          const island={...parts[0],kind,parts,guest:null};room.islands.push(island);this.obstacles.push(...parts);
           if(island.guest){const guest=island.guest;this.obstacles.push({x:guest.x-12,y:guest.y-12,w:24,h:24});}
           occupants.forEach((member,j)=>this.seats.set(member.id,{...positions[j],room:name,island:i}));
         }
-        const plant={x:x+18,y:y+20,w:22,h:25};room.plant=plant;this.obstacles.push(plant);
-        room.cabinet={x:x+roomWidth-47,y:y+14,w:28,h:24};this.obstacles.push(room.cabinet);
+        const plant={x:x+18,y:top+20,w:22,h:25};room.plant=plant;this.obstacles.push(plant);
+        room.cabinet={x:x+roomWidth-47,y:top+14,w:28,h:24};this.obstacles.push(room.cabinet);
       });
       y+=height+42;
     }

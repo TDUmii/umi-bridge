@@ -24,7 +24,7 @@ export function toolOperation(name) {
 }
 
 export function toolGroup(name) {
-  if (name.startsWith('windows_')) return 'windows';
+  if (name.startsWith('windows_')||name==='chrome_control') return 'windows';
   if (['list_skills', 'read_skill'].includes(name)) return 'skills';
   if (['run_command', 'run_on_device'].includes(name)) return 'commands';
   if (['list_devices', 'get_device_status', 'get_job_status'].includes(name)) return 'devices';

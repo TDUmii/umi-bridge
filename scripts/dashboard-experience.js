@@ -1,6 +1,6 @@
 (() => {
   const $=id=>document.getElementById(id),node=(tag,text,cls)=>{const e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e;};
-  const vi=()=>localStorage.getItem('umibridge.admin.language')!=='en',t=(a,b)=>vi()?a:b;
+  const vi=()=>localStorage.getItem('umibridge.admin.language')==='vi',t=(a,b)=>vi()?a:b;
   const corp=$('corp'),scope=corp.querySelector('.corp-scope');corp.querySelector('.corp-title').after(scope);corp.querySelector('.corp-head .actions').before(corp.querySelector('.corp-tabs'));
   const arenaSelect=$('arenaSelection');$('arena').querySelector('.arena-head .actions').before(arenaSelect);
   let savedPreferences;

@@ -1,3 +1,4 @@
+import {createChromeBridge,chromeTool} from './chrome-bridge.mjs';
 import express from 'express';
 import { existsSync, readFileSync } from 'node:fs';
 import { unlink, writeFile } from 'node:fs/promises';
@@ -80,6 +81,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
   const execution=await createWorkspaceExecution(resolve(configDir,'..'),{...(corpClock?{clock:corpClock}:{}),completionMigration:orchestration.settings().flags.evidenceGateEnabled});
   const addCorpWorkspace=async item=>{let link;try{link=parseProjectLink(item.chatUrl);}catch{link=parseChatLink(item.chatUrl);}if(link.projectId&&arena.snapshot().arenas.some(row=>row.projectId===link.projectId))throw Error('arena_project_reserved');return chatLinks.addWorkspace(item);};
   let verifiedCheckpoint=async()=>{};
+  const chromeBridge=createChromeBridge();
   const corp = await createCorpRuntime(resolve(configDir, '..', 'corp-state.json'), { onVerified:(run,step)=>verifiedCheckpoint(run,step),skillLibrary,orchestration,execution,workspaces: () => chatLinks.workspaces(), createWorkspace:addCorpWorkspace, syncProject:input=>chatLinks.syncProject(input), ...(corpClock ? { clock: corpClock } : {}),...(corpProjectsRoot?{projectsRoot:corpProjectsRoot}:{}) });
   const arena = await createArenaRuntime(resolve(configDir,'..','arena-state.json'),{orchestration,execution,browserCatalog:()=>corp.snapshot().modelCatalog,authenticate:token=>corp.authenticate(token),isPaired:()=>corp.snapshot().paired,projectAllowed:id=>!chatLinks.workspaces().some(project=>project.projectId===id),...(corpClock?{clock:corpClock}:{}),...((arenaProjectsRoot||corpProjectsRoot)?{projectsRoot:arenaProjectsRoot||corpProjectsRoot}:{})});
   const generatedProjects=()=>[
@@ -236,7 +238,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     if (httpServer) await new Promise(resolve => { httpServer.close(resolve); httpServer.closeAllConnections(); });
     await deviceRegistry.close().catch(() => {});
     if (typeof workflowLedger.close === 'function') await workflowLedger.close().catch(() => {});
-    await corp.close();
+    chromeBridge.close();await corp.close();
     await arena.close();
     await execution.close();await orchestration.close();
     await backend.close().catch(() => {});
@@ -254,8 +256,8 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       const backendCatalog = listed._meta?.[CATALOG_META] ?? listed.tools ?? [];
       const paused = existsSync(resolve(configDir, '..', 'windows-tools-disabled'));
       const protectedMode=orchestration.settings().flags.workspaceLocksEnabled;
-      const protectedNames=new Set([...scopedToolSpecs.map(row=>row.name),'list_skills','read_skill','windows_status']);
-      const catalog = [...backendCatalog, ...deviceToolSpecs,...scopedToolSpecs].map(tool => ({ ...tool, available: (!protectedMode||protectedNames.has(tool.name))&&!(paused && tool.name.startsWith('windows_') && tool.name !== 'windows_status') }));
+      const protectedNames=new Set([...scopedToolSpecs.map(row=>row.name),'list_skills','read_skill','windows_status',chromeTool.name]);
+      const catalog = [...backendCatalog, ...deviceToolSpecs,...scopedToolSpecs,chromeTool].map(tool => ({ ...tool, available: (tool.name!==chromeTool.name||chromeBridge.available())&&(!protectedMode||protectedNames.has(tool.name))&&!(paused && tool.name.startsWith('windows_') && tool.name !== 'windows_status') }));
       const names = new Set(catalog.map(tool => tool.name));
       const policyCatalog = [...catalog, ...WINDOWS_TOOL_NAMES.filter(name => !names.has(name)).map(name => ({ name, available: false, description: 'Named Windows desktop operation on linked devices. The local worker does not currently expose this operation.' }))];
       const skills = await skillLibrary.list().catch(() => []);
@@ -429,7 +431,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       try { res.json(await action(req)); }
       catch (error) { res.status(['invalid_corp_key','invalid_arena_key'].includes(error.message) ? 401 : error.message.endsWith('_not_found') ? 404 : 400).json({ error: error.message }); }
     };
-    const protectedTool=name=>scopedToolSpecs.some(tool=>tool.name===name)||['list_skills','read_skill','windows_status'].includes(name);
+    const protectedTool=name=>scopedToolSpecs.some(tool=>tool.name===name)||['list_skills','read_skill','windows_status',chromeTool.name].includes(name);
     app.get('/admin/api/orchestration',localAdmin,corpHandler(()=>({settings:orchestration.settings(),execution:execution.snapshot()})));
     app.post('/admin/api/orchestration',localAdmin,adminWrite,corpJson,corpHandler(async req=>{
       const currentFlags=orchestration.settings().flags,structural=Object.entries(req.body.flags||{}).some(([key,value])=>currentFlags[key]!==value);
@@ -479,6 +481,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.post('/admin/api/project-lifecycle/confirm',localAdmin,adminWrite,corpJson,corpHandler(req=>lifecycle.confirm(req.body??{})));
     for(const action of ['authorize','report'])app.post('/admin/corp/bridge/lifecycle-'+action,localAdmin,corpJson,corpHandler(req=>{corp.authenticate(String(req.headers.authorization??'').replace(/^Bearer /,''));return lifecycle[action](req.body??{});}));
     for(const action of ['authorize','report'])app.post('/admin/arena/bridge/lifecycle-'+action,localAdmin,corpJson,corpHandler(req=>{corp.authenticate(String(req.headers.authorization??'').replace(/^Bearer /,''));return lifecycle[action](req.body??{});}));
+    for(const action of ['poll','report'])app.post('/admin/chrome/bridge/'+action,localAdmin,express.json({limit:'12mb'}),corpHandler(req=>{corp.authenticate(String(req.headers.authorization??'').replace(/^Bearer /,''));return chromeBridge[action](req.body??{});}));
     app.post('/admin/api/browser/pair',localAdmin,adminWrite,corpHandler(pairBrowser));
     app.post('/admin/api/browser/revoke',localAdmin,adminWrite,corpHandler(revokeBrowser));
     app.post('/admin/api/corp/settings', localAdmin, adminWrite, corpJson, corpHandler(req => corp.settings(req.body ?? {})));
@@ -754,14 +757,15 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
           if (paused && request.params.name === 'windows_on_device') throw new Error('Windows desktop tools are paused. Enable them in Dashboard Settings.');
           result = scopedToolSpecs.some(tool=>tool.name===request.params.name)
             ? (orchestration.settings().flags.workspaceLocksEnabled?{content:[{type:'text',text:JSON.stringify(await execution.execute(request.params.name,request.params.arguments??{}))}]}:{isError:true,content:[{type:'text',text:'Error: protected_workspace_disabled'}]})
+            : request.params.name===chromeTool.name?await chromeBridge.call(request.params.arguments??{})
             : deviceToolsByName.has(request.params.name)
             ? await callDeviceTool(request.params.name, request.params.arguments ?? {})
             : withoutContext(await backend.callTool(request.params, undefined, options));
         } catch (cause) {
           result = { isError: true, content: [{ type: 'text', text: `Error: ${cause instanceof Error ? cause.message : String(cause)}` }] };
         }
-        const historyArgs=request.params.arguments?.scopeToken?{...request.params.arguments,scopeToken:'[redacted]'}:request.params.arguments;
-        await requestHistory.add(request.params.name, historyArgs, result, performance.now() - startedAt, clientName);
+        const historyArgs=request.params.name===chromeTool.name?{action:request.params.arguments?.action,tab_id:request.params.arguments?.tab_id}:request.params.arguments?.scopeToken?{...request.params.arguments,scopeToken:'[redacted]'}:request.params.arguments;
+        await requestHistory.add(request.params.name, historyArgs, request.params.name===chromeTool.name?{content:[{type:'text',text:result.isError?'Chrome action failed':'Chrome action completed'}],isError:result.isError}:result, performance.now() - startedAt, clientName);
         return deliverContext(result, context, req.auth?.clientId);
       });
       if (capabilities.resources) {

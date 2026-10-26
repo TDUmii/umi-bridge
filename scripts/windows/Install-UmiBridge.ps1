@@ -126,7 +126,9 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Runtime setup failed. Run UmiBridge-Setup.cmd again to retry; saved settings remain intact.' }
         $shell = New-Object -ComObject WScript.Shell
         $shortcut = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'UmiBridge.lnk'))
-        $shortcut.TargetPath = Join-Path $root 'UmiBridge.cmd'
+        $shortcut.TargetPath = Join-Path ([Environment]::GetFolderPath('System')) 'wscript.exe'
+        $shortcut.Arguments = '//B //Nologo ' + [char]34 + (Join-Path $root 'scripts\windows\UmiBridge-Launch.vbs') + [char]34
+        $shortcut.WindowStyle = 7
         $shortcut.WorkingDirectory = $root
         $shortcut.IconLocation = Join-Path $root 'scripts\windows\UmiBridge.ico'
         $shortcut.Save()

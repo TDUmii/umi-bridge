@@ -5,6 +5,58 @@
 (() => {
   'use strict';
   const VI_TO_EN = {
+  "Sơ đồ hệ thống": "System map",
+  "Từ ý tưởng": "From idea",
+  "Hàng đợi": "Queue",
+  "Bộ phận": "Departments",
+  "Quản lý": "Manage",
+  "Kết nối": "Connection",
+  "Giao việc": "Assign task",
+  "Văn phòng: Bật": "Office: On",
+  "Văn phòng: Tắt": "Office: Off",
+  "Điều phối: Bật": "Dispatch: On",
+  "Điều phối: Tắt": "Dispatch: Off",
+  "Lưu dự án lên GitHub private": "Save project to private GitHub",
+  "Project điều phối": "Coordination project",
+  "Không gian Corp": "Corp workspace",
+  "Điều hành": "Leadership",
+  "Sản phẩm": "Product",
+  "Thiết kế": "Design",
+  "Kỹ thuật": "Engineering",
+  "Bảo mật": "Security",
+  "Tài liệu": "Documentation",
+
+  "Văn phòng": "Office",
+  "Thu nhỏ văn phòng": "Zoom out",
+  "Phóng to văn phòng": "Zoom in",
+  "Vừa khung": "Fit",
+  "Mở rộng": "Expand",
+  "Giảm chuyển động": "Reduce motion",
+  "Sinh hoạt: Bật": "Ambient: On",
+  "Sinh hoạt: Tắt": "Ambient: Off",
+  "Sơ đồ phòng": "Room plan",
+  "Đội ngũ": "Team",
+  "Khách": "Clients",
+  "Bàn giao": "Handoffs",
+  "Trao đổi công việc": "Work conversation",
+  "Văn phòng đang chờ đủ đội ngũ": "Waiting for team",
+  "Đang nhận danh sách nhân sự từ Corp.": "Loading team.",
+  "Chưa có nội dung bàn giao được ghi nhận.": "No handoffs yet.",
+  "Chưa có nội dung bàn giao được ghi nhận. Kết quả thực từ các lượt chạy sẽ xuất hiện tại đây.": "No handoffs yet.",
+  "Chưa có khách chờ.": "No waiting clients.",
+  "Sẵn sàng": "Ready",
+  "Đợi nhận việc": "Queued",
+  "Đã gửi nhiệm vụ": "Sent",
+  "Chờ phản hồi": "Waiting",
+  "Chờ reset hạn mức": "Quota limit",
+  "Tạm dừng": "Paused",
+  "Đã có kết quả": "Result received",
+  "Chờ duyệt": "Review",
+  "Bị chặn": "Blocked",
+  "Đã bàn giao": "Delivered",
+  "Chưa rõ trạng thái": "Unknown",
+  "Báo cáo gốc": "Original report",
+
   "Số đội": "Teams",
   "Phân tích sâu": "Deep analysis",
   "Token / lượt": "Tokens / request",
@@ -553,9 +605,10 @@
   const TO_VI = Object.freeze({ ...Object.fromEntries(Object.entries(VI_TO_EN).map(([vi,en]) => [en,vi])), ...EXTRA_EN_TO_VI });
   const originals = new WeakMap();
   const originalAttributes = new WeakMap();
-  const ignored = 'script,style,pre,code,textarea,.tool-name,.permission-name,.time,.detail-code,.detail-meta code,.endpoint-info code,.chat-row strong,.chat-row small';
+  const ignored = 'script,style,pre,code,textarea,.conversation-text,.conversation-task,.conversation-entry strong,#detail-task,.tool-name,.permission-name,.time,.detail-code,.detail-meta code,.endpoint-info code,.chat-row strong,.chat-row small';
   let language = 'en';
   try { language = localStorage.getItem('umibridge.admin.language') === 'vi' ? 'vi' : 'en'; } catch {}
+  try { if(!localStorage.getItem('umibridge.admin.language'))localStorage.setItem('umibridge.admin.language',language); } catch {}
   const patterns = [
     [/^Enable ([a-z0-9_]+) first\.$/, (m,name,l)=>l==='vi'?'Bật '+name+' trước.':m],
     [/^Bật ([a-z0-9_]+) trước\.$/, (m,name,l)=>l==='en'?'Enable '+name+' first.':m],
@@ -636,7 +689,7 @@
     if (node.nodeValue !== next) node.nodeValue = next;
   };
   const visitAttrs = element => {
-    if (element.matches(ignored)) return;
+    if (element.id==='languageSelect'||element.matches(ignored)) return;
     let orig = originalAttributes.get(element);
     if (!orig) { orig = {}; originalAttributes.set(element,orig); }
     for (const key of ['placeholder','aria-label','title','content']) {
@@ -679,5 +732,6 @@
     try{localStorage.setItem('umibridge.admin.language', language);}catch{}
     apply();
   });
+  window.addEventListener('storage',event=>{if(event.key==='umibridge.admin.language'){language=event.newValue==='vi'?'vi':'en';apply();}});
   apply();
 })();

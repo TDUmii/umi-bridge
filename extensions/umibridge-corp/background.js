@@ -1,3 +1,4 @@
+importScripts('chrome-control.js');
 /* The credential stays in the extension worker. Page scripts never receive it. */
 let busy = false;
 let lastModelScan=null;

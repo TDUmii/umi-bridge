@@ -2,7 +2,7 @@
   const $=id=>document.getElementById(id),host=$('corpGitSummary'),toggle=$('corpGitSettingsToggle');
   if(!host||!toggle)return;
   const node=(tag,text,cls)=>{const element=document.createElement(tag);if(text!=null)element.textContent=text;if(cls)element.className=cls;return element;};
-  const t=(vi,en)=>localStorage.getItem('umibridge.admin.language')==='en'?en:vi;
+  const t=(vi,en)=>localStorage.getItem('umibridge.admin.language')==='vi'?vi:en;
   let data=null,state=null,loading=false,busy=false,notice='',lastRefresh=0,renderSignature='',revision=0,noticeCode='';
   const visible=()=>!document.hidden&&location.hash==='#corp';
   const selected=()=>data?.bootstraps?.find(job=>job.workspaceId===$('corpProject')?.value);
@@ -18,7 +18,7 @@
     if(record?.url){try{const url=new URL(record.url);if(url.protocol==='https:'&&url.hostname==='github.com'&&!url.username&&!url.password){const link=node('a',t('Mở repository','Open repository'));link.dataset.gitAction='repository';link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';line.append(link);}}catch{}}
     if(record?.commit||record?.files!=null){const detail=node('span',`${record.repo?'main · ':''}${record.commit?record.commit.slice(0,8)+' · ':''}${record.files||0} ${t('file','files')}`,'corp-git-meta');if(record.commit)detail.title=record.commit;line.append(detail);}
     if(job){const button=node('button',busy?t('Đang xử lý…','Working…'):status==='error'?t('Thử lại Git','Retry Git'):t('Lưu mốc Git','Save Git checkpoint'),'btn small');button.type='button';button.dataset.gitAction='archive';button.disabled=busy||!state?.enabled;button.onclick=()=>archive(job.id);line.append(button);}
-    const details=[];if(record?.skipped){const {excluded=0,unsupported=0,unsafe=0}=record.skipped;if(excluded+unsupported+unsafe)details.push(t(`Bỏ qua: ${excluded} mục riêng tư/ngoài phạm vi, ${unsupported} file chưa hỗ trợ, ${unsafe} file không an toàn.`,`Skipped: ${excluded} private/out-of-scope entries, ${unsupported} unsupported files, ${unsafe} unsafe files.`));}
+    const details=[];if(record?.skipped){const {excluded=0,unsupported=0,unsafe=0}=record.skipped;if(unsupported+unsafe)details.push(t(`Bỏ qua: ${excluded} mục riêng tư/ngoài phạm vi, ${unsupported} file chưa hỗ trợ, ${unsafe} file không an toàn.`,`Skipped: ${excluded} private/out-of-scope entries, ${unsupported} unsupported files, ${unsafe} unsafe files.`));}
     if(record?.error)details.push(message(record.error)+(record.stage?` (${record.stage})`:''));if(notice)details.push(notice);
     host.replaceChildren(line);if(focused){const replacement=host.querySelector('[data-git-action="'+focused+'"]');if(replacement&&!replacement.disabled)replacement.focus({preventScroll:true});else{host.tabIndex=-1;host.focus({preventScroll:true});}}host.dataset.state=status;host.setAttribute('aria-busy',String(busy));if(details.length){const detail=node('p',details.join(' '),'corp-git-note');detail.setAttribute('role','status');detail.title=noticeCode||record?.error||'';host.append(detail);}
   }
