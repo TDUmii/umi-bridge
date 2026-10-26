@@ -1,0 +1,31 @@
+(() => {
+  const $=id=>document.getElementById(id),host=$('corpGitSummary'),toggle=$('corpGitSettingsToggle');
+  if(!host||!toggle)return;
+  const node=(tag,text,cls)=>{const element=document.createElement(tag);if(text!=null)element.textContent=text;if(cls)element.className=cls;return element;};
+  const t=(vi,en)=>localStorage.getItem('umibridge.admin.language')==='en'?en:vi;
+  let data=null,state=null,loading=false,busy=false,notice='',lastRefresh=0;
+  const visible=()=>!document.hidden&&location.hash==='#corp';
+  const selected=()=>data?.bootstraps?.find(job=>job.workspaceId===$('corpProject')?.value);
+  const labels={disabled:['Đã tắt','Disabled'],not_archived:['Chưa lưu mốc','Not archived'],pending:['Chờ lưu','Pending'],waiting_source:['Chưa có mã nguồn phù hợp','Waiting for eligible source'],syncing:['Đang đồng bộ','Syncing'],synced:['Đã đồng bộ','Synced'],error:['Cần thử lại','Retry needed']};
+  const message=code=>({generated_git_disabled:t('Bật Git private trước khi lưu.', 'Enable private Git before archiving.'),private_git_github_unavailable:t('Chưa kết nối được tài khoản GitHub.', 'GitHub account unavailable.'),private_git_required:t('Repository phải là private.', 'Repository must be private.'),private_git_account_changed:t('Tài khoản GitHub khác tài khoản đã lưu dự án.', 'GitHub account differs from this project owner.'),private_git_command_failed:t('Git chưa đồng bộ được. Kiểm tra kết nối rồi thử lại.', 'Git sync failed. Check connection and retry.')}[code]||code);
+  async function request(path,body){const response=await fetch('/admin/api/generated-git'+path,{cache:'no-store',...(body?{method:'POST',headers:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},body:JSON.stringify(body)}:{})});const result=await response.json();if(!response.ok)throw Error(message(result.error||'Git request failed'));return result;}
+  function render(){
+    toggle.checked=Boolean(state?.enabled);toggle.disabled=busy||loading||!state;toggle.setAttribute('aria-label',t('Lưu sản phẩm vào Git private','Save products to private Git'));
+    const job=selected(),record=state?.archives?.find(row=>row.channel==='corp'&&row.id===job?.id),status=record?.status||(state?.enabled?'not_archived':'disabled');
+    const label=labels[status]||[status,status],line=node('div',null,'corp-git-line'),summary=node('span',null,'corp-git-state');summary.setAttribute('role','status');summary.setAttribute('aria-live','polite');
+    line.append(node('strong','Git private'));summary.textContent=!state?t('Đang kiểm tra…','Checking…'):!job?t('Chọn dự án sản phẩm để xem lịch sử Git.','Choose a product project to see Git history.'):[t(...label),state.enabled?t('Tự động lưu: bật','Auto-save: on'):t('Tự động lưu: tắt','Auto-save: off'),state.available?'GitHub OK':t('GitHub chưa sẵn sàng','GitHub unavailable')].join(' · ');line.append(summary);
+    if(record?.url){try{const url=new URL(record.url);if(url.protocol==='https:'&&url.hostname==='github.com'&&!url.username&&!url.password){const link=node('a',t('Mở repository','Open repository'));link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';line.append(link);}}catch{}}
+    if(record?.commit||record?.files!=null){const detail=node('span',`${record.repo?'main · ':''}${record.commit?record.commit.slice(0,8)+' · ':''}${record.files||0} ${t('file','files')}`,'corp-git-meta');if(record.commit)detail.title=record.commit;line.append(detail);}
+    if(job){const button=node('button',busy?t('Đang xử lý…','Working…'):status==='error'?t('Thử lại Git','Retry Git'):t('Lưu mốc Git','Save Git checkpoint'),'btn small');button.type='button';button.disabled=busy||loading||!state?.enabled;button.onclick=()=>archive(job.id);line.append(button);}
+    const details=[];if(record?.skipped){const {excluded=0,unsupported=0,unsafe=0}=record.skipped;if(excluded+unsupported+unsafe)details.push(t(`Bỏ qua: ${excluded} mục riêng tư/ngoài phạm vi, ${unsupported} file chưa hỗ trợ, ${unsafe} file không an toàn.`,`Skipped: ${excluded} private/out-of-scope entries, ${unsupported} unsupported files, ${unsafe} unsafe files.`));}
+    if(record?.error)details.push(message(record.error)+(record.stage?` (${record.stage})`:''));if(notice)details.push(notice);
+    host.replaceChildren(line);host.dataset.state=status;host.setAttribute('aria-busy',String(busy));if(details.length){const detail=node('p',details.join(' '),'corp-git-note');detail.setAttribute('role','status');host.append(detail);}
+  }
+  async function refresh(force=false){if(loading||busy||!force&&!visible())return;loading=true;render();try{state=await request('');notice='';lastRefresh=Date.now();}catch(error){notice=error.message;}finally{loading=false;render();}}
+  async function archive(id){if(busy)return;busy=true;notice='';render();try{await request('/archive',{channel:'corp',id});}catch(error){notice=error.message;}finally{busy=false;const savedNotice=notice;await refresh(true);notice=savedNotice;render();}}
+  toggle.addEventListener('change',async()=>{if(busy)return;const enabled=toggle.checked;busy=true;notice='';render();try{state=await request('/settings',{enabled});}catch(error){notice=error.message;}finally{busy=false;render();}});
+  window.addEventListener('umibridge-orchestration',event=>{data=event.detail;render();if(visible()&&Date.now()-lastRefresh>20000)void refresh();});
+  $('corpProject')?.addEventListener('change',render);$('languageSelect')?.addEventListener('change',render);
+  window.addEventListener('hashchange',()=>{if(visible())void refresh();});document.addEventListener('visibilitychange',()=>{if(visible())void refresh();});
+  setInterval(()=>void refresh(),20000);render();void refresh(true);
+})();

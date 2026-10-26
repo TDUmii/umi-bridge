@@ -1,7 +1,7 @@
 (() => {
   const $ = id => document.getElementById(id), section = $('corp'), scene = $('corpScene');
   let data = null, busy = false, signature = '', first = true, corpTab = localStorage.getItem('umibridge.corp.tab') || 'office';
-  let ideaSending=false,ideaRequest=null,directSending=false,directRequest=null;
+  let ideaSending=false,ideaRequest=null,directSending=false,directRequest=null,specTab='goals';
   let folderPicking=null;
   let focusBootstrap=localStorage.getItem('umibridge.corp.bootstrap');
   const labels = { reported_complete:'Chờ kiểm chứng',failed:'Thất bại',queued:'Chờ giao việc', dispatching:'Đang gửi', running:'Chờ phản hồi', limit_wait:'Chờ reset hạn mức', blocked:'Cần kiểm tra', paused:'Tạm dừng', done:'Hoàn thành', cancelled:'Đã hủy' };
@@ -13,6 +13,7 @@
   reasons.idea_stage_blocked='Bộ phận báo chưa thể tiếp tục. Xem báo cáo để bổ sung thông tin hoặc kết nối công cụ.';
   reasons.idea_quality_failed='Chặng nghiệm thu chưa đạt. Xem các lỗi và bằng chứng, xử lý trước khi tiếp tục.';
   reasons.chat_outside_project='Chat đã rời Project. Đồng bộ và kiểm tra lại nhóm nhận việc.';
+  Object.assign(reasons,{invalid_project_spec:'Mỗi mục yêu cầu chi tiết tối đa 1.200 ký tự.',follow_up_requires_completed_project:'Chọn một phiên bản Corp đã hoàn thành để bổ sung.',project_has_open_work:'Project còn công việc chưa kết thúc. Hoàn tất hoặc hủy lượt cũ trước khi bổ sung.',pause_and_reconcile_before_feature_change:'Cần kiểm tra các lượt đang chạy trước khi bật điều phối song song.',project_requirements_too_long:'Yêu cầu quá dài. Rút gọn các mục chi tiết trước khi gửi.'});
   Object.assign(reasons,{folder_path_unavailable:'Không mở được thư mục. Kiểm tra đường dẫn và quyền truy cập.',invalid_parent_root:'Nhập đường dẫn thư mục tuyệt đối hợp lệ.',parent_folder_unavailable:'Thư mục không tồn tại hoặc không có quyền ghi.',project_folder_exists:'Thư mục dự án đã tồn tại. Bấm tạo lại để dùng thư mục riêng.'});
   const selectedProject = () => data?.workspaces.find(item => item.id === $('corpProject').value && item.kind === 'project');
   const scopedChats = () => selectedProject()?.chats || (data?.workspaces || []).filter(item => item.kind !== 'project');
@@ -92,6 +93,15 @@
   }
   function renderIdea(){
     if(!data)return;
+    if(!$('corpProjectSpecFields').children.length)for(const [key,value] of Object.entries(data.projectSpecDefaults||{})){
+      const label=node('label',data.projectSpecLabels?.[key]||key),input=node('textarea');input.rows=2;input.maxLength=1200;input.dataset.spec=key;input.placeholder=value;input.setAttribute('form','corpIdeaForm');label.dataset.specGroup=['audience','features','design'].includes(key)?'goals':['platform','technology','storage'].includes(key)?'technical':'acceptance';label.append(input);$('corpProjectSpecFields').append(label);
+    }
+    for(const label of $('corpProjectSpecFields').children)label.hidden=label.dataset.specGroup!==specTab;
+    for(const tab of $('corpSpecTabs').querySelectorAll('button'))tab.setAttribute('aria-pressed',String(tab.dataset.specTab===specTab));
+    for(const input of $('corpProjectSpecFields').querySelectorAll('textarea'))input.readOnly=ideaSending;
+    const completed=scopedRuns().filter(run=>run.status==='done'&&run.idea&&!run.arenaId),followSelect=$('corpFollowUpRun');
+    const completedKey=JSON.stringify(completed.map(run=>[run.id,run.title]));if(followSelect.dataset.choices!==completedKey){const old=followSelect.value;followSelect.replaceChildren(new Option(completed.length?'Chọn phiên bản đã xong':'Chưa có phiên bản đã xong',''));for(const run of [...completed].reverse())followSelect.add(new Option(run.title,run.id));followSelect.value=completed.some(run=>run.id===old)?old:completed.at(-1)?.id||'';followSelect.dataset.choices=completedKey;}
+    const followUp=$('corpIdeaTarget').value==='follow-up';$('corpFollowUpField').hidden=!followUp;followSelect.disabled=ideaSending;
     if(!$('corpReviewTeams').children.length){
       for(const row of data.productProfiles||[])$('corpProductProfile').add(new Option(row.name,row.id));
       for(const team of data.reviewTeams||[]){const label=node('label'),input=document.createElement('input'),words=node('span',team.department),small=node('small',team.checks);input.type='checkbox';input.value=team.id;input.onchange=renderIdea;words.append(small);label.append(input,words);$('corpReviewTeams').append(label);}
@@ -123,13 +133,13 @@
         if(!isNew&&!member)row.className='missing';if(!isNew&&member?.suggested)chat.append(node('small','Gợi ý theo tên chat'));row.append(name,chat);$('corpIdeaTeam').append(row);
       }
     }
-    const sequence=JSON.stringify(stages.map(stage=>stage.id));
-    if($('corpIdeaStages').dataset.sequence!==sequence){$('corpIdeaStages').dataset.sequence=sequence;$('corpIdeaStages').replaceChildren();for(const stage of stages)$('corpIdeaStages').append(node('li',stage.title));}
+    const parallel=$('corpParallel').checked,sequence=JSON.stringify([parallel,stages.map(stage=>stage.id)]);
+    if($('corpIdeaStages').dataset.sequence!==sequence){$('corpIdeaStages').dataset.sequence=sequence;$('corpIdeaStages').replaceChildren();const groups=parallel?mode==='plan'?['Sản phẩm + Thiết kế cùng làm','CEO đối chiếu và chốt kế hoạch']:['Sản phẩm + Thiết kế cùng làm','CEO chốt kế hoạch','Kỹ thuật triển khai','QA + Bảo mật + đội kiểm thử cùng rà soát','Kỹ thuật sửa theo nhận xét','QA cuối + DevOps + Tài liệu cùng kiểm tra','CEO tổng hợp bàn giao']:stages.map(stage=>stage.title);for(const title of groups)$('corpIdeaStages').append(node('li',title));}
     $('corpIdeaStagesTitle').textContent=`${stages.length} chặng thực hiện`;
     $('corpIdeaProcessNote').textContent=mode==='build'?'Có vòng sửa lỗi và nghiệm thu lại, tối đa 2 vòng sửa. Quy trình dừng nếu kiểm thử cuối chưa đạt hoặc một bộ phận bị chặn. Chạy thử và bàn giao ở local.':'Ba chặng tạo brief chi tiết, thiết kế giải pháp và kế hoạch triển khai, được lưu thành tệp trong thư mục dự án.';
     $('corpIdeaDispatch').textContent=data.enabled?'':'Điều phối tắt · lưu tạm dừng.';$('corpIdeaDispatch').hidden=!$('corpIdeaDispatch').textContent;
-    $('corpIdeaSubmit').textContent=ideaSending?'Đang tạo...':isNew?'Tạo Project':data.enabled?'Tạo và bắt đầu':'Tạo quy trình';
-    $('corpIdeaSubmit').disabled=ideaSending||!!folderPicking||!stages.length||(isNew?!data.paired||!supported:!project||!project.root||!!missing.length);
+    $('corpIdeaSubmit').textContent=ideaSending?'Đang tạo...':followUp?'Gửi yêu cầu bổ sung':isNew?'Tạo Project':data.enabled?'Tạo và bắt đầu':'Tạo quy trình';
+    $('corpIdeaSubmit').disabled=ideaSending||!!folderPicking||!stages.length||(isNew?!data.paired||!supported:!project||!project.root||!!missing.length)||(followUp&&!followSelect.value);
     $('corpIdeaConfigure').hidden=isNew;$('corpIdeaRun').closest('label').hidden=!isNew;
     $('corpIdeaConfigure').disabled=!project||ideaSending;
     renderDirectBrief();
@@ -224,8 +234,8 @@
     syncScene(); sizeWorkspace();
   }
   function render() {
-    if(data)window.dispatchEvent(new CustomEvent('umibridge-orchestration',{detail:data}));
     renderScope();
+    if(data)window.dispatchEvent(new CustomEvent('umibridge-orchestration',{detail:data}));
     renderBootstraps();
     $('corpEnabled').textContent = 'Điều phối: ' + (data.enabled ? 'Bật' : 'Tắt'); $('corpEnabled').setAttribute('aria-pressed', String(data.enabled));
     $('corpOffice').textContent = 'Văn phòng: ' + (data.office ? 'Bật' : 'Tắt'); $('corpOffice').setAttribute('aria-pressed', String(data.office)); scene.hidden = !data.office;$('corpOfficeEmpty').hidden=data.office;
@@ -247,6 +257,7 @@
         const header=node('header',undefined,'corp-run-heading'),who=node('div');who.append(node('h4',run.customerName||'Khách chưa đặt tên'),node('p',run.title,'corp-customer-task'));
         header.append(who,node('span',labels[activeStep?.status]||labels[run.status]||run.status,'corp-status'));article.append(header);
         const meter=node('div',undefined,'corp-run-meter'),progress=node('progress');progress.max=run.steps.length;progress.value=completed;progress.setAttribute('aria-label','Tiến độ công việc');meter.append(progress,node('span',completed+'/'+run.steps.length+' chặng'));article.append(meter);
+        const working=run.steps.filter(step=>['running','dispatching'].includes(step.status));if(working.length>1)article.append(node('p','Đang làm đồng thời: '+working.map(step=>step.title||step.role).join(' · '),'corp-run-parallel'));
         if(activeStep){const focus=node('section',undefined,'corp-run-focus');focus.dataset.state=activeStep.status;focus.append(node('h5',activeStep.title||activeStep.role),node('p',activeStep.role));if(activeStep.reason)focus.append(node('p',reasons[activeStep.reason]||activeStep.reason,'corp-reason'));article.append(focus);}
         if(run.idea){
           const index=run.steps.findIndex(step=>!['done','cancelled'].includes(step.status));
@@ -267,6 +278,7 @@
           steps.append(li);
         }
         journey.append(steps);article.append(journey); const actions = node('div', undefined, 'actions'), current = run.steps.find(step => !['done','cancelled'].includes(step.status));
+        if(run.status==='done'&&run.idea&&!run.arenaId)actions.append(button('Yêu cầu bổ sung',()=>{setCorpTab('idea');$('corpIdeaTarget').value='follow-up';renderIdea();$('corpFollowUpRun').value=run.id;const spec=run.idea.projectSpec||{};for(const field of $('corpProjectSpecFields').querySelectorAll('textarea'))field.value=spec[field.dataset.spec]||'';$('corpIdeaText').value='';$('corpIdeaText').placeholder='Mô tả tính năng muốn thêm hoặc thay đổi trên sản phẩm hiện có...';$('corpIdeaText').focus();}));
         if (!['done','cancelled'].includes(run.status)) {
           const start = button(run.status === 'running' ? 'Tạm dừng' : 'Bắt đầu', () => act('/runs/' + run.id + '/' + (run.status === 'running' ? 'pause' : 'start')));
           start.disabled = run.status !== 'running' && (!data.enabled || current?.status === 'blocked'); actions.append(start);
@@ -304,16 +316,19 @@
   $('corpIdeaMode').onchange=renderIdea;
   $('corpProductProfile').onchange=renderIdea;
   $('corpIdeaTarget').onchange=renderIdea;
+  $('corpParallel').onchange=renderIdea;
+  $('corpSpecTabs').onclick=event=>{const button=event.target.closest('[data-spec-tab]');if(button){specTab=button.dataset.specTab;renderIdea();}};
   $('corpIdeaBrowse').onclick=()=>window.umiFolderDialog.open('corpIdeaParentRoot','corpIdeaBrowse','corpIdeaFolderStatus');
   $('corpIdeaParentRoot').oninput=()=>window.umiFolderDialog.remember($('corpIdeaParentRoot'));
   window.addEventListener('umibridge-folder-dialog',event=>{if(event.detail.inputId==='corpIdeaParentRoot'){folderPicking=event.detail.open?'corpIdeaParentRoot':null;renderIdea();}});
   $('corpIdeaForm').onsubmit=async event=>{
     event.preventDefault();if(ideaSending||directSending||folderPicking)return;const project=selectedProject(),isNew=$('corpIdeaTarget').value==='new';if(!isNew&&!project)return;
-    const value={...(isNew?{parentRoot:$('corpIdeaParentRoot').value.trim()}:{workspaceId:project.id}),cleanupAfterDelivery:$('corpCleanupAfterDelivery').checked,customerName:$('corpIdeaCustomer').value.trim(),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,productProfile:$('corpProductProfile').value||'general',productGoal:$('corpProductGoal').value.trim(),reviewTeams:[...$('corpReviewTeams').querySelectorAll('input:checked')].map(input=>input.value),start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked}:{})};
+    const followUp=$('corpIdeaTarget').value==='follow-up',projectSpec=Object.fromEntries([...$('corpProjectSpecFields').querySelectorAll('textarea')].map(field=>[field.dataset.spec,field.value.trim()]));
+    const value={...(isNew?{parentRoot:$('corpIdeaParentRoot').value.trim()}:{workspaceId:project.id}),parallel:$('corpParallel').checked,projectSpec,cleanupAfterDelivery:$('corpCleanupAfterDelivery').checked,customerName:$('corpIdeaCustomer').value.trim(),idea:$('corpIdeaText').value.trim(),mode:$('corpIdeaMode').value,productProfile:$('corpProductProfile').value||'general',productGoal:$('corpProductGoal').value.trim(),reviewTeams:[...$('corpReviewTeams').querySelectorAll('input:checked')].map(input=>input.value),start:data.enabled,...(isNew?{runAfterSetup:$('corpIdeaRun').checked}:{})};
     if(isNew)window.umiFolderDialog.remember($('corpIdeaParentRoot'));
     const signature=JSON.stringify(value);if(ideaRequest?.signature!==signature)ideaRequest={signature,key:crypto.randomUUID()};
     ideaSending=true;$('corpIdeaForm').setAttribute('aria-busy','true');$('corpIdeaText').readOnly=true;$('corpIdeaCustomer').readOnly=true;$('corpIdeaMode').disabled=true;$('corpIdeaTarget').disabled=true;$('corpProject').disabled=true;renderIdea();$('corpIdeaError').hidden=true;
-    try {const result=await api(isNew?'/projects':'/ideas',{...value,requestKey:ideaRequest.key});if(isNew){focusBootstrap=result.id;localStorage.setItem('umibridge.corp.bootstrap',result.id);}await load();$('corpIdeaText').value='';ideaRequest=null;setCorpTab('queue');$('corpRunFilter').value='active';render();}
+    try {const result=await api(followUp?'/runs/'+$('corpFollowUpRun').value+'/follow-up':isNew?'/projects':'/ideas',{...value,requestKey:ideaRequest.key});if(isNew){focusBootstrap=result.id;localStorage.setItem('umibridge.corp.bootstrap',result.id);}await load();$('corpIdeaText').value='';ideaRequest=null;setCorpTab('queue');$('corpRunFilter').value='active';render();}
     catch(cause){if(cause.code==='project_folder_exists')ideaRequest=null;$('corpIdeaError').textContent=cause.message;$('corpIdeaError').hidden=false;}
     finally{ideaSending=false;$('corpIdeaForm').setAttribute('aria-busy','false');$('corpIdeaText').readOnly=false;$('corpIdeaCustomer').readOnly=false;$('corpIdeaMode').disabled=false;$('corpIdeaTarget').disabled=false;$('corpProject').disabled=false;renderIdea();}
   };

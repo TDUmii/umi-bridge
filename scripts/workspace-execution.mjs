@@ -5,6 +5,8 @@ import {spawn} from 'node:child_process';
 import {atomicJson,backupBeforeMigration} from './orchestration-state.mjs';
 
 const hash=value=>createHash('sha256').update(value).digest('hex');
+export const verificationScope = evidence => evidence?.checks?.some(check=>check.type==='command')?'command_execution':evidence?.checks?.length?'artifact_integrity':'unverified';
+const publicEvidence = row => structuredClone({...row,scope:verificationScope(row)});
 const within=(root,path)=>{const delta=relative(root,path);return delta===''||delta!=='..'&&!delta.startsWith('../')&&!delta.startsWith('..\\')&&!isAbsolute(delta);};
 const same=(a,b)=>process.platform==='win32'?a.toLowerCase()===b.toLowerCase():a===b;
 const overlap=(a,b)=>within(a,b)||within(b,a);
@@ -75,7 +77,7 @@ export async function createWorkspaceExecution(stateDir,{clock=Date.now,completi
     state.receipts.push(row);return row;
   };
   return {
-    evidence:(id,projectId)=>{const row=state.verifications.find(row=>row.id===id&&row.projectId===projectId);if(!row)throw Error('project_evidence_not_found');return structuredClone(row);},
+    evidence:(id,projectId)=>{const row=state.verifications.find(row=>row.id===id&&row.projectId===projectId);if(!row)throw Error('project_evidence_not_found');return publicEvidence(row);},
     hasWrite:(taskId,root,path)=>state.receipts.some(row=>row.taskId===taskId&&row.operation==='write_file'&&same(resolve(root,row.path),resolve(root,path))),
     completion:id=>serial(async()=>{
       const lease=leaseFor(id);if(lease.status!=='active'||!lease.completionPath)return null;
@@ -87,7 +89,7 @@ export async function createWorkspaceExecution(stateDir,{clock=Date.now,completi
       if(value.taskId!==lease.taskId||value.attemptId!==lease.attemptId||!value.result||typeof value.result!=='object'||Array.isArray(value.result))return null;
       return structuredClone(value.result);
     }),
-    snapshot:()=>({leases:state.leases.map(publicLease),receipts:structuredClone(state.receipts.slice(-200)),verifications:structuredClone(state.verifications.slice(-200))}),
+    snapshot:()=>({leases:state.leases.map(publicLease),receipts:structuredClone(state.receipts.slice(-200)),verifications:state.verifications.slice(-200).map(publicEvidence)}),
     issue:input=>transaction(async()=>{
       if(state.leases.some(row=>row.attemptId===input.attemptId&&row.status==='active'))throw Error('attempt_lease_exists');
       const active=state.leases.filter(row=>row.status==='active');
@@ -164,7 +166,7 @@ export async function createWorkspaceExecution(stateDir,{clock=Date.now,completi
         ||sourceBefore.files.some(row=>!lease.writes.some(scope=>within(scope,resolve(lease.root,row.path)))&&!lease.source.files.some(old=>old.path===row.path));
       if(changedRead.some(Boolean)||changedOutsideScope){
         const row={id:randomUUID(),projectId:lease.projectId,runId:lease.runId,taskId:lease.taskId,attemptId:lease.attemptId,workerId:lease.workerId,at:clock(),files:[],checks:[],sourceHash:sourceBefore.sha256,status:'stale',reason:'workspace_changed_during_task'};
-        state.verifications.push(row);return structuredClone(row);
+        row.scope=verificationScope(row);state.verifications.push(row);return publicEvidence(row);
       }
       if(!Array.isArray(artifacts)||artifacts.length>80||!Array.isArray(criteria)||!criteria.length||criteria.length>40)throw Error('invalid_verification');
       for(const path of artifacts){const target=await canonicalWorkspacePath(lease.root,path);if(privateTarget(lease.root,target)||!lease.reads.some(scope=>within(scope,target)))throw Error('workspace_scope_denied');const sha256=await fileHash(target);if(!sha256)throw Error('evidence_artifact_missing');files.push({path,sha256});}
@@ -195,6 +197,7 @@ export async function createWorkspaceExecution(stateDir,{clock=Date.now,completi
         status:sourceBefore.sha256!==sourceAfter.sha256?'stale':checks.every(row=>row.pass)?'verified':'failed'};
       // Export actual engine output inside the workspace for the next reviewer.
       // Reports are excluded from source hashes; they never count as source edits.
+      row.scope=verificationScope(row);
       row.receiptPath=`.umibridge-projects/verification/${row.id}.json`;
       const receiptFile=await canonicalWorkspacePath(lease.root,row.receiptPath);
       await mkdir(dirname(receiptFile),{recursive:true});await canonicalWorkspacePath(lease.root,receiptFile);
@@ -205,7 +208,7 @@ export async function createWorkspaceExecution(stateDir,{clock=Date.now,completi
       const row=state.verifications.find(row=>row.id===id);if(!row)throw Error('evidence_not_found');
       if(row.checks.some(check=>check.type!=='artifact')&&(await sourceSnapshot(root,{exclude:row.snapshotExcludes||[]})).sha256!==row.sourceHash)row.status='stale';
       for(const artifact of row.files)if(await fileHash(await canonicalWorkspacePath(root,artifact.path))!==artifact.sha256)row.status='stale';
-      return structuredClone(row);
+      return publicEvidence(row);
     }),
     close:()=>queue,
   };

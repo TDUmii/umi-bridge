@@ -1,0 +1,12 @@
+#corpGitSummary{flex:none;min-width:0;padding:7px 0;border-bottom:1px solid var(--line);margin:0 0 8px;color:var(--muted);font-size:11px;line-height:1.5}
+#corpGitSummary .corp-git-line{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;min-width:0}
+#corpGitSummary strong{color:var(--ink);font-size:11px;white-space:nowrap}
+#corpGitSummary .corp-git-state{min-width:0;overflow-wrap:anywhere}
+#corpGitSummary a{color:var(--ink);text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}
+#corpGitSummary .corp-git-meta{font-variant-numeric:tabular-nums;white-space:nowrap}
+#corpGitSummary .btn{margin-left:auto;min-height:30px;padding:5px 9px;font-size:11px;white-space:nowrap}
+#corpGitSummary .corp-git-note{margin:4px 0 0;max-width:100%;overflow-wrap:anywhere;font-size:11px}
+#corpGitSummary[data-state=error] .corp-git-state{color:var(--ink);font-weight:600}
+#corpGitSummary a:focus-visible,#corpGitSummary button:focus-visible,#corpGitSettingsToggle:focus-visible{outline:2px solid var(--user-accent,var(--ink));outline-offset:3px}
+#corpGitSettingsToggle{accent-color:var(--user-accent);width:auto;flex:none}
+@media(max-width:760px){#corpGitSummary .corp-git-line{gap:6px 9px}#corpGitSummary .corp-git-state{flex-basis:calc(100% - 85px)}#corpGitSummary .btn{margin-left:0}}

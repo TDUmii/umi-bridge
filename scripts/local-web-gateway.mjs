@@ -78,13 +78,15 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
   const orchestration=await createOrchestrationState(resolve(configDir,'..'),corpClock?{clock:corpClock}:{});
   const execution=await createWorkspaceExecution(resolve(configDir,'..'),{...(corpClock?{clock:corpClock}:{}),completionMigration:orchestration.settings().flags.evidenceGateEnabled});
   const addCorpWorkspace=async item=>{let link;try{link=parseProjectLink(item.chatUrl);}catch{link=parseChatLink(item.chatUrl);}if(link.projectId&&arena.snapshot().arenas.some(row=>row.projectId===link.projectId))throw Error('arena_project_reserved');return chatLinks.addWorkspace(item);};
-  const corp = await createCorpRuntime(resolve(configDir, '..', 'corp-state.json'), { skillLibrary,orchestration,execution,workspaces: () => chatLinks.workspaces(), createWorkspace:addCorpWorkspace, syncProject:input=>chatLinks.syncProject(input), ...(corpClock ? { clock: corpClock } : {}),...(corpProjectsRoot?{projectsRoot:corpProjectsRoot}:{}) });
+  let verifiedCheckpoint=async()=>{};
+  const corp = await createCorpRuntime(resolve(configDir, '..', 'corp-state.json'), { onVerified:(run,step)=>verifiedCheckpoint(run,step),skillLibrary,orchestration,execution,workspaces: () => chatLinks.workspaces(), createWorkspace:addCorpWorkspace, syncProject:input=>chatLinks.syncProject(input), ...(corpClock ? { clock: corpClock } : {}),...(corpProjectsRoot?{projectsRoot:corpProjectsRoot}:{}) });
   const arena = await createArenaRuntime(resolve(configDir,'..','arena-state.json'),{orchestration,execution,browserCatalog:()=>corp.snapshot().modelCatalog,authenticate:token=>corp.authenticate(token),isPaired:()=>corp.snapshot().paired,projectAllowed:id=>!chatLinks.workspaces().some(project=>project.projectId===id),...(corpClock?{clock:corpClock}:{}),...((arenaProjectsRoot||corpProjectsRoot)?{projectsRoot:arenaProjectsRoot||corpProjectsRoot}:{})});
   const generatedProjects=()=>[
     ...corp.snapshot().bootstraps.map(job=>({...job,channel:'corp',busy:job.status==='running'||corp.snapshot().runs.some(run=>run.workspaceId===job.workspaceId&&run.status==='running'),completed:corp.snapshot().runs.some(run=>run.id===job.runId&&run.status==='done')})),
     ...arena.snapshot().arenas.map(item=>({...item,channel:'arena',chats:arena.snapshot().bootstraps.find(job=>job.arenaId===item.id)?.chats||[],busy:item.status==='running'||arena.snapshot().bootstraps.some(job=>job.arenaId===item.id&&job.status==='running'),completed:item.status==='done'}))
   ];
   const generatedGit=await createGeneratedProjectGit(resolve(configDir,'..','generated-git'),{projects:generatedProjects});
+  verifiedCheckpoint=async(run,step)=>{const job=corp.snapshot().bootstraps.find(row=>row.workspaceId===run.workspaceId);if(job)await generatedGit.checkpoint({channel:'corp',id:job.id,checkpoint:`${run.id}:${step.id}:${step.attempt}`});};
   const lifecycleProjects=()=>[...generatedProjects().map(project=>({...project,chats:(project.chats||[]).map(chat=>({...chat,name:chatLinks.workspaces().find(workspace=>workspace.projectId===project.projectId)?.chats.find(member=>member.chatId===chat.chatId)?.name||chat.name}))})),...chatLinks.workspaces().filter(row=>row.kind==='project'&&!generatedProjects().some(item=>item.projectId===row.projectId)).map(row=>({...row,channel:'corp',busy:corp.snapshot().runs.some(run=>run.workspaceId===row.id&&run.status==='running')}))].flatMap(project=>{const removed=(project.channel==='arena'?arena:corp).deletedTargets().filter(row=>row.projectId===project.projectId);if(removed.some(row=>!row.chatId))return [];return [{...project,chats:(project.chats||[]).filter(chat=>!removed.some(row=>row.chatId===chat.chatId))}];});
   const lifecycle=createProjectLifecycle({projects:lifecycleProjects,onDeleted:async target=>{
     await (target.channel==='arena'?arena:corp).recordDeletion(target);
@@ -466,10 +468,21 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.post('/admin/api/corp/pair', localAdmin, adminWrite, corpHandler(pairBrowser));
     app.post('/admin/api/corp/revoke', localAdmin, adminWrite, corpHandler(revokeBrowser));
     app.post('/admin/api/corp/runs', localAdmin, adminWrite, corpJson, corpHandler(req => corp.create(req.body ?? {})));
-    app.post('/admin/api/corp/ideas', localAdmin, adminWrite, corpJson, corpHandler(req => corp.idea(req.body ?? {})));
+    const prepareCorp=async input=>{
+      if(input.parallel!==true)return;
+      if(typeof input.idea!=='string'||input.idea.trim().length<4||input.idea.trim().length>8000||typeof input.requestKey!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestKey))return;
+      const flags=orchestration.settings().flags;if(flags.dagSchedulerEnabled)return;
+      await corp.prepareOrchestration();await orchestration.update({flags:{dagSchedulerEnabled:true,workspaceLocksEnabled:true,evidenceGateEnabled:true,workerHealthEnabled:true}});
+    };
+    app.post('/admin/api/corp/ideas', localAdmin, adminWrite, corpJson, corpHandler(async req => {await prepareCorp(req.body??{});return corp.idea(req.body ?? {});}));
+    app.post('/admin/api/corp/runs/:id/follow-up',localAdmin,adminWrite,corpJson,corpHandler(async req=>{
+      const previous=corp.snapshot().runs.find(row=>row.id===req.params.id);if(!previous||previous.status!=='done'||!previous.idea||previous.arenaId)throw Error('follow_up_requires_completed_project');
+      await prepareCorp(req.body??{});
+      return corp.idea({...req.body,workspaceId:previous.workspaceId,parentRunId:previous.id,projectSpec:req.body.projectSpec??previous.idea.projectSpec,reviewTeams:req.body.reviewTeams??previous.idea.reviewTeams,productProfile:req.body.productProfile??previous.idea.productProfile,productGoal:req.body.productGoal??previous.idea.productGoal});
+    }));
     app.post('/admin/api/corp/arenas', localAdmin, adminWrite, (_req,res)=>res.status(410).json({error:'arena_moved',path:'/admin/api/arena/arenas'}));
     app.post('/admin/api/corp/arenas/:id/:action', localAdmin, adminWrite, (_req,res)=>res.status(410).json({error:'arena_moved',path:'/admin/api/arena/arenas'}));
-    app.post('/admin/api/corp/projects', localAdmin, adminWrite, corpJson, corpHandler(req => {if(req.body?.kind==='arena')throw Error('arena_moved');return corp.bootstrap(req.body ?? {});}));
+    app.post('/admin/api/corp/projects', localAdmin, adminWrite, corpJson,corpHandler(async req=>{if(req.body?.kind==='arena')throw Error('arena_moved');await prepareCorp(req.body??{});return corp.bootstrap(req.body??{});}));
     app.post('/admin/api/corp/projects/:id/:action', localAdmin, adminWrite, corpJson, corpHandler(req => corp.bootstrapAction(req.params.id,req.params.action)));
     app.post('/admin/corp/bridge/bootstrap-authorize', localAdmin, corpJson, corpHandler(req=>corp.bootstrapAuthorize(String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{})));
     app.post('/admin/corp/bridge/bootstrap-report', localAdmin, corpJson, corpHandler(req=>corp.bootstrapReport(String(req.headers.authorization??'').replace(/^Bearer /,''),req.body??{})));
@@ -479,7 +492,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
         const token = String(req.headers.authorization ?? '').replace(/^Bearer /, '');
         if(action==='poll'&&!/^([1-9]\d*\.|0\.([7-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||'')){return corp.poll(token,{...(req.body??{}),suppressDispatch:true});}
         const result = await corp[action](token, req.body ?? {});
-        if(action==='report')checkpoint('corp',req.body??{});
+        if(action==='report'&&!result.ignored&&!orchestration.settings().flags.evidenceGateEnabled)checkpoint('corp',req.body??{});
         if(action==='poll'&&corp.snapshot().modelPreference){if(result.command&&!result.command.modelPreference)result.command.modelPreference=corp.snapshot().modelPreference;if(result.bootstrap)result.bootstrap.modelPreference=corp.snapshot().modelPreference;}
         return action === 'poll' ? { ...result,lifecycle:/^(?:[1-9]\d*\.|0\.(?:[8-9]|[1-9]\d)\.)/.test(req.body?.extensionVersion||'')?lifecycle.poll():null, modelScan:corp.snapshot().modelScan, resetGeneration:corp.snapshot().resetGeneration, projects: chatLinks.workspaces().filter(item => item.kind === 'project' && !corp.snapshot().bootstraps.some(job=>job.workspaceId===item.id&&!['done','cancelled'].includes(job.status))).map(({id, projectId, chatUrl, sync}) => ({id, projectId, chatUrl, requested: sync.requested})) } : result;
       }));
@@ -494,7 +507,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       next();
     }, express.static(resolve(ROOT, 'scripts/corp-office'), { dotfiles: 'deny', index: 'index.html' }));
     app.use('/admin/arena/assets', localAdmin, express.static(resolve(ROOT, 'scripts/arena-assets'), {dotfiles:'deny', index:false}));
-    for (const asset of ['orchestration-dashboard.js','orchestration-dashboard.css','help-center.js', 'model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
+    for (const asset of ['corp-git-ui.js','corp-git-ui.css','orchestration-dashboard.js','orchestration-dashboard.css','help-center.js', 'model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
       app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
     }
     const workflowAvailable = (_req, res, next) => {

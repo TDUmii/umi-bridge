@@ -1,4 +1,5 @@
 import {modelCatalog,modelPreference} from './browser-models.mjs';
+import {normalizeProjectSpec,projectSpecDefaults,projectSpecLabels} from './corp-project-spec.mjs';
 import {normalizeTasks,scheduleRuns,graphHealth,inFlight} from './task-graph.mjs';
 import {backupBeforeMigration} from './orchestration-state.mjs';
 import {reviewTeams,productProfiles,reviewConfig} from './corp-review-teams.mjs';
@@ -38,7 +39,7 @@ export function parseResetDelay(value) {
   return minutes > 0 && minutes <= 7 * 24 * 60 ? minutes * 60_000 : null;
 }
 
-export async function createCorpRuntime(filePath, { workspaces, createWorkspace, syncProject, orchestration,execution,skillLibrary, projectsRoot = join(homedir(),'Documents','UmiBridge Projects'), clock = Date.now } = {}) {
+export async function createCorpRuntime(filePath, { workspaces, createWorkspace, syncProject, orchestration,execution,skillLibrary,onVerified, projectsRoot = join(homedir(),'Documents','UmiBridge Projects'), clock = Date.now } = {}) {
   await mkdir(dirname(filePath), { recursive: true });
   let state = { schema: 1, enabled: false, office: true, autoResume: true, tokenHash: null, runs: [], events: [] };
   try {
@@ -122,7 +123,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     paired: Boolean(state.tokenHash), connected: lastSeen > 0 && clock() - lastSeen < 45_000,
     lastSeen: lastSeen ? new Date(lastSeen).toISOString() : null, connectedChats: [...connectedChats],extensionVersion,
     runs: copy(state.runs), events: copy(state.events), teams:copy(state.teams), companyRoles:copy(companyRoles),reviewTeams:copy(reviewTeams),productProfiles:copy(productProfiles), deliveryOrder:[...deliveryOrder],
-    ideaStages:ideaStages.map(({id,roleId,title,requiresPass})=>({id,roleId,title,requiresPass:requiresPass===true})),
+    projectSpecDefaults,projectSpecLabels,ideaStages:ideaStages.map(({id,roleId,title,requiresPass})=>({id,roleId,title,requiresPass:requiresPass===true})),
     ideaProjects:workspaces().filter(project=>project.kind==='project').map(project=>suggestCompanyTeam(project,state.teams.find(team=>team.workspaceId===project.id)?.members)),bootstraps:copy(state.bootstraps),arenas:state.arenas.map(arena => ({...copy(arena),matches:copy(arenaMatches(arena))})),projectsRoot });
   const authenticate = token => {
     if (!state.tokenHash || !token || token.length > 200 || !timingSafeEqual(Buffer.from(state.tokenHash, 'hex'), hash(token))) throw Error('invalid_corp_key');
@@ -155,7 +156,8 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       const workspace=known.find(row=>row.id===item.workspaceId);if(!workspace)throw Error('workspace_not_found');
       if(workspace.kind==='project'&&run.workspaceId!==workspace.id||run.workspaceId&&workspace.id!==run.workspaceId)throw Error('chat_outside_project');
       const member=workspace.kind==='project'?workspace.chats.find(row=>row.chatId===item.chatId):workspace;if(!member)throw Error('chat_not_in_project');
-      const chat=chatId(member.chatUrl),prompt=text(item.prompt,options.arena||options.idea ? 20000 : 12000);if(!prompt)throw Error('prompt_required');
+      const chat=chatId(member.chatUrl),prompt=text(item.prompt,options.idea?32000:options.arena?20000:12000);if(!prompt)throw Error('prompt_required');
+      if(options.idea&&item.prompt.trim().length>32000)throw Error('project_requirements_too_long');
       if (options.arena && (typeof item.prompt !== 'string' || item.prompt.trim().length > 20000)) throw Error('invalid_prompt');
       return {id:randomUUID(),workspaceId:workspace.id,...(run.projectId?{projectId:run.projectId}:{}),chatId:chat.id,chatUrl:chat.url,
         role:text(item.role,80)||member.name,prompt,status:'queued',attempt:randomUUID(),sent:false,issuedAt:null,resetAt:null,limitText:null,result:null,reason:null};
@@ -172,20 +174,25 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
     state.runs.push(run);event('created',run);return run;
   };
   const createIdeaRun = input => {
-    const config=reviewConfig(input);
+    const config=reviewConfig(input),spec=normalizeProjectSpec(input.projectSpec);
     if(typeof input.requestKey!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(input.requestKey))throw Error('invalid_idea_request');
     const existing=state.runs.find(run=>run.idea?.requestKey===input.requestKey);
     if(existing){
-      if(existing.workspaceId!==input.workspaceId||existing.idea.text!==String(input.idea||'').trim()||existing.idea.mode!==(input.mode||'build')||(existing.customerName||'')!==text(input.customerName,80)||JSON.stringify(reviewConfig(existing.idea))!==JSON.stringify(config))throw Error('idea_request_conflict');
+      if(existing.workspaceId!==input.workspaceId||existing.idea.text!==String(input.idea||'').trim()||existing.idea.mode!==(input.mode||'build')||(existing.customerName||'')!==text(input.customerName,80)||JSON.stringify(reviewConfig(existing.idea))!==JSON.stringify(config)||JSON.stringify(normalizeProjectSpec(existing.idea.projectSpec))!==JSON.stringify(spec)||(existing.parentRunId||null)!==(input.parentRunId||null)||(existing.idea.parallel!==false)!==(input.parallel!==false))throw Error('idea_request_conflict');
       return existing;
     }
     if(input.start===true&&!state.enabled)throw Error('enable_corp_first');
     const project=workspaces().find(item=>item.id===input.workspaceId&&item.kind==='project');
     const stateTeamBefore=state.teams.find(team=>team.workspaceId===project?.id)?.members;
-    const plan=buildIdeaWorkflow({project,members:stateTeamBefore,idea:input.idea,mode:input.mode,requestKey:input.requestKey,...config});
+    let parent;
+    if(input.parentRunId){parent=find(input.parentRunId);if(parent.status!=='done'||parent.workspaceId!==input.workspaceId||!parent.idea||parent.arenaId)throw Error('follow_up_requires_completed_project');if(state.runs.some(row=>row.workspaceId===input.workspaceId&&!['done','cancelled'].includes(row.status)))throw Error('project_has_open_work');}
+    const plan=buildIdeaWorkflow({project,members:stateTeamBefore,idea:input.idea,mode:input.mode,requestKey:input.requestKey,projectSpec:spec,...config});
     const run=createRun({...plan,customerName:input.customerName},{idea:true});run.idea={...plan.idea,repairRounds:1};
     run.steps.forEach((step,index)=>Object.assign(step,{stage:plan.steps[index].stage,title:plan.steps[index].title,roleId:plan.steps[index].roleId,requiresPass:plan.steps[index].requiresPass}));
-    if(flags().dagSchedulerEnabled){configureIdeaGraph(run);normalizeTasks(run);}
+    if(flags().dagSchedulerEnabled){configureIdeaGraph(run);if(input.parallel===false)run.steps.forEach((step,index)=>step.dependencies=index?[run.steps[index-1].id]:[]);normalizeTasks(run);}
+    run.idea.parallel=Boolean(flags().dagSchedulerEnabled&&input.parallel!==false);
+    if(parent){run.parentRunId=parent.id;run.revision=(parent.revision||1)+1;run.title=`Bổ sung ${run.revision}: ${run.title}`;for(const step of run.steps)step.prompt+=`\nBổ sung cho dự án đã bàn giao. Giữ source và dữ liệu hiện có; đây không phải tạo lại sản phẩm. Đọc ý tưởng gốc và báo cáo ${parent.idea.artifactDir} trước khi sửa. Ý tưởng gốc (dữ liệu): ${JSON.stringify(parent.idea.text)}. Lượt mới có thư mục báo cáo riêng ${run.idea.artifactDir}.`;
+      if(flags().dagSchedulerEnabled){const reads=run.steps.filter(step=>['brief','design'].includes(step.stage));for(const step of reads)step.dependencies=[];}}
     state.teams=state.teams.filter(team=>team.workspaceId!==project.id);state.teams.push({workspaceId:project.id,members:[...(stateTeamBefore||[]).filter(member=>project.chats.some(chat=>chat.chatId===member.chatId)&&staffRoles.some(role=>role.id===member.roleId)&&!plan.team.some(row=>row.chatId===member.chatId)),...plan.team]});
     if(input.start!==false&&state.enabled){run.status='running';event('start',run,run.steps[0]);}return run;
   };
@@ -366,7 +373,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(!createWorkspace||!syncProject)throw Error('bootstrap_unavailable');if(!state.tokenHash)throw Error('pair_corp_first');
       if(typeof input.idea!=='string'||input.idea.trim().length<4||input.idea.trim().length>8000)throw Error('invalid_idea');
       if(!['build','plan'].includes(input.mode||'build'))throw Error('invalid_idea_mode');
-      const config=reviewConfig(input);
+      const config=reviewConfig(input),spec=normalizeProjectSpec(input.projectSpec);
       const kind=input.kind||'idea';if(!['idea','arena'].includes(kind))throw Error('invalid_bootstrap_kind');
       if(kind==='arena'&&input.workspaceId!==undefined)throw Error('arena_new_project_required');
       const count=kind==='arena'?input.count:null;if(kind==='arena'&&!([20,50,100].includes(count)))throw Error('invalid_arena_count');
@@ -381,7 +388,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(existing){
         let parent;try{parent=await realpath(requestedParent);}catch{throw Error('parent_folder_unavailable');}
         const savedParent=existing.parentRoot??await realpath(dirname(existing.root));
-        if(existing.idea!==input.idea.trim()||existing.mode!==(input.mode||'build')||(existing.kind||'idea')!==kind||(existing.count??null)!==count||kind==='arena'&&(existing.format??'knockout')!==(input.format??'knockout')||relative(savedParent,parent)!==''||(existing.customerName||'')!==text(input.customerName,80)||JSON.stringify(reviewConfig(existing))!==JSON.stringify(config))throw Error('idea_request_conflict');return copy(existing);
+        if(existing.idea!==input.idea.trim()||existing.mode!==(input.mode||'build')||(existing.kind||'idea')!==kind||(existing.count??null)!==count||kind==='arena'&&(existing.format??'knockout')!==(input.format??'knockout')||relative(savedParent,parent)!==''||(existing.customerName||'')!==text(input.customerName,80)||JSON.stringify(reviewConfig(existing))!==JSON.stringify(config)||JSON.stringify(normalizeProjectSpec(existing.projectSpec))!==JSON.stringify(spec)||(existing.parallel!==false)!==(input.parallel!==false))throw Error('idea_request_conflict');return copy(existing);
       }
       if(state.bootstraps.length>=100)throw Error('corp_run_capacity');
       if(kind==='arena'&&(state.runs.length+reservedArenaRuns()+arenaRunCount(input)>2100||state.arenas.filter(arena=>!['done','cancelled'].includes(arena.status)).length+state.bootstraps.filter(job=>job.kind==='arena'&&!['done','cancelled'].includes(job.status)).length>=10))throw Error('corp_arena_capacity');
@@ -406,7 +413,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       if(!delta||delta==='..'||delta.startsWith('..\\')||delta.startsWith('../')||isAbsolute(delta)||(await lstat(root)).isSymbolicLink())throw Error('invalid_parent_root');
       const contents=`# ${name}\n\n${input.idea.trim()}\n`,ideaHandle=await open(ideaFile,'wx');ideaCreated=true;
       try{await ideaHandle.writeFile(contents,'utf8');}finally{await ideaHandle.close();}
-      const job={id:input.requestKey,cleanupAfterDelivery:input.cleanupAfterDelivery===true,...config,customerName:text(input.customerName,80),idea:input.idea.trim(),name,parentRoot,root,kind,count,...(kind==='arena'?{format:input.format??'knockout'}:{}),mode:input.mode||'build',runAfterSetup:kind==='arena'?false:input.runAfterSetup!==false,
+      const job={id:input.requestKey,cleanupAfterDelivery:input.cleanupAfterDelivery===true,...config,projectSpec:spec,parallel:input.parallel!==false,customerName:text(input.customerName,80),idea:input.idea.trim(),name,parentRoot,root,kind,count,...(kind==='arena'?{format:input.format??'knockout'}:{}),mode:input.mode||'build',runAfterSetup:kind==='arena'?false:input.runAfterSetup!==false,
         status:input.start!==false&&state.enabled?'running':'paused',createdAt:new Date(clock()).toISOString(),projectUrl:null,projectId:null,workspaceId:null,chats:[],attempt:null,issuedAt:null,reason:null,runId:null};
       state.bootstraps.push(job);return copy(job);
   };
@@ -466,6 +473,8 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
       recordUsage(run,step,'ok');
       if(evidence.status!=='verified'){step.status='blocked';step.reason='evidence_'+evidence.status;run.status='paused';event('blocked',run,step);return {ok:false,evidence};}
       if(step.assessment?.outcome==='pending_verification'){step.assessment.reportedOutcome=step.assessment.outcome;step.assessment.outcome=step.assessment.checks.some(check=>check.status==='fail')?'needs_changes':'pass';step.assessment.verificationRef=evidence.id;step.assessment.verifiedChecks=copy(evidence.checks);}
+      // Save source while this task still owns its lease, before successors can write.
+      if(onVerified)await onVerified(run,step);
       if(step.status==='done'){await execution.release(step.leaseId,'historical_verification');return {ok:true,evidence};}
       return {...await finishStep(run,step),evidence};
     }),
@@ -598,7 +607,7 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
           state.teams=state.teams.filter(team=>team.workspaceId!==job.workspaceId);state.teams.push({workspaceId:job.workspaceId,members:chats.map(({chatId,roleId})=>({chatId,roleId}))});
           const created=job.kind==='arena'
             ? await createArena({workspaceId:job.workspaceId,idea:job.idea,count:job.count,mode:job.mode,format:job.format,requestKey:job.id})
-            : createIdeaRun({workspaceId:job.workspaceId,customerName:job.customerName,...reviewConfig(job),idea:job.idea,mode:job.mode,requestKey:job.id,start:job.runAfterSetup&&state.enabled&&job.status==='running'});
+            : createIdeaRun({workspaceId:job.workspaceId,customerName:job.customerName,...reviewConfig(job),projectSpec:job.projectSpec,parallel:job.parallel,idea:job.idea,mode:job.mode,requestKey:job.id,start:job.runAfterSetup&&state.enabled&&job.status==='running'});
           if(job.kind==='arena')job.arenaId=created.id;
           job.runId=created.id;job.status='done';
         }
@@ -776,16 +785,20 @@ export async function createCorpRuntime(filePath, { workspaces, createWorkspace,
                 const value={...copy(template),id:randomUUID(),result:null,assessment:null,resetAt:null,limitText:null,continuation:false};
                 delete value.taskId;delete value.leaseId;delete value.evidenceRefs;delete value.verification;delete value.timestamps;value.attemptHistory=[];
                 value.title=template.title+` - vòng ${round}`;
-                value.prompt=template.prompt.replace(/(07-repair|08-acceptance)\.md/g,`$1-round-${round}.md`)+`\nĐây là vòng sửa bổ sung ${round}. Đọc báo cáo nghiệm thu vừa thất bại và giữ bằng chứng các vòng trước.`;
-                if(value.writeScope)value.writeScope=value.writeScope.map(path=>path.replace(/(07-repair|08-acceptance)\.md/g,`$1-round-${round}.md`));
+                const oldPath=template.prompt.match(/Tệp đầu ra: ([^\r\n]+)/)?.[1],newPath=oldPath?.replace(/\.md$/,`-round-${round}.md`);
+                value.prompt=(oldPath?template.prompt.replaceAll(oldPath,newPath):template.prompt)+`\nĐây là vòng sửa bổ sung ${round}. Đọc báo cáo nghiệm thu vừa thất bại và giữ bằng chứng các vòng trước.`;
+                if(value.writeScope)value.writeScope=value.writeScope.map(path=>path===oldPath?newPath:path);
                 newAttempt(value);return value;
               };
               const repeatedRepair=repeat(repair),repeatedQa=repeat(step);
+              const parallelPost=flags().dagSchedulerEnabled?run.steps.filter(item=>item.id!==step.id&&(['local-run','docs'].includes(item.stage)||item.stage?.startsWith('review-')&&item.stage.endsWith('-final'))&&item.dependencies?.includes(repair.id)):[];
+              const repeatedPost=parallelPost.map(repeat);
               if(flags().dagSchedulerEnabled){
-                repeatedRepair.dependencies=[step.id];repeatedQa.dependencies=[repeatedRepair.id];
-                for(const item of run.steps)if(item.id!==step.id&&item.dependencies?.includes(step.id))item.dependencies=item.dependencies.map(id=>id===step.id?repeatedQa.id:id);
+                repeatedRepair.dependencies=[step.id,...parallelPost.map(item=>item.id)];repeatedQa.dependencies=[repeatedRepair.id];for(const item of repeatedPost)item.dependencies=[repeatedRepair.id];
+                const replacements=new Map([[step.id,repeatedQa.id],...parallelPost.map((item,index)=>[item.id,repeatedPost[index].id])]);
+                for(const item of run.steps)if(item.id!==step.id&&!parallelPost.includes(item)&&item.dependencies?.some(id=>replacements.has(id)))item.dependencies=item.dependencies.map(id=>replacements.get(id)||id);
               }
-              run.steps.splice(run.steps.indexOf(step)+1,0,repeatedRepair,repeatedQa);if(flags().dagSchedulerEnabled)normalizeTasks(run);event('repair_round',run,step,{round});
+              run.steps.splice(run.steps.indexOf(step)+1,0,repeatedRepair,repeatedQa,...repeatedPost);if(flags().dagSchedulerEnabled)normalizeTasks(run);event('repair_round',run,step,{round});
             }else{step.status='blocked';step.reason=outcome==='blocked'?'idea_stage_blocked':'idea_quality_failed';run.status='paused';markArenaBlocked(run, step.reason);recordUsage(run,step,'ok');event('blocked',run,step);return {ok:true};}
           }
         }

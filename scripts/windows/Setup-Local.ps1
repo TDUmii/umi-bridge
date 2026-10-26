@@ -54,12 +54,12 @@ function Install-PortableNode {
     $stage = Join-Path $runtimeRoot ('staging-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $downloadRoot -Force | Out-Null
 
-    $hashText = (Invoke-WebRequest -Uri ($baseUrl + 'SHASUMS256.txt') -Headers @{ 'User-Agent' = 'UmiBridge-Sakura-Console' }).Content
+    $hashText = (Invoke-WebRequest -UseBasicParsing -Uri ($baseUrl + 'SHASUMS256.txt') -Headers @{ 'User-Agent' = 'UmiBridge-Sakura-Console' }).Content
     $hashLine = $hashText -split "`n" | Where-Object { $_ -match "\s$([regex]::Escape($zipName))\s*$" } | Select-Object -First 1
     if (-not $hashLine -or $hashLine -notmatch '^(?<hash>[0-9a-fA-F]{64})\s+') { throw "No SHA-256 entry found for $zipName." }
     $expectedHash = $Matches.hash.ToLowerInvariant()
 
-    Invoke-WebRequest -Uri ($baseUrl + $zipName) -OutFile $zipPath -Headers @{ 'User-Agent' = 'UmiBridge-Sakura-Console' }
+    Invoke-WebRequest -UseBasicParsing -Uri ($baseUrl + $zipName) -OutFile $zipPath -Headers @{ 'User-Agent' = 'UmiBridge-Sakura-Console' }
     $actualHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actualHash -ne $expectedHash) { Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue; throw 'Node.js checksum mismatch.' }
 
@@ -81,6 +81,7 @@ function Install-PortableNode {
 $node = Find-UsableNode
 if (-not $node) { $node = Install-PortableNode }
 $nodeExe = $node.Path
+$env:PATH = (Split-Path -Parent $nodeExe) + ';' + $env:PATH
 $npmExe = Join-Path (Split-Path -Parent $nodeExe) 'npm.cmd'
 if (-not (Test-Path -LiteralPath $npmExe)) { throw "npm.cmd is missing next to $nodeExe." }
 Write-Host ("Using Node.js {0} ({1})" -f $node.Version, $(if ($node.Local) { 'portable local runtime' } else { 'system runtime' }))
@@ -101,7 +102,7 @@ if (-not $SkipCloudflared) {
     $localBin = Join-Path $projectRoot 'local-bin'
     New-Item -ItemType Directory -Path $localBin -Force | Out-Null
     $download = Join-Path $localBin 'cloudflared-download.exe'
-    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $download -Headers @{ 'User-Agent' = 'UmiBridge-Sakura-Console' }
+    Invoke-WebRequest -UseBasicParsing -Uri $asset.browser_download_url -OutFile $download -Headers @{ 'User-Agent' = 'UmiBridge-Sakura-Console' }
     $sha256 = (Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($asset.digest -ne "sha256:$sha256") { Remove-Item -LiteralPath $download -Force -ErrorAction SilentlyContinue; throw 'Cloudflared checksum mismatch.' }
     Move-Item -LiteralPath $download -Destination (Join-Path $localBin 'cloudflared.exe') -Force

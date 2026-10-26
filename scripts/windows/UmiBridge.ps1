@@ -163,13 +163,20 @@ function Test-DevTunnelPort([string]$Cli, $Config) {
 }
 
 function Update-Source {
-    if ($NoUpdate -or -not (Test-Path -LiteralPath (Join-Path $root '.git'))) { return $false }
+    if ($NoUpdate) { return $false }
+    if (Test-Path -LiteralPath (Join-Path $root '.local-data\installed-release.json')) {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts\windows\Install-UmiBridge.ps1') -InstallDirectory $root -SourceOnly | Out-Host
+        if ($LASTEXITCODE -eq 10) { return $true }
+        if ($LASTEXITCODE -ne 0) { Write-Host 'Release update did not complete; continuing with the installed source.' }
+        return $false
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $root '.git'))) { return $false }
     $git = Get-Command git.exe -ErrorAction SilentlyContinue
     if (-not $git) { Write-Host 'Git is not available; skipping source update.'; return $false }
     try {
         $branch = (& $git.Source branch --show-current 2>$null | Select-Object -First 1).ToString().Trim()
         if (-not $branch) { Write-Host 'Detached HEAD; skipping automatic source update.'; return $false }
-        $dirty = (& $git.Source status --porcelain --untracked-files=no 2>$null | Out-String).Trim()
+        $dirty = (& $git.Source status --porcelain --untracked-files=all 2>$null | Out-String).Trim()
         if ($dirty) { Write-Host 'Local source changes found; keeping them and skipping update.'; return $false }
         & $git.Source fetch --all --prune --quiet 2>$null
         if ($LASTEXITCODE -ne 0) { Write-Host 'Git fetch failed; continuing with the local source.'; return $false }
@@ -207,6 +214,7 @@ function Test-ProjectRuntime {
     } catch { Write-LauncherLog ('RUNTIME_CHECK_FAILED ' + $_.Exception.Message); return $false }
     $npm = Join-Path (Split-Path -Parent $node) 'npm.cmd'
     if (-not (Test-Path -LiteralPath $npm)) { Write-LauncherLog 'RUNTIME_MISSING npm.cmd'; return $false }
+    $env:PATH = (Split-Path -Parent $node) + ';' + $env:PATH
     $preflightLog = Join-Path $stateDir 'launcher-preflight.log'
     & $npm run build --silent *> $preflightLog
     if ($LASTEXITCODE -ne 0) { Write-LauncherLog 'RUNTIME_BUILD_FAILED see launcher-preflight.log'; return $false }

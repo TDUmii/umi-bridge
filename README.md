@@ -4,17 +4,23 @@ Gateway Windows local để ChatGPT dùng công cụ file, PowerShell và deskto
 
 ## Chạy app
 
-Cần Windows, Node.js 22.12 trở lên, Chrome và tài khoản ChatGPT có quyền dùng Chat. Mở **UmiBridge.cmd** để cài và chạy; mở dashboard được launcher hiển thị. Giữ app chạy khi ChatGPT dùng công cụ. Cài đặt và ghép OAuth/extension theo hướng dẫn trong dashboard. Không đưa mã ghép hoặc thư mục .local-data lên mạng.
+Cần Windows, Chrome và tài khoản ChatGPT có quyền dùng Chat. Tải [UmiBridge-Setup.cmd](https://github.com/TDUmii/umi-bridge/releases/latest/download/UmiBridge-Setup.cmd) rồi nhấp đúp để cài bản mới nhất, không cần clone hoặc cài Git. Bộ cài kiểm SHA-256 từ release GitHub, cài vào LocalAppData, chuẩn bị Node.js 22.12+ và tạo lối mở trên Desktop. Các lần mở **UmiBridge.cmd** tiếp theo tự kiểm cập nhật; dữ liệu, token và ghép OAuth/extension được giữ. Source sửa tay hoặc checkout Git không bị bộ cài ghi đè.
 
 Có thể chạy gateway bằng `npm ci --ignore-scripts` rồi `npm start`. Lệnh `npm run build` kiểm cú pháp source. Cấu hình tunnel, OAuth, browser pairing và dữ liệu công việc nằm trong .local-data; runtime/dependency tự cài nằm trong .runtime, local-bin và node_modules.
 
 ## Corp
 
-Corp có Văn phòng, Từ ý tưởng và Hàng đợi. Tạo Project mới từ ý tưởng để điều phối tám bộ phận, hoặc gửi brief vào chat đã liên kết. Chọn thư mục riêng, hồ sơ sản phẩm, mục đích và các đội kiểm thử chuyên trách khi cần. Đội tùy chọn có kiểm trước sửa và nghiệm thu sau sửa; kiểm cuối không đạt sẽ dừng bàn giao. Bật Điều phối để cho phép gửi; lưu khi tắt sẽ tạm dừng. Không tự khởi động lại lần gửi chưa xác nhận.
+Corp có Văn phòng, Từ ý tưởng và Hàng đợi. Form tạo dự án có các nhóm yêu cầu Mục tiêu & giao diện, Kỹ thuật & dữ liệu, Nghiệm thu; mỗi ô trống dùng giả định mặc định được ghi vào nhiệm vụ. Tạo Project mới để điều phối tám bộ phận, hoặc dùng Project/chat đã liên kết. Trong nhiệm vụ đã xong, chọn **Yêu cầu bổ sung** để tạo phiên bản mới trên cùng source và đội ngũ, giữ lịch sử cũ.
 
-Văn phòng dùng trạng thái thật của Corp; hoạt cảnh nghỉ/ăn/shipper chỉ là minh họa. Xem mẫu tạo cảnh cục bộ có nhãn, không gửi công việc. Bản đồ tự vừa khung; roster và tooltip giữ tên/trạng thái dễ đọc.
+Mặc định các việc độc lập chạy song song: Sản phẩm và Thiết kế cùng bắt đầu; QA/Bảo mật/các đội chuyên trách cùng rà soát; sau sửa, QA cuối/DevOps/Tài liệu cùng làm. CEO chờ đủ kết quả trước bàn giao. Cùng chat và vùng ghi trùng nhau vẫn phải đợi; không tự chia source cho nhiều người ghi đè. Có thể bỏ chọn song song để dùng chuỗi. Bật Điều phối để cho phép gửi; lưu khi tắt sẽ tạm dừng. Không tự khởi động lại lần gửi chưa xác nhận.
 
-## Arena
+Văn phòng dùng trạng thái thật của Corp; hoạt cảnh nghỉ/ăn/shipper chỉ là minh họa. Bản đồ tự vừa khung; roster và tooltip giữ tên/trạng thái dễ đọc.
+
+Các bộ phận có mapping skill mặc định từ Codex và checklist bằng chứng riêng. Có thể import bản SKILL.md local vào kho UmiBridge, đổi mapping hoặc tắt từng nhóm. Skill là tài liệu hướng dẫn, không tự cấp công cụ hoặc tự chạy script/pentest/cloud. Bằng chứng phân biệt **kiểm file/cấu trúc** với **lệnh đã chạy**; phần chưa kiểm chứng không được đổi thành kết quả test đạt.
+
+Thanh **Git private** ngay trong Corp hiển thị repository, commit, số file và lỗi đồng bộ của Project đang chọn. Bật tùy chọn để lưu checkpoint source sau mỗi bước đã kiểm chứng; mặc định tắt cho cài mới. Repository sản phẩm luôn private, không đưa test, chat, log, thông tin máy và bí mật vào lịch sử. Có nút lưu/thử lại khi cần; liên kết GitHub sẵn có được kiểm tra trước khi tạo kho.
+
+## Arena - Beta
 
 Arena độc lập với Corp, cho chọn **10–100 đội**, một giám khảo và một Project riêng. Mỗi đội tự hoàn thành sản phẩm trong thư mục/chat của mình. Sau mỗi vòng chấm, một nửa (làm tròn lên) đi tiếp để sửa theo nhận xét, đến một sản phẩm thắng. Có lịch sử, điểm từng tiêu chí, feedback và phiên bản bằng chứng. Cảnh trực tiếp hiện tối đa 20 vị trí mỗi trang; không mở đồng thời toàn bộ tab để giả đấu song song.
 
