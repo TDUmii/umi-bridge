@@ -425,7 +425,9 @@ Nhiệm vụ: ${decision?'Chốt phương án sửa dựa trên toàn bộ cuộ
       }
       if(state.bootstraps.length>=100)throw Error('corp_run_capacity');
       if(kind==='arena'&&(state.runs.length+reservedArenaRuns()+arenaRunCount(input)>2100||state.arenas.filter(arena=>!['done','cancelled'].includes(arena.status)).length+state.bootstraps.filter(job=>job.kind==='arena'&&!['done','cancelled'].includes(job.status)).length>=10))throw Error('corp_arena_capacity');
-      const base=text(input.name,32)||input.idea.trim().split('\n')[0].slice(0,32).trim(),name=`${base} [UMI-${input.requestKey.slice(0,8)}]`;
+      // Keep the user-facing product name readable; the request UUID remains the
+      // internal state key and part of the private workspace folder name below.
+      const base=text(input.name,32)||input.idea.trim().split('\n')[0].slice(0,32).trim(),name=base;
       const slug=base.normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().replace(/đ/g,'d').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48)||'project';
       let parentRoot;
       try{
