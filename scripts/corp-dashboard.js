@@ -2,9 +2,9 @@
   const $ = id => document.getElementById(id), section = $('corp'), scene = $('corpScene');
   let data = null, busy = false, signature = '', first = true, corpTab = localStorage.getItem('umibridge.corp.tab') || 'office';
   let ideaSending=false,ideaRequest=null,directSending=false,directRequest=null,specTab='goals';
-  let folderPicking=null;
+  let folderPicking=null, queueDrawerRunId=null;
   let focusBootstrap=localStorage.getItem('umibridge.corp.bootstrap');
-  const labels = { reported_complete:'Chờ kiểm chứng',failed:'Thất bại',queued:'Chờ giao việc', dispatching:'Đang gửi', running:'Chờ phản hồi', limit_wait:'Chờ reset hạn mức', blocked:'Cần kiểm tra', paused:'Tạm dừng', done:'Hoàn thành', cancelled:'Đã hủy' };
+  const labels = { reported_complete:'Chờ kiểm chứng',failed:'Thất bại',queued:'Chờ giao việc', dispatching:'Đang gửi', running:'Chờ phản hồi', waiting:'Đang chờ', limit_wait:'Chờ reset hạn mức', blocked:'Cần kiểm tra', paused:'Tạm dừng', done:'Hoàn thành', cancelled:'Đã hủy' };
   const reasons = {chat_mode_unconfirmed:'Chưa xác nhận Chat thường. Chọn Trò chuyện trên web rồi thử lại.', send_unconfirmed:'Chưa xác nhận đã gửi. Mở chat kiểm tra trước khi thử lại.', composer_busy:'Chat đang trả lời hoặc còn bản nháp. Corp giữ nguyên bản nháp.', composer_missing:'Chưa thấy ô nhập. Kiểm tra đăng nhập và giao diện chat.', chat_changed:'Chat đã thay đổi hoặc có lượt gửi khác. Kiểm tra trước khi tiếp tục.', browser_unavailable:'Không kết nối được tab chat.', response_timeout:'Chưa xác nhận kết quả sau 45 phút. Mở chat kiểm tra.', response_too_large:'Kết quả vượt 48.000 ký tự. Chia nhiệm vụ nhỏ hơn.', limit_time_unknown:'Có thông báo hạn mức nhưng không đọc được giờ reset. Cần kiểm tra thủ công.' };
   const node = (tag, value, className) => { const el = document.createElement(tag); if (value !== undefined) el.textContent = value; if (className) el.className = className; return el; };
   reasons.model_selection_unconfirmed='Chưa chọn/xác minh được model và mức suy nghĩ. Kiểm tra Cài đặt và model picker trên ChatGPT trước khi thử lại.';
@@ -31,13 +31,41 @@
   }
   async function act(path, body = {}) { try { error(''); const result = await api(path, body); await load(); return result; } catch (cause) { error(cause.message); return null; } }
   function button(label, action) { const b = node('button', label, 'btn small'); b.type = 'button'; b.onclick = action; return b; }
-  const currentTask=run=>['reported_complete','blocked','running','dispatching','limit_wait','queued'].map(status=>run.steps.find(step=>step.status===status)).find(Boolean);
+  const currentTask=run=>['reported_complete','blocked','running','dispatching','waiting','limit_wait','queued'].map(status=>run.steps.find(step=>step.status===status)).find(Boolean);
   function showDelivery(runId){
     $('corpRunFilter').value='done';setCorpTab('queue');render();
     const article=[...$('corpRuns').children].find(row=>row.dataset.runId===runId);if(!article)return;
     const delivery=article.querySelector('[data-delivery]');if(delivery){delivery.open=true;const journey=delivery.closest('.corp-journey');if(journey)journey.open=true;}
     const target=delivery||article;target.tabIndex=-1;target.focus({preventScroll:true});target.scrollIntoView({block:delivery?'start':'nearest'});
   }
+  function closeQueueDrawer(){const drawer=$('corpQueueDrawer');if(drawer?.open)drawer.close();queueDrawerRunId=null;}
+  function renderQueueDrawer(run){
+    const drawer=$('corpQueueDrawer');if(!drawer)return;
+    if(!run){if(drawer.open)drawer.close();return;}
+    queueDrawerRunId=run.id;
+    $('corpQueueDrawerTitle').textContent=run.title||'Chi tiết hàng đợi';
+    const active=currentTask(run), status=labels[active?.status]||labels[run.status]||run.status;
+    $('corpQueueDrawerStatus').textContent=(run.customerName||'Khách chưa đặt tên')+' · '+status;
+    $('corpQueueDrawerNote').textContent=active?`Việc tiếp theo: ${active.title||active.role}. ${active.status==='running'||active.status==='dispatching'?'Đang chờ phản hồi từ chat.':'Đang chờ xử lý.'}`:run.status==='done'?'Đã bàn giao. Có thể gửi follow-up.':'Chưa có chặng đang xử lý.';
+    const steps=$('corpQueueDrawerSteps');steps.replaceChildren();
+    for(const [index,step] of run.steps.entries()){
+      const li=node('li'), state=labels[step.status]||step.status;li.dataset.state=step.status;
+      li.append(node('strong',`${index+1}. ${step.title||step.role}`),node('span',`${step.role} · ${state}`));
+      if(step.reason)li.append(node('small',reasons[step.reason]||step.reason,'corp-reason'));
+      steps.append(li);
+    }
+    const actions=$('corpQueueDrawerActions');actions.replaceChildren();
+    if(!['done','cancelled'].includes(run.status)){
+      const start=button(run.status==='running'?'Tạm dừng':'Bắt đầu',()=>act('/runs/'+run.id+'/'+(run.status==='running'?'pause':'start')));
+      start.disabled=run.status!=='running'&&(!data.enabled||active?.status==='blocked');actions.append(start);
+      if(['blocked','limit_wait'].includes(active?.status))actions.append(button('Đã kiểm tra chat - thử lại',()=>act('/runs/'+run.id+'/retry')));
+    }
+    if(run.status==='done'&&run.idea)actions.append(button('Gửi follow-up',()=>{const form=$('corpQueueFollowUp');form.hidden=false;$('corpQueueFollowUpText').focus();}));
+    actions.append(button('Đóng',closeQueueDrawer));
+    if(!document.activeElement?.closest?.('#corpQueueFollowUp')){$('corpQueueFollowUp').hidden=true;$('corpQueueFollowUpMessage').textContent='';}
+    if(!drawer.open)drawer.showModal();
+  }
+  function openQueueDrawer(run){renderQueueDrawer(run);}
   function loadFollowUp(run){
     if(!run?.idea||ideaSending||directSending)return;
     $('corpIdeaTarget').value='follow-up';setCorpTab('idea');$('corpIdeaWorkflowToggle').click();renderIdea();$('corpFollowUpRun').value=run.id;
@@ -313,8 +341,10 @@
           actions.append(button('Hủy', () => act('/runs/' + run.id + '/cancel')));
         } else {actions.append(button('Xóa khỏi hàng đợi', () => act('/runs/' + run.id + '/delete')));const source=(data.bootstraps||[]).find(job=>job.runId===run.id);if(run.status==='done'&&source?.cleanupAfterDelivery)actions.append(button('Dọn chat sau bàn giao',()=>window.umiProjectManager?.({channel:'corp',id:source.id,name:source.name,chats:source.chats||[],projectUrl:source.projectUrl})));}
         if (current) { const a = node('a', 'Mở chat', 'btn small'); a.href = current.chatUrl; a.target = '_blank'; a.rel = 'noopener noreferrer'; actions.append(a); }
+        actions.prepend(button('Việc tiếp theo',()=>openQueueDrawer(run)));
         article.append(actions); $('corpRuns').append(article);
       }
+      renderQueueDrawer(queueDrawerRunId ? scopedRuns().find(run=>run.id===queueDrawerRunId) : null);
     }
     countdown(); syncScene();sizeWorkspace();
   }
@@ -402,6 +432,16 @@
   });
   $('corpSetupToggle').onclick = () => { const open = $('corpSetup').hidden; $('corpSetup').hidden = !open; $('corpSetupToggle').setAttribute('aria-expanded', String(open)); if (open) $('corpSetup').scrollIntoView({block:'nearest'}); };
   $('corpRunFilter').onchange = render;
+  $('corpQueueDrawerClose').onclick=closeQueueDrawer;
+  $('corpQueueDrawer').addEventListener('cancel',event=>{event.preventDefault();closeQueueDrawer();});
+  $('corpQueueFollowUp').onsubmit=async event=>{
+    event.preventDefault();const run=scopedRuns().find(item=>item.id===queueDrawerRunId),text=$('corpQueueFollowUpText').value.trim();
+    if(!run?.idea||text.length<4)return;
+    const submit=$('corpQueueFollowUpSubmit');submit.disabled=true;$('corpQueueFollowUpMessage').textContent='Đang gửi follow-up...';
+    try{await api('/runs/'+run.id+'/follow-up',{requestKey:crypto.randomUUID(),workspaceId:run.workspaceId,idea:text,parallel:run.idea.parallelRequested??run.idea.parallel??true,projectSpec:run.idea.projectSpec||{},productProfile:run.idea.productProfile||'general',productGoal:run.idea.productGoal||'',reviewTeams:run.idea.reviewTeams||[],mode:run.idea.mode||'build',customerName:run.customerName||'',start:data.enabled});$('corpQueueFollowUpMessage').textContent='Đã xếp follow-up vào hàng đợi.';$('corpQueueFollowUpText').value='';await load();setTimeout(closeQueueDrawer,250);
+    }catch(cause){$('corpQueueFollowUpMessage').textContent=cause.message;}
+    finally{if(submit.isConnected)submit.disabled=false;}
+  };
   $('corpForm').onsubmit = async event => { event.preventDefault(); const project = selectedProject(); const steps = [...$('corpSteps').children].map(field => ({...Object.fromEntries([...field.querySelectorAll('[name]')].map(input => [input.name, input.value])), ...(project ? {workspaceId:project.id} : {})})); const result = await act('/runs', {title:$('corpRunTitle').value, customerName:$('corpCustomerName').value.trim(), ...(project ? {workspaceId:project.id} : {}), steps}); if (result) { $('corpForm').reset(); $('corpSteps').replaceChildren(); addStep(); $('corpRunFilter').value = 'active'; compose(false); render(); } };
   $('corpProject').onchange = () => { localStorage.setItem('umibridge.corp.project',$('corpProject').value); first = true; for (const select of $('corpSteps').querySelectorAll('select')) select.value = ''; render(); };
   $('corpSync').onclick = async () => {
