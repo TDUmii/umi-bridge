@@ -1,5 +1,13 @@
 # UmiBridge
 
+### Optional local Desktop Commander
+
+UmiBridge can host an existing local Desktop Commander MCP build in the same OAuth connection. Create `.local-data/desktop-commander.json` with `{"enabled":true,"entry":"D:/path/to/DesktopCommanderMCP/dist/index.js","allowedDirectories":["D:/your-workspace"]}` and restart UmiBridge. The upstream installation remains separate; it must already contain its dependencies. No cloud Desktop Commander account is required.
+
+The integration exposes `dc_status` and prefixed `dc_*` file, terminal and search tools in Dashboard Settings. Upstream configuration/history tools are excluded, telemetry starts disabled in a separate local profile, and UmiBridge request history omits DC arguments and content. Existing upstream preferences are retained on restart. File access defaults to the UmiBridge local state directory unless explicit directories are configured before first startup. Terminal access is broader than the filesystem allowlist.
+
+Protected workspace mode exposes status only and blocks global `dc_*` operations, just as it blocks global Windows/file/shell operations. Windows mouse, keyboard and screenshots continue to use `windows_*`; Desktop Commander is the file/terminal backend. Remote devices from the separate Remote Desktop Commander cloud app are not imported by this local integration.
+
 Windows gateway for ChatGPT with a local dashboard. English by default; switch to Vietnamese with one click.
 
 ## Install

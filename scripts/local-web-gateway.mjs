@@ -258,7 +258,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       const backendCatalog = listed._meta?.[CATALOG_META] ?? listed.tools ?? [];
       const paused = existsSync(resolve(configDir, '..', 'windows-tools-disabled'));
       const protectedMode=orchestration.settings().flags.workspaceLocksEnabled;
-      const protectedNames=new Set([...scopedToolSpecs.map(row=>row.name),'list_skills','read_skill','windows_status',chromeTool.name,...corpChatTools.map(tool=>tool.name)]);
+      const protectedNames=new Set([...scopedToolSpecs.map(row=>row.name),'list_skills','read_skill','windows_status','dc_status',chromeTool.name,...corpChatTools.map(tool=>tool.name)]);
       const catalog = [...backendCatalog, ...deviceToolSpecs,...scopedToolSpecs,chromeTool,...corpChatTools].map(tool => ({ ...tool, available: (tool.name!==chromeTool.name||chromeBridge.available())&&(!protectedMode||protectedNames.has(tool.name))&&!(paused && tool.name.startsWith('windows_') && tool.name !== 'windows_status') }));
       const names = new Set(catalog.map(tool => tool.name));
       const policyCatalog = [...catalog, ...WINDOWS_TOOL_NAMES.filter(name => !names.has(name)).map(name => ({ name, available: false, description: 'Named Windows desktop operation on linked devices. The local worker does not currently expose this operation.' }))];
@@ -433,7 +433,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       try { res.json(await action(req)); }
       catch (error) { res.status(['invalid_corp_key','invalid_arena_key'].includes(error.message) ? 401 : error.message.endsWith('_not_found') ? 404 : 400).json({ error: error.message }); }
     };
-    const protectedTool=name=>scopedToolSpecs.some(tool=>tool.name===name)||['list_skills','read_skill','windows_status',chromeTool.name,...corpChatTools.map(tool=>tool.name)].includes(name);
+    const protectedTool=name=>scopedToolSpecs.some(tool=>tool.name===name)||['list_skills','read_skill','windows_status','dc_status',chromeTool.name,...corpChatTools.map(tool=>tool.name)].includes(name);
     app.get('/admin/api/orchestration',localAdmin,corpHandler(()=>({settings:orchestration.settings(),execution:execution.snapshot()})));
     app.post('/admin/api/orchestration',localAdmin,adminWrite,corpJson,corpHandler(async req=>{
       const currentFlags=orchestration.settings().flags,structural=Object.entries(req.body.flags||{}).some(([key,value])=>currentFlags[key]!==value);

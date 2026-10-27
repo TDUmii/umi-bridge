@@ -92,7 +92,7 @@ function recordFor(toolName, args, result, duration, safeOutput, clientName) {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     timestamp: new Date().toISOString(),
     toolName: sanitize(toolName),
-    arguments: safeArguments(toolName === 'windows_multi_edit' ? { ...args, labels: '[redacted for privacy]', locs: '[redacted for privacy]' } : args, undefined, 0, sanitize),
+    arguments: safeArguments(toolName.startsWith('dc_') ? {details:'[omitted for privacy]'} : toolName === 'windows_multi_edit' ? { ...args, labels: '[redacted for privacy]', locs: '[redacted for privacy]' } : args, undefined, 0, sanitize),
     status: result?.isError ? 'error' : 'ok',
     contentItems: Array.isArray(result?.content) ? result.content.length : 0,
     durationMs: Math.max(0, Math.round(duration)),

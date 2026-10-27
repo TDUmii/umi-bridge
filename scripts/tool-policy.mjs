@@ -24,6 +24,7 @@ export function toolOperation(name) {
 }
 
 export function toolGroup(name) {
+  if (['dc_start_process','dc_interact_with_process','dc_read_process_output','dc_force_terminate','dc_kill_process','dc_list_processes','dc_list_sessions'].includes(name)) return 'commands';
   if (name.startsWith('windows_')||name==='chrome_control') return 'windows';
   if (['list_skills', 'read_skill'].includes(name)) return 'skills';
   if (['run_command', 'run_on_device'].includes(name)) return 'commands';

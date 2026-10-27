@@ -1,4 +1,5 @@
 import { createCommandSession } from './command-session.mjs';
+import { createDesktopCommander } from './desktop-commander.mjs';
 import {readOrchestrationSettings} from './orchestration-state.mjs';
 import { createWindowsTools } from './windows-tools.mjs';
 import { existsSync, readFileSync } from 'node:fs';
@@ -19,6 +20,7 @@ const DEFAULT_READ_LINES = 1000;
 const skillStateDir = process.env.CHATGPT_LOCAL_CONFIG_DIR ? resolve(process.env.CHATGPT_LOCAL_CONFIG_DIR, '..') : resolve(ROOT, '.local-data');
 const skillLibrary = createSkillLibrary({ stateDir: skillStateDir, projectDir: ROOT });
 const toolPolicy = createToolPolicy({ stateDir: skillStateDir });
+const desktopCommander = createDesktopCommander({stateDir:skillStateDir});
 const commandSession = createCommandSession({ cwd: ROOT });
 const windowsTools = createWindowsTools({ root: ROOT });
 const windowsPaused = () => existsSync(resolve(skillStateDir, 'windows-tools-disabled'));
@@ -208,6 +210,7 @@ async function runCommand(command, cwd, timeoutMs) {
 }
 
 async function callTool(name, args = {}) {
+  if (name.startsWith('dc_')) return desktopCommander.callTool(name,args);
   if (name === 'windows_status') return text({ ...windowsTools.status(), ...(windowsPaused() ? { state: 'paused', available: false } : {}), enabled: !windowsPaused() });
   if (name.startsWith('windows_')) {
     if (windowsPaused()) throw new Error('Windows desktop tools are paused. Enable them in Dashboard Settings.');
@@ -276,7 +279,7 @@ async function callTool(name, args = {}) {
 }
 
 const currentContext = async () => {
-  const catalog = [...tools, ...await windowsTools.listTools()];
+  const catalog = [...tools, ...await windowsTools.listTools(), ...await desktopCommander.listTools()];
   const skills = await skillLibrary.list().catch(() => []);
   return { catalog, context: await toolPolicy.snapshot(catalog, skills) };
 };
@@ -287,7 +290,7 @@ server.setRequestHandler(ListToolsRequestSchema, async request => {
   const { catalog, context } = await currentContext();
   const protectedMode=(await readOrchestrationSettings(skillStateDir)).flags.workspaceLocksEnabled;
   return {
-    tools: catalog.filter(tool => context.allows(tool.name)&&(!protectedMode||['list_skills','read_skill','windows_status'].includes(tool.name))),
+    tools: catalog.filter(tool => context.allows(tool.name)&&(!protectedMode||['list_skills','read_skill','windows_status','dc_status'].includes(tool.name))),
     ...(request.params?._meta?.[CATALOG_META] === true ? { _meta: { [CATALOG_META]: catalog } } : {}),
   };
 });
@@ -298,7 +301,7 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
     context.assertCall(request.params.name, request.params.arguments ?? {});
     // Shared OAuth and stdio do not identify a conversation. Fail closed for all
     // global filesystem, shell, Windows and remote operations in protected mode.
-    if((await readOrchestrationSettings(skillStateDir)).flags.workspaceLocksEnabled&&!['list_skills','read_skill','windows_status'].includes(request.params.name))throw Error('protected_workspace_requires_scoped_gateway_tool');
+    if((await readOrchestrationSettings(skillStateDir)).flags.workspaceLocksEnabled&&!['list_skills','read_skill','windows_status','dc_status'].includes(request.params.name))throw Error('protected_workspace_requires_scoped_gateway_tool');
     result = await callTool(request.params.name, request.params.arguments ?? {});
   } catch (cause) { result = error(cause instanceof Error ? cause.message : String(cause)); }
   if (deliveredRevision !== context.revision) {
@@ -308,7 +311,7 @@ server.setRequestHandler(CallToolRequestSchema, async request => {
   return withContext(result, context, true);
 });
 
-const closeWorkers = () => Promise.allSettled([commandSession.close(), windowsTools.close()]);
+const closeWorkers = () => Promise.allSettled([commandSession.close(), windowsTools.close(), desktopCommander.close()]);
 server.onclose = () => { void closeWorkers(); };
 process.stdin.once('end', () => { void closeWorkers(); });
 process.once('SIGINT', () => { void closeWorkers().finally(() => process.exit(0)); });
