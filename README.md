@@ -87,3 +87,7 @@ Admin version is now visible in the top bar beside language and gateway controls
 ## New in 1.9.5
 
 Project and run state migration keeps existing Corp projects visible after installing the Windows build. Private Git archive now requires a repository name in the admin UI; invalid or empty names are blocked in the browser and rejected by the gateway before any repository action.
+
+## New in 1.9.7
+
+Git controls now live in Settings and require a repository name before archiving. Product repository names use the entered unique name without internal project IDs. Employee hover content is limited to name and role.

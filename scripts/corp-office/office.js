@@ -70,11 +70,9 @@
     const p = people.get(id); if (!p) return;
     clearTimeout(tooltipTimer);
     tooltipAgent = id;
-    $('tooltip-name').textContent = p.chatName || p.role.split('\n')[0];
-    $('tooltip-status').textContent = '';
-    $('tooltip-department').textContent = '';
-    $('tooltip-task').textContent = p.taskDetail || p.task || 'Chưa có nhiệm vụ đang thực hiện.';
-    $('tooltip-dot').className = `status-dot ${statusTone(p.status)}`;
+    const role = p.role || p.roles?.join(' / ') || 'Nhân viên';
+    $('tooltip-name').textContent = p.chatName || role.split('\n')[0];
+    $('tooltip-role').textContent = role;
     const tip = $('employee-tooltip'); tip.hidden = false;
     const box = anchor.getBoundingClientRect(), bounds = tip.getBoundingClientRect();
     tip.style.left = `${Math.max(8, Math.min(innerWidth - bounds.width - 8, box.left + box.width / 2 - bounds.width / 2))}px`;
@@ -158,7 +156,8 @@
       for (const p of people.values()) {
         const b=document.createElement('button');b.type='button';b.className='seat-label';b.dataset.agent=p.id;
         b.setAttribute('aria-pressed',String(selected===p.id));
-        b.setAttribute('aria-label',`${p.role.split('\n')[0]} - ${labels[p.status]||labels.UNKNOWN}`);
+        const role = p.role || p.roles?.join(' / ') || 'Nhân viên';
+        b.setAttribute('aria-label',`${p.chatName || role.split('\n')[0]} - ${role}`);
         b.setAttribute('aria-describedby','employee-tooltip');
         // Seat remains visually quiet; status is available on focus and in the roster.
         b.onpointerenter=()=>showTooltip(p.id,b);b.onpointerleave=()=>{if(document.activeElement!==b)deferTooltipHide();};
