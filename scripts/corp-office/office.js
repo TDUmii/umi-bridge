@@ -71,8 +71,8 @@
     clearTimeout(tooltipTimer);
     tooltipAgent = id;
     $('tooltip-name').textContent = p.chatName || p.role.split('\n')[0];
-    $('tooltip-status').textContent = labels[p.status] || labels.UNKNOWN;
-    $('tooltip-department').textContent = [p.department,p.role].filter(Boolean).join(' · ');
+    $('tooltip-status').textContent = '';
+    $('tooltip-department').textContent = '';
     $('tooltip-task').textContent = p.taskDetail || p.task || 'Chưa có nhiệm vụ đang thực hiện.';
     $('tooltip-dot').className = `status-dot ${statusTone(p.status)}`;
     const tip = $('employee-tooltip'); tip.hidden = false;
@@ -246,7 +246,7 @@
         const members=[...people.values()].filter(p=>p.seat.room===room.name&&p.seat.island===index);
         if(members.some(p=>p.furniture>0)){
           const wood={single:'#b69b71',executive:'#ac8054',collaboration:'#c9aa74',benches:'#b4a18b',corner:'#a9b3a4',paired:'#c49a66'}[island.kind];
-          for(const part of island.parts){rect(part.x+3,part.y+5,part.w,part.h,'#48624b30');rect(part.x,part.y,part.w,part.h,'#855e3c');rect(part.x+3,part.y+2,part.w-6,part.h-6,wood);}
+          for(const part of island.parts){rect(part.x+3,part.y+5,part.w,part.h,'#48624b30');sprite('DESK_FRONT',part.x,part.y,Math.max(.75,Math.min(2,part.w/48)));}
           if(island.kind==='collaboration'){rect(island.x+68,island.y+8,28,18,'#f1e8ca');rect(island.x+72,island.y+12,9,5,'#9cb7a2');rect(island.x+84,island.y+12,8,9,'#b49582');}
           else if(island.kind==='benches'){rect(island.x+40,island.y+10,20,16,'#5a6a65');rect(island.x+44,island.y+13,12,7,'#a6b7a5');}
           else if(island.kind==='corner'){rect(island.x+5,island.y+38,16,6,'#64817c');rect(island.x+5,island.y+45,16,5,'#d3c5a0');}
@@ -255,8 +255,8 @@
 
         for(const p of members){const {x,y,facing}=p.seat;if(p.furniture>=2)drawChair(p.seat);
           if(p.furniture>=3){
-            if(facing==='left'||facing==='right'){const mx=x+(facing==='right'?32:-42);rect(mx,y-33,10,25,'#3c5053');rect(mx+2,y-31,6,19,life.working(p)?'#a1c8ba':'#547378');rect(mx-2,y-7,14,3,'#52605a');}
-            else{const monitorY=facing==='down'?island.y-6:island.y+12;if(facing==='down'){rect(x-13,monitorY,26,17,'#3c5053');rect(x-11,monitorY+2,22,11,'#547378');rect(x-2,monitorY+17,4,5,'#52605a');}else sprite(life.working(p)?`PC_FRONT_ON_${1+Math.floor(now*3)%3}`:'PC_FRONT_OFF',x-12,monitorY-10,1.5);}
+            if(facing==='left'||facing==='right'){const mx=x+(facing==='right'?32:-42);sprite(life.working(p)?`PC_FRONT_ON_${1+Math.floor(now*3)%3}`:'PC_FRONT_OFF',mx-8,y-31,1);}
+            else{const monitorY=facing==='down'?island.y-6:island.y+12;sprite(life.working(p)?`PC_FRONT_ON_${1+Math.floor(now*3)%3}`:'PC_FRONT_OFF',x-8,monitorY-10,1);}
           }
           if(p.id===selected){ctx.strokeStyle='#24674d';ctx.lineWidth=2;ctx.strokeRect(x-26,y-34,52,48);}
         }
@@ -278,7 +278,7 @@
     rect(rest.x,rest.y,rest.w,rest.h,'#c9cfba');
     for(let index=0;index<2;index++){const bed=life.bedPoints[index];rect(bed.x-35,bed.y-25,70,38,'#a5997d');rect(bed.x-32,bed.y-23,64,34,'#c5d4bd');rect(bed.x-30,bed.y-21,14,30,'#e6ead8');if(!life.beds[index]){rect(bed.x+8,bed.y-20,23,28,'#78978b');rect(bed.x+8,bed.y-20,23,5,'#abc5b0');}}
     if(life.parcel){rect(life.parcel.x,life.parcel.y,23,15,'#b8814f');rect(life.parcel.x+9,life.parcel.y,3,15,'#e4c99a');}
-    if(roomPlan&&hoveredZone){const r=hoveredZone;rect(r.x,r.y,r.w,r.h,'#287b7838');ctx.strokeStyle='#226756';ctx.lineWidth=3;ctx.strokeRect(r.x,r.y,r.w,r.h);}
+    if(roomPlan){for(const r of floor.zones){const active=r===hoveredZone;rect(r.x,r.y,r.w,r.h,active?'#287b7860':'#287b7818');ctx.strokeStyle=active?'#226756':'#4d8b7866';ctx.lineWidth=active?3:1;ctx.strokeRect(r.x,r.y,r.w,r.h);text(r.name,r.x+8,r.y+18,active?'#173f34':'#315b4d',12,'left');}}
   }
   function drawChair(seat,guest=false) {
     if(seat.facing==='left'||seat.facing==='right'){const back=seat.facing==='right'?seat.x-12:seat.x+8;rect(seat.x-12,seat.y-8,24,9,guest?'#84988c':'#967854');rect(back,seat.y-23,4,23,'#5b705f');rect(seat.x-9,seat.y+1,3,8,'#5b705f');rect(seat.x+6,seat.y+1,3,8,'#5b705f');}

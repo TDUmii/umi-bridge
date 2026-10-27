@@ -67,3 +67,7 @@ Arena Beta now uses six real Kenney CC0 weapon tiles. Each contestant keeps a st
 ## New in 1.9.0
 
 Settings now include a Detail level control: Low shows only actions and essential status, Medium adds progress and reasons, High keeps full evidence and logs. The choice is saved per browser and applies across Corp, Arena, queue, workflows and settings without changing execution or stored project data.
+
+## New in 1.9.1
+
+Corp employee hover cards now show only name and current work. Room plan highlights every room with local asset furniture and room labels; information choices open as a floating popover. Arena active turns add bounded impact dust and shield spark cues while pause and reduced motion remain static.
