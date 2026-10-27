@@ -13,6 +13,10 @@
   const gitCard=node('article',null,'settings-card generated-git-card');
   gitCard.innerHTML='<h3>Lịch sử sản phẩm trên Git</h3><div class="setting-row"><label class="setting-label" for="generatedGitEnabled"><strong>Lưu vào repository private</strong><span>Tạo mốc thay đổi từ file sản phẩm đã kiểm chứng.</span></label><input id="generatedGitEnabled" type="checkbox"></div><p id="generatedGitStatus" class="settings-note" role="status">Đang kiểm tra liên kết Git…</p><div id="generatedGitArchives"></div>';
   $('settings-view').querySelector('.settings-grid').append(gitCard);
+  const detailCard=node('article',null,'settings-card detail-level-card');
+  detailCard.dataset.settingsGroup='system';
+  detailCard.innerHTML='<h3 id="detailLevelTitle"></h3><p id="detailLevelHint"></p><div class="setting-row"><label class="setting-label" for="userDetailLevel"><strong id="detailLevelLabel"></strong><span id="detailLevelDescription"></span></label><select id="userDetailLevel" class="setting-select"><option value="low">Thấp - chỉ điều cần làm</option><option value="medium">Vừa - thêm trạng thái và lý do</option><option value="high">Cao - đầy đủ bằng chứng và log</option></select></div><p id="detailLevelStatus" class="settings-note" role="status"></p>';
+  $('settings-view').querySelector('.settings-grid').append(detailCard);
   const groups=[['model','Model & suy nghĩ','Model & reasoning'],['appearance','Giao diện & nền','Appearance'],['connection','Kết nối','Connection'],['system','Hệ thống & Git','System & Git'],['maintenance','Bảo trì','Maintenance']];
   const settingsNav=node('nav',null,'settings-tabs');settingsNav.setAttribute('role','tablist');settingsNav.setAttribute('aria-label','Settings');$('settings-view').querySelector('.settings-body').prepend(settingsNav);
   const cards=[...$('settings-view').querySelectorAll('.settings-card')];
@@ -52,7 +56,12 @@
     a.onclick=event=>{event.preventDefault();navigateCorp({workspaceId:item.workspaceId,runId:item.id,action:'queue'});};return a;
   }
   function language(){for(const [id,a,b]of [['personalTitle','Tùy chỉnh của bạn','Your workspace'],['appearanceHint','Điều chỉnh, xem trước trên mọi tab rồi lưu.','Adjust, preview across tabs, then save.'],['appearancePreviewLabel','Đang xem trước giao diện · chưa lưu','Appearance preview · unsaved'],['saveAppearance','Lưu giao diện','Save appearance'],['discardAppearance','Bỏ thay đổi','Discard changes'],['accentLabel','Màu nhấn','Accent'],['densityLabel','Mật độ','Density'],['opacityLabel','Độ đặc của bảng','Panel opacity'],['backgroundLabel','Thêm nền từ máy','Add background'],['clearBackground','Bỏ nền','Clear background'],['resetAppearance','Mặc định giao diện','Reset appearance'],['studioTitle','Nhịp làm việc','Workspace pulse'],['projectsTitle','Dự án gần đây','Recent projects'],['eventsTitle','Hoạt động gần nhất','Recent activity']])$(id).textContent=t(a,b);groups.forEach((row,i)=>settingsNav.children[i].textContent=t(row[1],row[2]));$('settingsLanguage').textContent=vi()?'English':'Tiếng Việt';const density=$('userDensity');density.options[0].textContent=t('Thoải mái','Comfortable');density.options[1].textContent=t('Gọn','Compact');}
-  language();$('languageSelect').addEventListener('change',()=>{language();void pulse();});
+  function detailLanguage(){const viMode=vi();$('detailLevelTitle').textContent=viMode?'Mức chi tiết':'Detail level';$('detailLevelHint').textContent=viMode?'Chọn lượng thông tin hiện trong dashboard. Có thể đổi bất cứ lúc nào.':'Choose how much information the dashboard shows. You can change it anytime.';$('detailLevelLabel').textContent=viMode?'Mức hiển thị':'Display level';$('detailLevelDescription').textContent=viMode?'Thấp cho thao tác nhanh, vừa cho theo dõi, cao cho kiểm chứng đầy đủ.':'Low for quick actions, medium for tracking, high for full verification.';$('detailLevelStatus').textContent=viMode?'Đang dùng: '+({low:'Thấp',medium:'Vừa',high:'Cao'}[detailLevel]||'Cao'):'Using: '+({low:'Low',medium:'Medium',high:'High'}[detailLevel]||'High');}
+  let detailLevel=['low','medium','high'].includes(localStorage.getItem('umibridge.detailLevel'))?localStorage.getItem('umibridge.detailLevel'):'high';
+  function applyDetail(){document.body.dataset.detail=detailLevel;$('userDetailLevel').value=detailLevel;detailLanguage();}
+  $('userDetailLevel').onchange=()=>{detailLevel=$('userDetailLevel').value;localStorage.setItem('umibridge.detailLevel',detailLevel);applyDetail();};
+  applyDetail();
+  language();detailLanguage();$('languageSelect').addEventListener('change',()=>{language();detailLanguage();void pulse();});
   let loading=false,pulseSignature='';
   async function pulse(){
     $('studioNewProject').textContent=t('Tạo dự án','Create project');$('studioGuide').textContent=t('Hướng dẫn từng bước','Step-by-step guide');diagnosticsTitle.textContent=t('Thông tin gateway','Gateway details');

@@ -63,3 +63,7 @@ MIT. Asset licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 ## New in 1.8.9
 
 Arena Beta now uses six real Kenney CC0 weapon tiles. Each contestant keeps a stable weapon assignment and active turns show a distinct sword slash, thrust, saber sweep, hammer strike, shield block or axe chop. Reduced-motion and paused states stay still.
+
+## New in 1.9.0
+
+Settings now include a Detail level control: Low shows only actions and essential status, Medium adds progress and reasons, High keeps full evidence and logs. The choice is saved per browser and applies across Corp, Arena, queue, workflows and settings without changing execution or stored project data.
