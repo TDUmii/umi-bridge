@@ -91,3 +91,7 @@ Project and run state migration keeps existing Corp projects visible after insta
 ## New in 1.9.7
 
 Git controls now live in Settings and require a repository name before archiving. Product repository names use the entered unique name without internal project IDs. Employee hover content is limited to name and role.
+
+## New in 1.9.8
+
+Generated product display names no longer append internal UMI IDs. Internal UUIDs remain in state, folders and keys for recovery, while the user-provided repository name and product name stay clean.
