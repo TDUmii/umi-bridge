@@ -75,3 +75,7 @@ Corp employee hover cards now show only name and current work. Room plan highlig
 ## New in 1.9.2
 
 Corp hover cards now keep only status, name and current work. Seat status badges are removed from the map, the information button is gone, and the information picker opens as a vertical high-contrast popover. Office and dashboard show a small version label. Low and Medium detail settings now reduce content across Overview, Analytics, Projects & chats, Tools, Skills, Corp and Arena.
+
+## New in 1.9.3
+
+Corp admin now has a `Việc tiếp theo` queue drawer for each run. It lists every step, shows queued/running/waiting/blocked state and reasons, provides start/pause/retry controls, and sends follow-up work from the same admin dialog. Version remains visible in the admin footer only; the office map stays focused on people and rooms.
