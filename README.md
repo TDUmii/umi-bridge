@@ -83,3 +83,7 @@ Corp admin now has a `Việc tiếp theo` queue drawer for each run. It lists ev
 ## New in 1.9.4
 
 Admin version is now visible in the top bar beside language and gateway controls, so users can see it without scrolling. The office map remains version-free.
+
+## New in 1.9.5
+
+Project and run state migration keeps existing Corp projects visible after installing the Windows build. Private Git archive now requires a repository name in the admin UI; invalid or empty names are blocked in the browser and rejected by the gateway before any repository action.

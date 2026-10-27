@@ -69,8 +69,10 @@ export async function createGeneratedProjectGit(directory,{projects,runner=execu
       const files=await collectGeneratedSource(project.root);record.skipped=files.skipped;record.files=files.length;if(!files.length){record.status='waiting_source';record.updatedAt=new Date().toISOString();await save();return structuredClone(record);}
       record.stage='authenticate';await run('gh',['auth','status']);available=true;const owner=await run('gh',['api','user','--jq','.login']);if(!/^[a-zA-Z0-9-]{1,39}$/.test(owner))throw Error('private_git_owner_invalid');
       if(record.owner&&record.owner!==owner)throw Error('private_git_account_changed');
-      const repo=record.repo||`${owner}/umibridge-${key}`;
-      if(repo!==`${owner}/umibridge-${key}`)throw Error('private_git_remote_mismatch');
+      const requested=typeof input.repoName==='string'?input.repoName.trim():'';
+      if(!record.repo&&!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(requested))throw Error('private_git_repo_name_required');
+      const repo=record.repo||`${owner}/${requested}`;
+      if(!/^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(repo))throw Error('private_git_repo_name_invalid');
       const verifyPrivate=async()=>{const info=JSON.parse(await run('gh',['repo','view',repo,'--json','visibility,url,nameWithOwner']));if(info.visibility!=='PRIVATE'||info.nameWithOwner?.toLowerCase()!==repo.toLowerCase())throw Error('private_git_required');return info;};
       if(record.repo){record.stage='verify_private';await verifyPrivate();}
       const mirror=join(directory,key);await mkdir(mirror,{recursive:true});if((await lstat(mirror)).isSymbolicLink())throw Error('git_mirror_symlink');

@@ -10,3 +10,5 @@
 #corpGitSummary a:focus-visible,#corpGitSummary button:focus-visible,#corpGitSettingsToggle:focus-visible{outline:2px solid var(--user-accent,var(--ink));outline-offset:3px}
 #corpGitSettingsToggle{accent-color:var(--user-accent);width:auto;flex:none}
 @media(max-width:760px){#corpGitSummary .corp-git-line{gap:6px 9px}#corpGitSummary .corp-git-state{flex-basis:calc(100% - 85px)}#corpGitSummary .btn{margin-left:0}}
+#corpGitSummary input[data-git-repo-name]{min-width:190px;max-width:260px;min-height:30px;padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);font-size:11px}
+#corpGitSummary input[data-git-repo-name]:invalid{border-color:#d46d5e}
