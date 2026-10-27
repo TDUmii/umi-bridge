@@ -99,3 +99,7 @@ Generated product display names no longer append internal UMI IDs. Internal UUID
 ## New in 1.9.9
 
 MCP and backend server metadata now report the package version instead of a stale hardcoded beta value. ChatGPT connectors can see the same current version as the local admin and installer.
+
+## New in 1.10.0
+
+The connector health card now reports the UmiBridge package version. The Windows MCP runtime version remains exposed separately as `runtimeVersion` (`0.8.8`), so the two components are no longer confused.

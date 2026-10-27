@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +7,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const VERSION = '0.8.8';
+const UMBRIDGE_VERSION = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8')).version;
 const toolName = name => `windows_${name.replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2').replace(/([a-z0-9])([A-Z])/g, '$1_$2').replace(/[^a-zA-Z0-9_]+/g, '_').toLowerCase()}`;
 const toolError = message => ({ isError: true, content: [{ type: 'text', text: message }] });
 
@@ -27,7 +28,8 @@ export function createWindowsTools({ root = ROOT, executable, args, env = {}, ti
     state,
     available: state === 'ready',
     runtimeInstalled: installed(),
-    version: VERSION,
+    version: UMBRIDGE_VERSION,
+    runtimeVersion: VERSION,
     toolCount: schemas.size,
     message,
   });
