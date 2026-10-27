@@ -160,7 +160,7 @@
         b.setAttribute('aria-pressed',String(selected===p.id));
         b.setAttribute('aria-label',`${p.role.split('\n')[0]} - ${labels[p.status]||labels.UNKNOWN}`);
         b.setAttribute('aria-describedby','employee-tooltip');
-        const dot=document.createElement('i');dot.className=`status-dot ${statusTone(p.status)}`;dot.setAttribute('aria-hidden','true');b.append(dot);
+        // Seat remains visually quiet; status is available on focus and in the roster.
         b.onpointerenter=()=>showTooltip(p.id,b);b.onpointerleave=()=>{if(document.activeElement!==b)deferTooltipHide();};
         b.onfocus=()=>showTooltip(p.id,b);b.onblur=hideTooltip;
         b.onclick=()=>{select(p.id);const current=[...labelsRoot.children].find(el=>el.dataset.agent===p.id);if(current)showTooltip(p.id,current);};labelsRoot.append(b);
@@ -368,7 +368,6 @@
   $('zoom-in').onclick=()=>{fit=false;zoom=Math.min(2,Math.round((zoom+.25)*100)/100);resizeView();};
   $('zoom-fit').onclick=fitRoom;
   $('expand').onclick=()=>parent.postMessage({type:'corp-office-expand'},location.origin);
-  $('toggle-roster').onclick=()=>{const open=document.body.classList.toggle('show-roster');$('toggle-roster').setAttribute('aria-expanded',String(open));};
   $('info-settings-toggle').onclick=()=>{const open=$('info-settings').hidden;$('info-settings').hidden=!open;$('info-settings-toggle').setAttribute('aria-expanded',String(open));};
   for(const input of document.querySelectorAll('[data-info]'))input.onchange=()=>{infoConfig[input.dataset.info]=input.checked;try{localStorage.setItem('umibridge.office.info.v1',JSON.stringify(infoConfig));}catch{}applyInfoConfig();};
   applyInfoConfig();

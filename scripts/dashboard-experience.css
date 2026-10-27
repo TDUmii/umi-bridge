@@ -41,3 +41,7 @@ body[data-detail="low"] .settings-note,body[data-detail="low"] .token-note,body[
 body[data-detail="low"] .corp-run .corp-customer-task,body[data-detail="low"] .corp-run small,body[data-detail="low"] .arena-world-focus small{display:none}
 body[data-detail="medium"] .workflow-timeline,body[data-detail="medium"] .arena-art-credit,body[data-detail="medium"] .detail-advanced{display:none!important}
 body[data-detail="high"] .detail-advanced{display:block}
+/* Detail level applies to every dashboard surface, not only settings. */
+body[data-detail="low"] #overview .overview-diagnostics,body[data-detail="low"] #overview .overview-events,body[data-detail="low"] #analytics .chart-footer,body[data-detail="low"] #analytics .panel-title p,body[data-detail="low"] #conversations .link-hint,body[data-detail="low"] #conversations .chat-row small,body[data-detail="low"] #tools .permissions-intro,body[data-detail="low"] #tools .mcp-guidance,body[data-detail="low"] #skill-center .skill-source,body[data-detail="low"] #corp .corp-run-focus p,body[data-detail="low"] #arena .arena-path,body[data-detail="low"] #arena .arena-summary,body[data-detail="low"] #arena .arena-world-legend{display:none!important}
+body[data-detail="medium"] #overview .overview-diagnostics,body[data-detail="medium"] #tools .mcp-guidance,body[data-detail="medium"] #conversations .chat-row small,body[data-detail="medium"] #arena .arena-world-legend{display:none!important}
+body[data-detail="low"] .detail-copy,body[data-detail="medium"] .detail-advanced{display:none!important}

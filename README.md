@@ -71,3 +71,7 @@ Settings now include a Detail level control: Low shows only actions and essentia
 ## New in 1.9.1
 
 Corp employee hover cards now show only name and current work. Room plan highlights every room with local asset furniture and room labels; information choices open as a floating popover. Arena active turns add bounded impact dust and shield spark cues while pause and reduced motion remain static.
+
+## New in 1.9.2
+
+Corp hover cards now keep only status, name and current work. Seat status badges are removed from the map, the information button is gone, and the information picker opens as a vertical high-contrast popover. Office and dashboard show a small version label. Low and Medium detail settings now reduce content across Overview, Analytics, Projects & chats, Tools, Skills, Corp and Arena.
