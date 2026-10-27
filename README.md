@@ -79,3 +79,7 @@ Corp hover cards now keep only status, name and current work. Seat status badges
 ## New in 1.9.3
 
 Corp admin now has a `Việc tiếp theo` queue drawer for each run. It lists every step, shows queued/running/waiting/blocked state and reasons, provides start/pause/retry controls, and sends follow-up work from the same admin dialog. Version remains visible in the admin footer only; the office map stays focused on people and rooms.
+
+## New in 1.9.4
+
+Admin version is now visible in the top bar beside language and gateway controls, so users can see it without scrolling. The office map remains version-free.
