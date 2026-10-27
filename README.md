@@ -95,3 +95,7 @@ Git controls now live in Settings and require a repository name before archiving
 ## New in 1.9.8
 
 Generated product display names no longer append internal UMI IDs. Internal UUIDs remain in state, folders and keys for recovery, while the user-provided repository name and product name stay clean.
+
+## New in 1.9.9
+
+MCP and backend server metadata now report the package version instead of a stale hardcoded beta value. ChatGPT connectors can see the same current version as the local admin and installer.

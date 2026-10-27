@@ -1,7 +1,7 @@
 import { createCommandSession } from './command-session.mjs';
 import {readOrchestrationSettings} from './orchestration-state.mjs';
 import { createWindowsTools } from './windows-tools.mjs';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, readdir, stat, writeFile, appendFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { createSkillLibrary } from './skill-library.mjs';
@@ -12,6 +12,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const APP_VERSION = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8')).version;
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const DEFAULT_READ_LINES = 1000;
 // The gateway passes the isolated profile path to the backend subprocess.
@@ -281,7 +282,7 @@ const currentContext = async () => {
 };
 const initial = await currentContext();
 let deliveredRevision;
-const server = new Server({ name: 'umibridge-sakura-console', version: '0.1.0-beta.21' }, { capabilities: { tools: {} }, instructions: [baseInstructions, initial.context.prompt].filter(Boolean).join('\n\n') });
+const server = new Server({ name: 'umibridge-sakura-console', version: APP_VERSION }, { capabilities: { tools: {} }, instructions: [baseInstructions, initial.context.prompt].filter(Boolean).join('\n\n') });
 server.setRequestHandler(ListToolsRequestSchema, async request => {
   const { catalog, context } = await currentContext();
   const protectedMode=(await readOrchestrationSettings(skillStateDir)).flags.workspaceLocksEnabled;
