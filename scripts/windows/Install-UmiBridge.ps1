@@ -154,7 +154,7 @@ try {
                     if ($page.Content -match ('v'+[regex]::Escape($expectedVersion))) {
                         $check=Invoke-RestMethod -Uri ("http://127.0.0.1:{0}/admin/api/tools/check" -f $port) -TimeoutSec 5
                         $progress=Get-Content -LiteralPath (Join-Path $state 'startup-progress.json') -Raw|ConvertFrom-Json
-                        if ($check.version -eq $expectedVersion -and $check.installationRoot -eq $root -and $check.critical.ready -and $progress.state -eq 'ready' -and [DateTime]$check.checkedAt -ge $launchStarted) { $ready=$true; break }
+                        if ($check.version -eq $expectedVersion -and $check.installationRoot -eq $root -and $check.critical.ready -and $progress.state -eq 'ready' -and ([DateTimeOffset]$check.checkedAt).UtcDateTime -ge $launchStarted) { $ready=$true; break }
                     }
                 } catch { }
                 Start-Sleep -Seconds 2
