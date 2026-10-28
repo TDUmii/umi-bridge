@@ -13,6 +13,8 @@
   reasons.idea_stage_blocked='Bộ phận báo chưa thể tiếp tục. Xem báo cáo để bổ sung thông tin hoặc kết nối công cụ.';
   reasons.idea_quality_failed='Chặng nghiệm thu chưa đạt. Xem các lỗi và bằng chứng, xử lý trước khi tiếp tục.';
   reasons.chat_outside_project='Chat đã rời Project. Đồng bộ và kiểm tra lại nhóm nhận việc.';
+  const accessModeRecovery='Chế độ truy cập đã thay đổi. Tiếp tục công việc trong Project và chat hiện tại.';
+  reasons.access_mode_changed=accessModeRecovery;
   Object.assign(reasons,{invalid_project_spec:'Mỗi mục yêu cầu chi tiết tối đa 1.200 ký tự.',follow_up_requires_completed_project:'Chọn một phiên bản Corp đã hoàn thành để bổ sung.',project_has_open_work:'Project còn công việc chưa kết thúc. Hoàn tất hoặc hủy lượt cũ trước khi bổ sung.',pause_and_reconcile_before_feature_change:'Cần kiểm tra các lượt đang chạy trước khi bật điều phối song song.',project_requirements_too_long:'Yêu cầu quá dài. Rút gọn các mục chi tiết trước khi gửi.'});
   Object.assign(reasons,{folder_path_unavailable:'Không mở được thư mục. Kiểm tra đường dẫn và quyền truy cập.',invalid_parent_root:'Nhập đường dẫn thư mục tuyệt đối hợp lệ.',parent_folder_unavailable:'Thư mục không tồn tại hoặc không có quyền ghi.',project_folder_exists:'Thư mục dự án đã tồn tại. Bấm tạo lại để dùng thư mục riêng.'});
   const selectedProject = () => data?.workspaces.find(item => item.id === $('corpProject').value && item.kind === 'project');
@@ -192,15 +194,21 @@
   function renderBootstraps(){
     const jobs=(data.bootstraps||[]).filter(job=>!['done','cancelled'].includes(job.status));
     $('corpBootstraps').hidden=!jobs.length;
-    const signature=JSON.stringify([jobs,data.enabled]);if($('corpBootstraps').dataset.signature===signature)return;
+    const runStates=jobs.map(job=>{const run=data.runs?.find(run=>run.id===job.runId),task=run&&currentTask(run);return [run?.status,task?.status,task?.reason,task?.attempt];});
+    const signature=JSON.stringify([jobs,data.enabled,runStates]);if($('corpBootstraps').dataset.signature===signature)return;
     $('corpBootstraps').dataset.signature=signature;$('corpBootstraps').replaceChildren();
     const reasons={bootstrap_unconfirmed:'Chưa xác nhận được thao tác tạo. Kiểm tra tab ChatGPT trước khi tiếp tục.',bootstrap_recovery_required:'Không còn tab khởi tạo cũ. Kiểm tra Project/chat đã tạo; hệ thống giữ tiến độ để tránh tạo trùng.',project_create_ui_missing:'Chưa thấy nút tạo Project. Kiểm tra đã đăng nhập ChatGPT và tải lại extension.',bootstrap_ui_timeout:'ChatGPT chưa phản hồi đúng giao diện trong thời gian chờ. Kiểm tra tab khởi tạo.',project_dialog_busy:'Hộp thoại tạo Project đang có nội dung khác. Kiểm tra rồi thử tiếp.',composer_busy:'Chat có bản nháp hoặc đang trả lời. Hoàn tất trước khi tiếp tục.',bootstrap_content_unavailable:'Chưa kết nối được trang ChatGPT. Tải lại extension và tab ChatGPT.',bootstrap_stopped:'Khởi tạo đã dừng theo lựa chọn điều phối.',bootstrap_project_changed:'Tab đã chuyển khỏi Project khởi tạo. Kiểm tra trước khi tiếp tục.'};
     for(const job of jobs){
+      const run=data.runs?.find(run=>run.id===job.runId),task=run&&currentTask(run),blocked=task?.status==='blocked';
       const row=node('article',undefined,'corp-bootstrap');row.append(node('strong',job.name));
-      row.append(node('p',`${{running:'Đang chuẩn bị nhân sự',partial:'Đội ngũ đang làm việc',paused:'Tạm dừng',blocked:'Cần kiểm tra'}[job.status]} · ${job.projectId?'Đã tạo Project':'Đang chuẩn bị Project'} · ${job.lazy?job.chats.length+' bộ phận đã có · thêm khi cần':job.chats.length+'/'+(8+(job.mode==='plan'?0:(job.reviewTeams||[]).length))+' chat bộ phận'}`));
+      const summary=node('p');summary.append(node('span',blocked?'Cần tiếp tục công việc':run?.status==='paused'?'Tạm dừng':{running:'Đang chuẩn bị nhân sự',partial:'Đội ngũ đang làm việc',paused:'Tạm dừng',blocked:'Cần kiểm tra'}[job.status]),' · ',node('span',job.projectId?'Đã tạo Project':'Đang chuẩn bị Project'),' · ',node('span',job.lazy?job.chats.length+' bộ phận đã có · thêm khi cần':job.chats.length+'/'+(8+(job.mode==='plan'?0:(job.reviewTeams||[]).length))+' chat bộ phận'));row.append(summary);
+      if(blocked)row.append(node('p',task.reason==='access_mode_changed'?accessModeRecovery:'Nhiệm vụ đang bị chặn. Mở hàng đợi để xem lỗi và cách tiếp tục.','corp-reason'));
       if(job.reason)row.append(node('p',reasons[job.reason]||'Khởi tạo bị chặn: '+job.reason,'corp-reason'));
       const actions=node('div',undefined,'actions');
-      if(!['running','partial'].includes(job.status)){const start=button(job.status==='blocked'?'Kiểm tra và tiếp tục':'Bắt đầu',()=>act('/projects/'+job.id+'/start'));start.disabled=!data.enabled;actions.append(start);}
+      if(run&&(run.status==='paused'||blocked)){
+        if(task&&(!blocked&&!['reported_complete','limit_wait'].includes(task.status)||task.reason==='access_mode_changed')){const resume=button('Tiếp tục công việc',async()=>{resume.disabled=true;await act('/runs/'+run.id+'/resume');resume.disabled=false;});resume.disabled=!data.enabled;actions.append(resume);}
+        else actions.append(button('Xem hàng đợi',()=>{setCorpTab('queue');openQueueDrawer(run);}));
+      }else if(!['running','partial'].includes(job.status)){const start=button(job.status==='blocked'?'Kiểm tra và tiếp tục':job.projectId?'Tiếp tục thiết lập':'Bắt đầu',()=>act('/projects/'+job.id+'/start'));start.disabled=!data.enabled;actions.append(start);}
       else actions.append(button('Tạm dừng',()=>act('/projects/'+job.id+'/pause')));
       if(job.projectUrl){const link=node('a','Mở Project','btn small');link.href=job.projectUrl;link.target='_blank';link.rel='noopener noreferrer';actions.append(link);}
       actions.append(button('Hủy khởi tạo',()=>act('/projects/'+job.id+'/cancel')));row.append(actions);$('corpBootstraps').append(row);

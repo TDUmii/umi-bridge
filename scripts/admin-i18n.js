@@ -5,6 +5,14 @@
 (() => {
   'use strict';
   const VI_TO_EN = {
+  "Tiếp tục công việc": "Resume work",
+  "Cần tiếp tục công việc": "Work needs attention",
+  "Tiếp tục thiết lập": "Resume setup",
+  "Xem hàng đợi": "View queue",
+  "Đã tạo Project": "Project created",
+  "Đang chuẩn bị Project": "Preparing Project",
+  "Chế độ truy cập đã thay đổi. Tiếp tục công việc trong Project và chat hiện tại.": "The access mode changed. Resume work in the existing Project and chat.",
+  "Nhiệm vụ đang bị chặn. Mở hàng đợi để xem lỗi và cách tiếp tục.": "The task is blocked. Open the queue to review the error and recovery action.",
   "Bật công cụ toàn máy": "Enable full-machine tools",
   "Chế độ workspace: tệp, terminal và thao tác Windows toàn máy đang bị chặn. Tạm dừng các nhiệm vụ đang chạy trước khi chuyển chế độ.": "Workspace mode: whole-machine file, terminal and Windows actions are blocked. Pause active tasks before switching.",
   "Chế độ toàn máy: có thể gọi các công cụ tệp, terminal và Windows đã bật. Máy từ xa và Chrome vẫn cần ghép nối.": "Full-machine mode: enabled file, terminal and Windows tools can be called. Remote PCs and Chrome still require pairing.",
@@ -651,6 +659,8 @@
   try { language = localStorage.getItem('umibridge.admin.language') === 'vi' ? 'vi' : 'en'; } catch {}
   try { if(!localStorage.getItem('umibridge.admin.language'))localStorage.setItem('umibridge.admin.language',language); } catch {}
   const patterns = [
+    [/^(\d+) bộ phận đã có · thêm khi cần$/, (m,n,l)=>l==='en'?n+' department'+(n==='1'?'':'s')+' ready; more as needed':m],
+    [/^(\d+)\/(\d+) chat bộ phận$/, (m,n,total,l)=>l==='en'?n+'/'+total+' department chats':m],
     [/^(\d+) \/ (\d+) tools available$/, (m,a,b,l)=>l==='vi'?a+' / '+b+' công cụ khả dụng':m],
     [/^(\d+) \/ (\d+) công cụ khả dụng$/, (m,a,b,l)=>l==='en'?a+' / '+b+' tools available':m],
     [/^Enable ([a-z0-9_]+) first\.$/, (m,name,l)=>l==='vi'?'Bật '+name+' trước.':m],

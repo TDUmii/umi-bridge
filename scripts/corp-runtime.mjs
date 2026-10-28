@@ -674,9 +674,15 @@ Nhiệm vụ: ${decision?'Chốt phương án sửa dựa trên toàn bộ cuộ
         state.runs = state.runs.filter(item => item !== run); return { ok: true };
       }
       if (['done', 'cancelled'].includes(run.status)) throw Error('run_finished');
-      if (action === 'start') {
+      if (action === 'start' || action === 'resume') {
         if (!state.enabled) throw Error('enable_corp_first');
-        if (step?.status === 'blocked') throw Error('check_chat_before_retry');
+        if (step?.status === 'blocked') {
+          if(action!=='resume'||step.reason!=='access_mode_changed')throw Error('check_chat_before_retry');
+          const leaseId=step.leaseId;step.continuation=Boolean(step.continuation||step.sent);newAttempt(step);
+          if(leaseId)await execution?.release(leaseId,'manual_resume');
+        }else if(action==='resume'&&run.status==='running')return publicRun(run);
+        if(action==='resume'&&step?.status==='limit_wait')throw Error('provider_limit_not_reset');
+        if(action==='resume'&&step?.status==='reported_complete')throw Error('task_not_verifiable');
         run.status = 'running';
       } else if (action === 'pause') run.status = 'paused';
       else if (action === 'cancel') { run.status = 'cancelled'; for (const item of run.steps.filter(active)) { recordUsage(run, item, 'error'); item.status = 'cancelled';if(item.leaseId)await execution?.release(item.leaseId,'cancelled'); } }
@@ -686,7 +692,7 @@ Nhiệm vụ: ${decision?'Chốt phương án sửa dựa trên toàn bộ cuộ
         // Explicit user reconciliation is needed for an ambiguous send; never retry it on a timer.
         const leaseId=step.leaseId;step.continuation = Boolean(step.continuation || step.sent); newAttempt(step);if(leaseId)await execution?.release(leaseId,'manual_retry');run.status = 'paused';
       } else throw Error('invalid_corp_action');
-      if(run.lazyRecruit){const job=state.bootstraps.find(job=>job.id===run.lazyRecruit.jobId);if(job){if(action==='pause')job.status='paused';if(action==='start')job.status=job.recruitRoleId?'running':'partial';if(action==='cancel')job.status='cancelled';}}
+      if(run.lazyRecruit){const job=state.bootstraps.find(job=>job.id===run.lazyRecruit.jobId);if(job){if(action==='pause')job.status='paused';if(action==='start'||action==='resume')job.status=job.recruitRoleId?'running':'partial';if(action==='cancel')job.status='cancelled';}}
       event(action, run, step); return publicRun(run);
     }),
     poll: async (token, input = {}) => {

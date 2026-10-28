@@ -24,6 +24,8 @@ Khi mở UmiBridge, trang tiến độ hiển thị bước kiểm tra runtime, 
 
 Cài mới mặc định dùng công cụ toàn máy với quyền tài khoản Windows đang chạy. Trong **Bộ công cụ**, số khả dụng khác số công tắc đang bật; mỗi công cụ bị chặn có lý do cụ thể. Nếu bật bảo vệ workspace, hãy tạm dừng nhiệm vụ đang chạy trước khi dùng **Bật công cụ toàn máy**. Chuyển chế độ đóng lease cũ của nhiệm vụ đã tạm dừng và đánh dấu cần đối soát; không tự gửi lại công việc. Thư mục cho phép đã tùy chỉnh của runtime desktop được giữ khi cập nhật; profile mới không bị giới hạn vào thư mục dữ liệu nội bộ.
 
+**Tiếp tục Project đang có:** chọn Project trong **Corp → Văn phòng**, rồi bấm **Tiếp tục công việc** trên thẻ tiến độ. Lượt bị dừng do đổi chế độ truy cập sẽ được chuẩn bị lại trong cùng Project/chat; lỗi gửi chưa xác nhận hoặc lỗi khác vẫn cần xem hàng đợi và đối chiếu chat. Không cần tạo lại Project. Nếu máy đã có bản cài chính, mở `UmiBridge.cmd` từ checkout cũng dùng bản cài đó để tránh hai hàng đợi khác nhau; chạy `npm start` khi chủ động phát triển từ source.
+
 > **Tích hợp sẵn từ 1.11.0:** Setup tải runtime desktop cùng UmiBridge và tự cài các dependency cần thiết. Bạn không cần cài Desktop Commander riêng hoặc chạy từ source. Cài đặt cần Internet để tải gói phát hành và dependency.
 
 ## ✨ Tính năng
@@ -93,6 +95,8 @@ The MIT-licensed desktop tools runtime is included under `scripts/vendor/desktop
 On Windows with Node.js 22.12.0 or newer, run `npm ci --ignore-scripts`, `npm run build`, then `npm start`. The build script checks syntax. Local credentials, runtime data, logs and chat data remain outside Git. Browser page content and screenshots are omitted from UmiBridge request history. Review enabled tools before connecting an MCP client.
 
 ### Tool checks and recovery
+
+To continue an existing Corp Project, select it in **Corp → Office** and use **Resume work** on its progress card. Access-mode recovery reuses the existing Project and chat; other blocked sends still require reviewing the queue. GUI launches from source use the managed installation when present, keeping one normal work queue. Use `npm start` for intentional source development.
 
 Open **Tools → Check tools** for live probes in a temporary workspace and a per-tool result list. Only safe file, command and status probes execute; desktop input, remote-device operations and destructive actions remain untested. Optional repair reconnects and retries safe probes once. A disconnected desktop runtime reconnects on the next call; work commands and writes are never automatically replayed after an error.
 
