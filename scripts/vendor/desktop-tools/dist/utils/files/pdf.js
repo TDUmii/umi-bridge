@@ -1,0 +1,124 @@
+/**
+ * PDF File Handler
+ * Implements FileHandler interface for PDF documents
+ */
+import fs from 'fs/promises';
+import { parsePdfToMarkdown, parseMarkdownToPdf, editPdf } from '../../tools/pdf/index.js';
+/**
+ * File handler for PDF documents
+ * Extracts text and images, supports page-based pagination
+ */
+export class PdfFileHandler {
+    constructor() {
+        this.extensions = ['.pdf'];
+    }
+    /**
+     * Check if this handler can handle the given file
+     */
+    canHandle(path) {
+        const ext = path.toLowerCase();
+        return this.extensions.some(e => ext.endsWith(e));
+    }
+    /**
+     * Read PDF content - extracts text as markdown with images
+     */
+    async read(path, options) {
+        const { offset = 0, length } = options ?? {};
+        try {
+            // Use existing PDF parser
+            // With no length, read from offset to the last page (all pages from offset 0)
+            // Note: offset defaults to 0 if undefined.
+            const pdfResult = await parsePdfToMarkdown(path, { offset, length: length ?? Infinity });
+            return {
+                content: '', // Main content is in metadata.pages
+                mimeType: 'application/pdf',
+                metadata: {
+                    isPdf: true,
+                    author: pdfResult.metadata.author,
+                    title: pdfResult.metadata.title,
+                    totalPages: pdfResult.metadata.totalPages,
+                    pages: pdfResult.pages
+                }
+            };
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            return {
+                content: `Error reading PDF: ${errorMessage}`,
+                mimeType: 'text/plain',
+                metadata: {
+                    error: true,
+                    errorMessage
+                }
+            };
+        }
+    }
+    /**
+     * Write PDF - creates from markdown or operations
+     */
+    async write(path, content, mode) {
+        // A PDF can't take text at its end: rendering the content would replace the file
+        if (mode === 'append') {
+            throw new Error('PDF append not supported. Use write_pdf to modify existing PDF files.');
+        }
+        // If content is string, treat as markdown to convert
+        if (typeof content === 'string') {
+            const pdfBuffer = await parseMarkdownToPdf(content);
+            await fs.writeFile(path, pdfBuffer);
+        }
+        else if (Array.isArray(content)) {
+            // Array of operations - use editPdf
+            const resultBuffer = await editPdf(path, content);
+            await fs.writeFile(path, resultBuffer);
+        }
+        else {
+            throw new Error('PDF write requires markdown string or array of operations');
+        }
+    }
+    /**
+     * Edit PDF by range/operations
+     */
+    async editRange(path, range, content, options) {
+        // For PDF, range editing isn't directly supported
+        // Could interpret range as page numbers in future
+        // The output path and inserted PDFs are checked as write_pdf checks them.
+        // Errors reach edit_block (as the Excel handler's do), which answers with them.
+        // Imported when used: tools/filesystem.js loads this handler through the file handler factory
+        const { validatePdfOperationPaths } = await import('../../tools/filesystem.js');
+        const targetPath = await validatePdfOperationPaths(path, content, options?.outputPath);
+        const resultBuffer = await editPdf(path, content);
+        await fs.writeFile(targetPath, resultBuffer);
+        return { success: true, editsApplied: 1 };
+    }
+    /**
+     * Get PDF file information
+     */
+    async getInfo(path) {
+        const stats = await fs.stat(path);
+        // Get basic PDF metadata
+        let metadata = { isPdf: true };
+        try {
+            const pdfResult = await parsePdfToMarkdown(path, { offset: 0, length: 0 }); // Just metadata
+            metadata = {
+                isPdf: true,
+                title: pdfResult.metadata.title,
+                author: pdfResult.metadata.author,
+                totalPages: pdfResult.metadata.totalPages
+            };
+        }
+        catch {
+            // If we can't parse, just return basic info
+        }
+        return {
+            size: stats.size,
+            created: stats.birthtime,
+            modified: stats.mtime,
+            accessed: stats.atime,
+            isDirectory: false,
+            isFile: true,
+            permissions: (stats.mode & 0o777).toString(8),
+            fileType: 'binary',
+            metadata
+        };
+    }
+}
