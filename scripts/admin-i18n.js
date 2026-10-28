@@ -15,6 +15,7 @@
   "Danh mục công cụ Corp chưa đầy đủ.": "Corp tool catalog is incomplete.",
   "Xem kết quả từng công cụ": "View tool results",
   "Có phép kiểm tra thất bại. Xem kết quả bên dưới.": "Some live checks failed. Review the results below.",
+  "Chưa có phép thử nào chạy. Hãy xem các công cụ bị tắt hoặc chưa khả dụng.": "No live checks ran. Review disabled or unavailable tools.",
   "Các phép thử thực tế đã đạt. Những hành động khác chưa được chạy thử.": "Live checks passed. Other actions remain untested.",
   "Phép thử đạt": "Live check passed",
   "Đã khôi phục": "Recovered",

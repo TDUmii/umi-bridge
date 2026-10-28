@@ -1366,7 +1366,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       const response=await fetch('/admin/api/tools/check',{method:'POST',headers:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},body:JSON.stringify({repair:$('repairTools').checked})});
       if(!response.ok)throw Error('Tool check could not finish. Check the gateway and retry.');
       const data=await response.json();
-      const s=data.summary;$('toolHealthSummary').textContent=s.failed?'Some live checks failed. Review the results below.':'Live checks passed. Other actions remain untested.';
+      const s=data.summary;$('toolHealthSummary').textContent=!data.checks.length?'No live checks ran. Review disabled or unavailable tools.':s.failed?'Some live checks failed. Review the results below.':'Live checks passed. Other actions remain untested.';
       $('toolHealthGuidance').textContent=data.guidance;
       const labels={passed:'Live check passed',recovered:'Recovered',failed:'Live check failed',disabled:'Disabled by owner',blocked:'Blocked or unavailable',untested:'Catalog only; action untested'};
       $('toolHealthResults').innerHTML='<p>'+escapeHtml(new Date(data.checkedAt).toLocaleString())+'</p>'+
