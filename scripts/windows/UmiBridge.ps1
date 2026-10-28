@@ -89,6 +89,8 @@ function Assert-BridgeReady {
     $health = Invoke-WebRequest -Uri ("http://127.0.0.1:{0}/health" -f $port) -UseBasicParsing -TimeoutSec 5
     $page = Invoke-WebRequest -Uri ("http://127.0.0.1:{0}/admin" -f $port) -UseBasicParsing -TimeoutSec 5
     if ($health.StatusCode -ne 200 -or $page.StatusCode -ne 200) { throw 'Gateway or dashboard is not ready.' }
+    # Starting/recovering the gateway never probes the desktop. Full probes are opt-in.
+    if (-not $CheckOnly) { return }
     Write-StartupProgress 'Đang kiểm tra công cụ tệp, terminal và Windows trên gateway...'
     for ($repairAttempt = 0; $repairAttempt -lt 2; $repairAttempt++) {
         $check = $null
@@ -101,7 +103,7 @@ function Assert-BridgeReady {
             return
         }
         if ($repairAttempt -or $script:stateDir -eq $protectedState) { throw 'Công cụ vẫn chưa sẵn sàng sau kiểm tra. Xem Bộ công cụ để biết thành phần lỗi.' }
-        if (Test-UmiWorkActive $port) { throw 'Cần sửa runtime, nhưng có nhiệm vụ đang chạy. Umi giữ nguyên công việc và sẽ kiểm tra lại tự động.' }
+        if (Test-UmiWorkActive $port) { throw 'Cần sửa runtime, nhưng có nhiệm vụ đang chạy. Chờ công việc kết thúc rồi bấm Repair.' }
         Write-StartupProgress 'Đang tự sửa runtime công cụ và kiểm tra lại một lần...'
         Stop-Bridge
         Invoke-PowerShellScript (Join-Path $root 'scripts\windows\Setup-Local.ps1') @('-SkipCloudflared','-NoBrowser','-Repair')

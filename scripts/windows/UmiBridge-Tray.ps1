@@ -19,7 +19,6 @@ $launcher = Join-Path $PSScriptRoot 'UmiBridge.ps1'
 $stateDir = Join-Path $root '.local-data'
 [void][IO.Directory]::CreateDirectory($stateDir)
 $stopPath = Join-Path $stateDir 'launcher-stop'
-$recheckPath = Join-Path $stateDir 'launcher-recheck'
 $trayState = Join-Path $stateDir 'tray-status.json'
 $shell = Join-Path ([Environment]::GetFolderPath('System')) 'WindowsPowerShell\v1.0\powershell.exe'
 $port = 43127
@@ -43,7 +42,7 @@ $acquired = $false
 try { $acquired = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $acquired = $true }
 if (-not $acquired) {
     $mutex.Dispose()
-    [IO.File]::WriteAllText($recheckPath, [DateTime]::UtcNow.ToString('o'))
+    Start-Process $dashboard
     exit 0
 }
 
@@ -58,8 +57,6 @@ $offlineSince = $null
 $lastMessage = ''
 $exiting = $false
 $dashboardOpened = $false
-$startupVerified = $false
-$lastToolCheck = [DateTime]::MinValue
 $timer = New-Object Windows.Forms.Timer
 $timer.Interval = 5000
 $icon = New-Object Windows.Forms.NotifyIcon
@@ -139,6 +136,15 @@ function Test-TrayHealth {
 
 [void]$menu.Items.Add('Open Dashboard', $null, { Start-Process $dashboard })
 [void]$menu.Items.Add('System Map', $null, { Start-Process ("http://127.0.0.1:{0}/admin/system-map" -f $port) })
+[void]$menu.Items.Add('Repair', $null, {
+    try {
+        if (Test-UmiModePending $sid) { Set-TrayStatus 'Waiting for Windows authorization' -Notify; return }
+        if ($script:worker -and -not $script:worker.HasExited) { Set-TrayStatus 'Operation still running' -Notify; return }
+        Open-StartupPage
+        Start-TrayWorker -CheckOnly
+        Set-TrayStatus 'Repair requested' -Notify
+    } catch { Set-TrayStatus 'Repair failed. See launcher-error.log' -Notify }
+})
 [void]$menu.Items.Add('Restart', $null, {
     try {
         if (Test-UmiModePending $sid) { Set-TrayStatus 'Waiting for Windows authorization' -Notify; return }
@@ -177,26 +183,13 @@ $timer.Add_Tick({
                 if ($exitCode -eq 0) { [IO.File]::WriteAllText($stopPath, $now.ToString('o')); $context.ExitThread(); return }
                 $script:exiting = $false; Set-TrayStatus 'Stop cancelled or failed. Gateway retained' -Notify
             }
-            elseif ($exitCode -eq 0) {
-                $script:startupVerified = $true; $script:lastToolCheck = $now
-            } else {
-                $script:startupVerified = $false
-                Set-TrayStatus 'Tool check failed. Automatic repair pending' -Notify
+            elseif ($exitCode -ne 0) {
+                Set-TrayStatus 'Operation failed. Open Repair for tool checks' -Notify
             }
         }
         if (Test-UmiModePending $sid) { $script:offlineSince = $null; Set-TrayStatus 'Waiting for Windows authorization'; return }
-        if (Test-Path -LiteralPath $recheckPath) {
-            Remove-Item -LiteralPath $recheckPath -Force
-            $attempts.Clear(); $script:startupVerified = $false; $script:offlineSince = $null
-            Open-StartupPage
-        }
         $gatewayHealthy = Test-TrayHealth
-        if ($gatewayHealthy -and $script:startupVerified) {
-            if (($now - $script:lastToolCheck).TotalMinutes -ge 3) {
-                Start-TrayWorker -CheckOnly
-                Set-TrayStatus 'Checking tools in background' $true
-                return
-            }
+        if ($gatewayHealthy) {
             $script:offlineSince = $null; Set-TrayStatus 'Online' $true
             if (-not $script:dashboardOpened) { $script:dashboardOpened = $true; Start-Process $dashboard }
             return
@@ -207,7 +200,7 @@ $timer.Add_Tick({
         while ($attempts.Count -gt 0 -and ($now - $attempts[0]).TotalMinutes -ge 10) { $attempts.RemoveAt(0) }
         if ($attempts.Count -ge 3) { Set-TrayStatus 'Needs attention. Open UmiBridge.cmd to retry' -Notify; return }
         $attempts.Add($now); $script:offlineSince = $now
-        if ($gatewayHealthy) { Start-TrayWorker -CheckOnly } else { $script:startupVerified = $false; Start-TrayWorker -Restart }
+        Start-TrayWorker -Restart
         Set-TrayStatus ('Recovering connection (' + $attempts.Count + '/3)') -Notify
     } catch {
         Add-Content -LiteralPath (Join-Path $stateDir 'launcher-error.log') -Value ([DateTime]::UtcNow.ToString('o') + ' TRAY ' + $_.Exception.Message)

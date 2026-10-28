@@ -142,7 +142,6 @@ try {
         $shortcut.Save()
         Write-Host ('Runtime verified: ' + $root) -ForegroundColor Green
         if (-not $NoLaunch) {
-            $launchStarted=[DateTime]::UtcNow
             Start-Process -FilePath (Join-Path $root 'UmiBridge.cmd') -ArgumentList '-NoUpdate' -WorkingDirectory $root -WindowStyle Hidden
             $port = if ($env:DC_WEB_PORT) { [int]$env:DC_WEB_PORT } else { 43127 }
             $expectedVersion=(Get-Content -LiteralPath (Join-Path $root 'package.json') -Raw|ConvertFrom-Json).version
@@ -152,15 +151,15 @@ try {
                 try {
                     $page=Invoke-WebRequest -Uri ("http://127.0.0.1:{0}/admin" -f $port) -UseBasicParsing -TimeoutSec 2
                     if ($page.Content -match ('v'+[regex]::Escape($expectedVersion))) {
-                        $check=Invoke-RestMethod -Uri ("http://127.0.0.1:{0}/admin/api/tools/check" -f $port) -TimeoutSec 5
+                        $health=Invoke-RestMethod -Uri ("http://127.0.0.1:{0}/health" -f $port) -TimeoutSec 5
                         $progress=Get-Content -LiteralPath (Join-Path $state 'startup-progress.json') -Raw|ConvertFrom-Json
-                        if ($check.version -eq $expectedVersion -and $check.installationRoot -eq $root -and $check.critical.ready -and $progress.state -eq 'ready' -and ([DateTimeOffset]$check.checkedAt).UtcDateTime -ge $launchStarted) { $ready=$true; break }
+                        if ($health.ok -and $progress.state -eq 'ready') { $ready=$true; break }
                     }
                 } catch { }
                 Start-Sleep -Seconds 2
             }
-            if (-not $ready) { throw 'Gateway tool verification did not finish. Complete tunnel sign-in on the startup page, or review its error, then retry.' }
-            Write-Host 'UmiBridge ready: gateway, dashboard and live tool checks passed.' -ForegroundColor Green
+            if (-not $ready) { throw 'Gateway did not finish starting. Complete tunnel sign-in on the startup page, or review its error, then retry.' }
+            Write-Host 'UmiBridge ready: gateway and dashboard are online. Use Repair for tool checks.' -ForegroundColor Green
         }
     }
 } catch {

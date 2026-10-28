@@ -624,14 +624,14 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
         </div>
       </section>
       <section id="tool-permissions" class="panel skills-panel view-section" data-view="tools" aria-labelledby="permissionsTitle">
-        <div class="panel-title skills-head"><h2 id="permissionsTitle">Tools</h2><div class="actions"><button id="checkTools" class="btn small" type="button">Check tools</button><span id="permissionCount" class="panel-chip">Checking...</span></div></div>
+        <div class="panel-title skills-head"><h2 id="permissionsTitle">Tools</h2><div class="actions"><button id="checkTools" class="btn small" type="button">Repair</button><span id="permissionCount" class="panel-chip">Checking...</span></div></div>
         <div class="permissions-body">
           <div class="tool-health" aria-labelledby="toolHealthTitle">
             <h3 id="toolHealthTitle">Tool health</h3>
             <p id="toolAccessMode" role="status">Checking...</p>
             <button id="enableFullMachine" class="btn small" type="button" hidden>Enable full-machine tools</button>
             <p>Runs safe file, command and status probes. Desktop input and destructive actions are not executed.</p>
-            <label><input id="repairTools" type="checkbox" checked> Reconnect and retry safe checks once</label>
+            <p>Checks run only when you press Repair, including a screenshot test. No scheduled desktop checks.</p>
             <p id="toolHealthSummary" role="status" aria-live="polite">No check has run yet.</p>
             <p id="toolHealthGuidance"></p>
             <details id="toolHealthDetails" hidden><summary>View tool results</summary><div id="toolHealthResults"></div></details>
@@ -1385,7 +1385,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
     const button=$('checkTools');if(button.disabled)return;
     button.disabled=true;$('toolHealthDetails').hidden=true;$('toolHealthGuidance').textContent='';$('toolHealthSummary').textContent='Checking live tools. Please wait...';
     try{
-      const response=await fetch('/admin/api/tools/check',{method:'POST',headers:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},body:JSON.stringify({repair:$('repairTools').checked})});
+      const response=await fetch('/admin/api/tools/check',{method:'POST',headers:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},body:JSON.stringify({repair:true})});
       if(!response.ok)throw Error('Tool check could not finish. Check the gateway and retry.');
       renderToolHealth(await response.json());await loadToolPolicy();
     }catch(error){$('toolHealthSummary').textContent=error.message;}

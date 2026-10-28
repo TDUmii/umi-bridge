@@ -23,6 +23,8 @@
   "Ghép nối và bật extension Chrome.": "Pair and enable the Chrome extension.",
   "Công cụ desktop Windows đang tạm dừng.": "Windows desktop tools are paused.",
   "Kiểm tra công cụ": "Check tools",
+  "Repair": "Repair",
+  "Chỉ kiểm tra khi bạn bấm Repair, gồm phép thử chụp màn hình. Không kiểm tra desktop theo lịch.": "Checks run only when you press Repair, including a screenshot test. No scheduled desktop checks.",
   "Tình trạng công cụ": "Tool health",
   "Thử tệp, lệnh và trạng thái bằng các phép kiểm tra an toàn. Không thao tác chuột/bàn phím hoặc chạy hành động phá hủy.": "Runs safe file, command and status probes. Desktop input and destructive actions are not executed.",
   "Kết nối lại và thử lại phép kiểm tra an toàn một lần": "Reconnect and retry safe checks once",

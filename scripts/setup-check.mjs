@@ -55,10 +55,6 @@ try{
     const tools=await windows.listTools();if(!['windows_click','windows_type','windows_screenshot'].every(name=>tools.some(tool=>tool.name===name)))throw Error('Missing Windows tools');
     checked(await windows.callTool('windows_control_status',{}));
   });
-  await probe('windows_screenshot','Đang thử chụp màn hình Windows...',async()=>{
-    const result=checked(await windows.callTool('windows_screenshot',{}));
-    if(!result.content?.some(item=>item.type==='image'&&item.data?.length))throw Error('No screenshot returned');
-  });
   await writeFile(reportFile,JSON.stringify({version,checkedAt:new Date().toISOString(),passed:true,checks},null,2));
   console.log('All setup probes passed.');
 }catch(error){

@@ -20,7 +20,7 @@ UmiBridge kết nối ChatGPT với máy Windows qua MCP và cung cấp dashboar
 
 Khi mở UmiBridge, trang tiến độ hiển thị bước kiểm tra runtime, cập nhật, đăng nhập tunnel và khởi động gateway. CMD chạy ẩn. Trang tự chuyển sang dashboard sau khi gateway và dashboard đều phản hồi; lỗi khởi động được giữ trên trang. Khi cần đăng nhập GitHub cho tunnel, bấm nút mở tab đăng nhập và nhập mã hiển thị; tab do trang này mở sẽ tự đóng khi bước đăng nhập kết thúc.
 
-**Setup trên máy Windows x64 mới:** Umi tự tải Node.js portable, Python riêng, runtime Windows và dependency desktop. Không cần cài Node/Python/Git trước. Sau khi có Node, trang tiến độ theo dõi việc cài và chạy thử công cụ. Setup kiểm tra đọc/ghi tệp, PowerShell, terminal tích hợp, tìm kiếm, tạo PDF và chụp màn hình; khởi động chỉ báo sẵn sàng khi gateway và phép thử công cụ đã đạt. Báo cáo cục bộ nằm tại `.local-data/setup-check.json`. Cần Internet và một phiên desktop Windows đang mở; lần đăng nhập tunnel và cấp quyền kết nối ChatGPT vẫn do chủ máy thực hiện.
+**Setup trên máy Windows x64 mới:** Umi tự tải Node.js portable, Python riêng, runtime Windows và dependency desktop. Không cần cài Node/Python/Git trước. Sau khi có Node, trang tiến độ theo dõi việc cài và chạy thử công cụ tệp, PowerShell, terminal, tìm kiếm và PDF. Setup không chụp màn hình. Khởi động kiểm tra gateway và dashboard phản hồi; kiểm tra desktop chỉ chạy khi bấm **Repair**. Báo cáo cục bộ nằm tại `.local-data/setup-check.json`. Cần Internet và một phiên desktop Windows đang mở; lần đăng nhập tunnel và cấp quyền kết nối ChatGPT vẫn do chủ máy thực hiện.
 
 Cài mới mặc định dùng công cụ toàn máy với quyền tài khoản Windows đang chạy. Trong **Bộ công cụ**, số khả dụng khác số công tắc đang bật; mỗi công cụ bị chặn có lý do cụ thể. Nếu bật bảo vệ workspace, hãy tạm dừng nhiệm vụ đang chạy trước khi dùng **Bật công cụ toàn máy**. Chuyển chế độ đóng lease cũ của nhiệm vụ đã tạm dừng và đánh dấu cần đối soát; không tự gửi lại công việc. Thư mục cho phép đã tùy chỉnh của runtime desktop được giữ khi cập nhật; profile mới không bị giới hạn vào thư mục dữ liệu nội bộ.
 
@@ -63,7 +63,7 @@ npm start
 
 ## 🔧 Xử lý sự cố
 
-- **Kiểm tra công cụ:** vào **Tools → Check tools** (tiếng Việt: **Bộ công cụ → Kiểm tra công cụ**). Umi chạy phép thử đọc/ghi tệp trong thư mục tạm, kiểm tra lệnh vô hại khi chế độ cho phép, trạng thái runtime, skills, danh sách thiết bị và kết nối Chrome nếu đang bật. Mở **Xem kết quả từng công cụ** để phân biệt: đã thử đạt, khôi phục được, thất bại, chủ máy tắt, bị chặn/chưa khả dụng, hoặc chỉ có trong danh mục và chưa chạy thử. Kiểm tra trạng thái/danh sách không xác nhận các thao tác chuột, bàn phím, thiết bị từ xa hay hành động phá hủy.
+- **Repair:** vào **Bộ công cụ → Repair** để chủ động kiểm tra và kết nối lại worker. Lượt này có phép thử chụp màn hình, tệp tạm, lệnh vô hại, trạng thái runtime, skills, thiết bị và Chrome khi được bật. Không có kiểm tra desktop định kỳ. Mở **Xem kết quả từng công cụ** để xem chi tiết; kiểm tra không thao tác chuột/bàn phím hoặc chạy hành động phá hủy.
 - **Tự khôi phục:** runtime desktop mất kết nối sẽ được kết nối lại ở lần gọi tiếp theo. Tùy chọn **Kết nối lại và thử lại phép kiểm tra an toàn một lần** áp dụng cho các phép thử có thể lặp an toàn. Umi không tự chạy lại lệnh công việc hoặc thao tác ghi sau lỗi, không tự bật quyền đã tắt, và không tự giao lại nhiệm vụ Corp.
 - **Corp báo thiếu công cụ workspace:** khi khóa workspace bật, Corp dùng `scope_read_file`, `scope_write_file`, `scope_list_directory`, `corp_task_details` và `corp_submit_result`; các công cụ tệp/shell/desktop toàn máy bị chặn theo cấu hình. Phép thử dùng workspace tạm riêng, không dùng token hoặc thư mục của nhiệm vụ đang chạy. Nếu kiểm tra local đạt nhưng chat thiếu `scope_*`, làm mới kết nối UmiBridge trong ChatGPT rồi mở lại chat. Gateway không thể tự làm mới danh mục công cụ của một phiên ChatGPT đã mở.
 - **Không kết nối được:** mở UmiBridge, kiểm tra dashboard và trạng thái gateway. Nếu cần, dùng **Restart** từ biểu tượng khay; kiểm tra tunnel và kết nối MCP trong ChatGPT.
@@ -73,11 +73,11 @@ npm start
 
 ### Mở hằng ngày bằng một nút
 
-Nhấp đúp **UmiBridge.cmd** hoặc shortcut **UmiBridge**. Ứng dụng tự kiểm tra bản cập nhật, runtime, tunnel, gateway và các công cụ bắt buộc. Trang khởi động hiển thị bước đang chạy; chỉ chuyển vào dashboard sau khi các phép thử đạt. Setup cũng tự mở ứng dụng sau khi cài xong.
+Nhấp đúp **UmiBridge.cmd** hoặc shortcut **UmiBridge**. Ứng dụng kiểm tra bản cập nhật, runtime, tunnel và kết nối gateway. Trang khởi động hiển thị bước đang chạy và chuyển vào dashboard khi kết nối sẵn sàng. Setup cũng tự mở ứng dụng sau khi cài xong.
 
-Nếu Umi đã chạy, mở lại cùng nút sẽ yêu cầu kiểm tra mới trên phiên hiện tại, không tạo gateway thứ hai. Kết quả được lưu local để setup và dashboard dùng chung, không chạy lại cùng một lượt chỉ để đọc kết quả.
+Nếu Umi đã chạy, mở lại cùng nút chỉ mở dashboard, không tạo gateway thứ hai hoặc chạy lại phép thử desktop. Kết quả Repair được lưu local; mở dashboard chỉ đọc lại kết quả đã có.
 
-Khi chạy nền, Umi kiểm tra công cụ mỗi 3 phút. Mất worker được kết nối lại; nếu vẫn lỗi, ứng dụng có thể cài lại runtime riêng và kiểm tra lại một lần. Gateway ngừng chạy được khởi động lại có giới hạn. Tác vụ Corp/Arena đang chạy được giữ lại; sửa runtime hoặc cập nhật phải chờ công việc kết thúc. Quyền đã tắt, thư mục dự án, chat, URL và khóa kết nối được giữ nguyên.
+Khi chạy nền, Umi chỉ kiểm tra kết nối HTTP của gateway và dashboard, không tự chụp màn hình hoặc chạy thử công cụ. Gateway ngừng chạy được khởi động lại có giới hạn. Bấm **Repair** trong **Bộ công cụ** để chạy phép thử và kết nối lại worker; **Repair** ở menu khay còn có thể sửa runtime riêng khi cần. Tác vụ Corp/Arena đang chạy được giữ lại; sửa runtime hoặc cập nhật phải chờ công việc kết thúc. Quyền đã tắt, thư mục dự án, chat, URL và khóa kết nối được giữ nguyên.
 
 Các bước cần chủ tài khoản như đăng nhập tunnel, cấp quyền ChatGPT hoặc nạp/reload extension vẫn hiển thị để bạn hoàn tất. Umi không tự gửi lại lệnh công việc khi chưa biết lệnh cũ đã chạy hay chưa. Phép thử công cụ xác nhận các thao tác an toàn đã chạy, không khẳng định mọi thao tác GUI hay toàn bộ sản phẩm đều đã nghiệm thu.
 
@@ -94,7 +94,7 @@ UmiBridge is a Windows MCP gateway for ChatGPT with a local administration dashb
 
 **Included since 1.11.0:** Setup downloads the bundled desktop runtime and installs its dependencies automatically. No separate Desktop Commander installation or source checkout is required. Internet access is needed to download the release and dependencies.
 
-On a fresh Windows x64 machine, Setup provisions private Node.js and Python runtimes without requiring Node, Python or Git beforehand. It runs real file, terminal, search, PDF and screenshot probes before completion, then verifies the gateway's live tools before declaring readiness. A signed-in Windows desktop and Internet access are required. Tunnel sign-in and ChatGPT authorization still require the owner. New profiles allow full-machine tools under the current Windows account; existing custom directory limits are preserved.
+On a fresh Windows x64 machine, Setup provisions private Node.js and Python runtimes without requiring Node, Python or Git beforehand. It runs file, terminal, search and PDF probes, then checks the gateway and dashboard connection. Setup takes no screenshots. Desktop checks run only when the owner presses **Repair**. A signed-in Windows desktop and Internet access are required. Tunnel sign-in and ChatGPT authorization still require the owner. New profiles allow full-machine tools under the current Windows account; existing custom directory limits are preserved.
 
 ### Bundled desktop tools
 
@@ -106,11 +106,11 @@ On Windows with Node.js 22.12.0 or newer, run `npm ci --ignore-scripts`, `npm ru
 
 ### Tool checks and recovery
 
-Double-click **UmiBridge.cmd** for daily use. The same launcher checks updates, private runtimes, the tunnel, gateway and required live tools, repairs recoverable failures, and opens the dashboard only after verification. Opening it again requests a fresh check on the existing tray session. Setup reads the saved result instead of running a duplicate check. Background tool checks run every 3 minutes; failed workers reconnect, a broken private runtime can be reinstalled once, and stopped gateways restart within a bounded retry budget. Active Corp/Arena work defers file replacement and runtime repair. Owner-disabled features, work files, chats and saved connection credentials are preserved. Account sign-in and browser/client authorization still require the owner.
+Double-click **UmiBridge.cmd** for daily use. The launcher checks updates, private runtimes, the tunnel and the gateway connection, then opens the dashboard. Opening it again opens the existing dashboard. Background monitoring checks HTTP connectivity only; it never runs desktop probes or screenshots. Use **Tools → Repair** for an explicit tool check and safe reconnect, including a screenshot test. **Repair** in the tray menu can also reinstall a broken private runtime once. Active Corp/Arena work defers file replacement and runtime repair. Owner-disabled features, work files, chats and saved connection credentials are preserved. Account sign-in and browser/client authorization still require the owner.
 
 To continue an existing Corp Project, select it in **Corp → Office** and use **Resume work** on its progress card. Access-mode recovery reuses the existing Project and chat; other blocked sends still require reviewing the queue. GUI launches from source use the managed installation when present, keeping one normal work queue. Use `npm start` for intentional source development.
 
-Open **Tools → Check tools** for live probes in a temporary workspace and a per-tool result list. Only safe file, command and status probes execute; desktop input, remote-device operations and destructive actions remain untested. Optional repair reconnects and retries safe probes once. A disconnected desktop runtime reconnects on the next call; work commands and writes are never automatically replayed after an error.
+Open **Tools → Repair** for live probes in a temporary workspace and a per-tool result list. This explicit check includes a screenshot but no desktop input, remote-device operations or destructive actions. Repair reconnects and retries safe probes once. A disconnected desktop runtime reconnects on the next call; work commands and writes are never automatically replayed after an error.
 
 Workspace protection requires the `scope_*` file tools for Corp. The check preserves existing permissions and active tasks. If local checks pass but a tool is missing in ChatGPT, refresh the UmiBridge app connection and reopen the chat; the gateway cannot refresh an existing client's tool catalog itself.
 
