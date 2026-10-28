@@ -15,6 +15,7 @@ export function createDesktopCommander({ stateDir }) {
       let config;
       try { config = JSON.parse(await readFile(join(stateDir, 'desktop-commander.json'), 'utf8')); }
       catch (error) { if(error.code !== 'ENOENT'){state='invalid_config';return;} config={enabled:true}; }
+      if (!config || typeof config !== 'object' || Array.isArray(config)) { state='invalid_config'; return; }
       config.entry=fileURLToPath(new URL('./vendor/desktop-tools/dist/index.js',import.meta.url));
       if (config.enabled !== true) { state = 'disabled'; return; }
       if (typeof config.entry !== 'string' || !isAbsolute(config.entry) || !config.entry.endsWith('.js') ||
@@ -37,7 +38,7 @@ export function createDesktopCommander({ stateDir }) {
     return pending;
   }
   return {
-    async listTools() { await connect(); return [{name:'dc_status',description:'Read the optional local Desktop Commander integration status. This is a file/terminal backend; Windows desktop input uses windows_* tools.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},...catalog]; },
+    async listTools() { await connect(); return [{name:'dc_status',description:'Read UmiBridge bundled desktop tools status. No external Desktop Commander installation is required. Windows desktop input uses windows_* tools.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},...catalog]; },
     async callTool(name,args) {
       await connect();
       if (name === 'dc_status') return {content:[{type:'text',text:JSON.stringify({state,available:state==='ready',toolCount:catalog.length})}]};

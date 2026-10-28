@@ -203,6 +203,11 @@ function Test-ProjectRuntime {
     $sdk = Test-Path -LiteralPath (Join-Path $root 'node_modules\@modelcontextprotocol\sdk\package.json')
     $tokenizer = Test-Path -LiteralPath (Join-Path $root 'node_modules\js-tiktoken\package.json')
     if (-not $node -or -not $sdk -or -not $tokenizer) { Write-LauncherLog 'RUNTIME_MISSING node/sdk/tokenizer'; return $false }
+    foreach ($dependency in @('@umibridge\desktop-tools', '@desktop-commander\telemetry-contract', 'exceljs', 'md-to-pdf', 'pizzip')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $root ('node_modules\' + $dependency + '\package.json')))) {
+            Write-LauncherLog 'RUNTIME_MISSING bundled desktop dependencies'; return $false
+        }
+    }
     $windowsPython = Join-Path $root '.runtime\windows-tools\Scripts\python.exe'
     $windowsManifest = Join-Path $root '.runtime\windows-tools\umibridge-ready.json'
     if (-not (Test-Path -LiteralPath $windowsPython) -or -not (Test-Path -LiteralPath $windowsManifest)) { Write-LauncherLog 'RUNTIME_MISSING windows-tools'; return $false }
