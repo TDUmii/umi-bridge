@@ -18,7 +18,7 @@ UmiBridge kết nối ChatGPT với máy Windows qua MCP và cung cấp dashboar
 4. Trong dashboard, chọn **Tools** và bật những công cụ cần dùng. Nếu danh sách công cụ thay đổi, làm mới kết nối trong ChatGPT hoặc mở chat mới.
 5. Để dùng Corp, Arena hoặc điều khiển trang Chrome, nạp thư mục `extensions/umibridge-corp` vào Chrome và ghép tại **Corp → Connection**. Bật **Browser control** trong cài đặt extension nếu cần thao tác trang.
 
-> **Lưu ý về phiên bản:** Trình cài đặt lấy bản phát hành mới nhất, có thể chậm hơn mã trên `main`. Bản phát hành 1.10.0 có trước tích hợp Desktop Commander; để dùng tích hợp này, cần bản phát hành mới hơn hoặc chạy từ source.
+> **Tích hợp sẵn từ 1.11.0:** Setup tải runtime desktop cùng UmiBridge và tự cài các dependency cần thiết. Bạn không cần cài Desktop Commander riêng hoặc chạy từ source. Cài đặt cần Internet để tải gói phát hành và dependency.
 
 ## ✨ Tính năng
 
@@ -71,7 +71,7 @@ UmiBridge is a Windows MCP gateway for ChatGPT with a local administration dashb
 3. Add the displayed MCP server URL in ChatGPT, select OAuth and authorize it with the connection code shown locally. Enable the tools you need in **Tools**.
 4. For Corp, Arena or Chrome page control, load `extensions/umibridge-corp` in Chrome and pair it under **Corp → Connection**. Enable **Browser control** in the extension for page actions.
 
-The installer uses the latest release, which can lag behind `main`. Release **1.10.0** predates the bundled Desktop Commander integration currently on `main`.
+**Included since 1.11.0:** Setup downloads the bundled desktop runtime and installs its dependencies automatically. No separate Desktop Commander installation or source checkout is required. Internet access is needed to download the release and dependencies.
 
 ### Bundled desktop tools
 

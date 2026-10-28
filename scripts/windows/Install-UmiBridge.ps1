@@ -55,7 +55,7 @@ try {
             }
         } finally { $zip.Dispose() }
         Expand-Archive -LiteralPath $archive -DestinationPath $source
-        foreach ($required in @('package.json', 'package-lock.json', 'UmiBridge.cmd', 'scripts\windows\Setup-Local.ps1', 'scripts\windows\Install-UmiBridge.ps1')) {
+        foreach ($required in @('package.json', 'package-lock.json', 'UmiBridge.cmd', 'scripts\windows\Setup-Local.ps1', 'scripts\windows\Install-UmiBridge.ps1', 'scripts\vendor\desktop-tools\dist\index.js', 'scripts\vendor\desktop-tools\package.json', 'scripts\vendor\desktop-tools\vendor\telemetry-contract\package.json')) {
             if (-not (Test-Path -LiteralPath (Join-Path $source $required) -PathType Leaf)) { throw ('Release is missing ' + $required) }
         }
         $files = @{}
