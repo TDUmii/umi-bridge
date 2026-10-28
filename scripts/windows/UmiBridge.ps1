@@ -9,7 +9,8 @@ param(
     [switch]$TemporaryTunnel,
     [switch]$Monitor,
     [switch]$NoDashboard,
-    [switch]$KeepWatchdog
+    [switch]$KeepWatchdog,
+    [switch]$CheckOnly
 )
 
 if ($PSVersionTable.PSVersion.Major -le 5) {
@@ -30,6 +31,7 @@ $protectedRoot = Join-Path (Join-Path ([Environment]::GetFolderPath('CommonAppli
 $protectedState = Join-Path $protectedRoot 'app\.local-data'
 
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+. (Join-Path $PSScriptRoot 'Runtime-Health.ps1')
 
 function Write-LauncherLog([string]$Message) {
     $stamp = (Get-Date).ToString('s')
@@ -88,9 +90,25 @@ function Assert-BridgeReady {
     $page = Invoke-WebRequest -Uri ("http://127.0.0.1:{0}/admin" -f $port) -UseBasicParsing -TimeoutSec 5
     if ($health.StatusCode -ne 200 -or $page.StatusCode -ne 200) { throw 'Gateway or dashboard is not ready.' }
     Write-StartupProgress 'Đang kiểm tra công cụ tệp, terminal và Windows trên gateway...'
-    $check = Invoke-RestMethod -Uri ("http://127.0.0.1:{0}/admin/api/tools/check" -f $port) -Method Post -Headers @{'X-DC-Admin-Action'='1'} -ContentType 'application/json' -Body '{"repair":true}' -TimeoutSec 180
-    if ($check.installationRoot -ne $root) { throw 'This port belongs to another UmiBridge installation. Stop that instance before starting this one.' }
-    if ($check.summary.failed -gt 0 -or $check.checks.Count -eq 0) { throw 'Gateway started but tool checks failed. Open Tools to review results; startup is not ready.' }
+    for ($repairAttempt = 0; $repairAttempt -lt 2; $repairAttempt++) {
+        $check = $null
+        try { $check = Invoke-RestMethod -Uri ("http://127.0.0.1:{0}/admin/api/tools/check" -f $port) -Method Post -Headers @{'X-DC-Admin-Action'='1'} -ContentType 'application/json' -Body '{"repair":true}' -TimeoutSec 180 }
+        catch { Write-LauncherLog 'TOOL_CHECK_FAILED gateway tool probe did not finish' }
+        $expectedRoot = if ($script:stateDir -eq $protectedState) { Join-Path $protectedRoot 'app' } else { $root }
+        if ($check -and $check.installationRoot -ne $expectedRoot) { throw 'This port belongs to another UmiBridge installation. Stop that instance before starting this one.' }
+        if ($check.critical.ready) {
+            Write-StartupProgress ("Đã kiểm tra {0} phép thử; {1} phép thử đã tự khôi phục. Đang mở dashboard..." -f $check.summary.passed, $check.summary.recovered)
+            return
+        }
+        if ($repairAttempt -or $script:stateDir -eq $protectedState) { throw 'Công cụ vẫn chưa sẵn sàng sau kiểm tra. Xem Bộ công cụ để biết thành phần lỗi.' }
+        if (Test-UmiWorkActive $port) { throw 'Cần sửa runtime, nhưng có nhiệm vụ đang chạy. Umi giữ nguyên công việc và sẽ kiểm tra lại tự động.' }
+        Write-StartupProgress 'Đang tự sửa runtime công cụ và kiểm tra lại một lần...'
+        Stop-Bridge
+        Invoke-PowerShellScript (Join-Path $root 'scripts\windows\Setup-Local.ps1') @('-SkipCloudflared','-NoBrowser','-Repair')
+        $repairStartArgs = @('-NoDashboard')
+        if ($LocalOnly) { $repairStartArgs += '-LocalOnly' }
+        Invoke-PowerShellScript (Join-Path $root 'scripts\windows\Start-UmiBridge.ps1') $repairStartArgs
+    }
 }
 
 function Watch-Requests {
@@ -260,6 +278,12 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Cannot verify Windows privilege mode. Your saved connection has not been changed.' }
     $privilegeMode = $modeOutput | ConvertFrom-Json
     if ($privilegeMode.capability -eq 'integrity-error') { throw 'The protected Admin installation failed verification. Reauthorize Admin mode before starting it.' }
+    if ($CheckOnly) {
+        if ($privilegeMode.installed) { $script:stateDir = $protectedState; $script:statusPath = Join-Path $stateDir 'web-status.json' }
+        Assert-BridgeReady
+        Write-StartupProgress 'Gateway và công cụ đã kiểm tra xong, sẵn sàng làm việc.' 'ready'
+        exit 0
+    }
     if ($privilegeMode.installed) {
         if ($Action -eq 'stop') {
             Invoke-PowerShellScript $adminHelper @('-Action', 'stop', '-SourceRoot', $root)
@@ -300,23 +324,31 @@ try {
     }
     Write-Host 'UmiBridge Sakura Console - one-click start' -ForegroundColor Cyan
     Write-StartupProgress 'Đang kiểm tra bản cập nhật...'
-    $updated = Update-Source
+    $workActive = Test-UmiWorkActive $port
+    $updated = $false
+    if ($workActive) { Write-StartupProgress 'Có công việc đang chạy. Giữ phiên hiện tại và kiểm tra công cụ, cập nhật sau.' }
+    else { $updated = Update-Source }
     Write-StartupProgress 'Đang kiểm tra runtime và dependency...'
     $stable = Get-TunnelConfig
     $cloudflared = Test-Path -LiteralPath (Join-Path $root 'local-bin\cloudflared.exe')
     $externalUrl = -not [string]::IsNullOrWhiteSpace($env:DC_PUBLIC_URL)
     $needsTunnelBinary = $TemporaryTunnel -and -not $LocalOnly -and -not $externalUrl -and -not $cloudflared
 
-    if ($updated -or -not (Test-ProjectRuntime) -or $needsTunnelBinary) {
+    $runtimeReady = Test-ProjectRuntime
+    if ($updated -or -not $runtimeReady -or $needsTunnelBinary) {
+        if ($workActive) { throw 'Có công việc đang chạy. Chờ nhiệm vụ kết thúc trước khi sửa runtime.' }
+        if (Get-RunningStatus) { Stop-Bridge }
         Write-Host 'Checking or repairing the runtime and dependencies...'
         Write-StartupProgress 'Đang cài hoặc sửa runtime. Bước này có thể mất vài phút...'
         $setup = Join-Path $root 'scripts\windows\Setup-Local.ps1'
         $setupArgs = @()
+        if (Get-NetTCPConnection -LocalPort ($port+1) -State Listen -ErrorAction SilentlyContinue) { $setupArgs += '-NoBrowser' }
         if (-not $TemporaryTunnel -or $stable -or $externalUrl -or $LocalOnly) { $setupArgs += '-SkipCloudflared' }
         Invoke-PowerShellScript $setup $setupArgs
         $stable = Get-TunnelConfig
+        $runtimeReady = Test-ProjectRuntime
     }
-    if (-not (Test-ProjectRuntime)) { throw 'UmiBridge build still fails after runtime repair.' }
+    if (-not $runtimeReady) { throw 'UmiBridge build still fails after runtime repair.' }
 
     if (-not $LocalOnly -and -not $externalUrl -and -not $TemporaryTunnel -and -not $stable) {
         Write-StartupProgress 'Đang đăng ký tunnel. Hoàn tất đăng nhập trên tab được mở...'
@@ -365,6 +397,7 @@ try {
         elseif ($stable -and -not $fallbackTunnel -and $running.publicUrl -and $stable.publicUrl -and $running.publicUrl -ne $stable.publicUrl) { $mustRestart = $true }
     }
     if ($mustRestart) {
+        if (Test-UmiWorkActive $port) { throw 'Có nhiệm vụ đang chạy. Giữ kết nối hiện tại đến khi nhiệm vụ kết thúc.' }
         Write-Host 'Restarting the gateway with the current source and connection...'
         Stop-Bridge
     }

@@ -3,7 +3,8 @@ param(
     [switch]$Launch,
     [switch]$SkipCloudflared,
     [switch]$UseSystemNode,
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$Repair
 )
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -127,7 +128,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 
 Write-SetupProgress 'Đang cài Python riêng và công cụ điều khiển Windows...'
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $projectRoot 'scripts\windows\Setup-Windows-Tools.ps1')
+$windowsArgs = @()
+if ($Repair) { $windowsArgs += '-Force' }
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $projectRoot 'scripts\windows\Setup-Windows-Tools.ps1') @windowsArgs
 if ($LASTEXITCODE -ne 0) { throw 'Windows tools installation failed. Reopen UmiBridge.cmd to retry.' }
 
 if (-not $SkipCloudflared) {
@@ -158,14 +161,4 @@ Write-Host 'After the first OAuth connection, use UmiBridge.cmd to run in the ba
 if ($Launch) {
     $startFile = Join-Path $projectRoot 'UmiBridge.cmd'
     Start-Process -FilePath $startFile -WorkingDirectory $projectRoot -WindowStyle Hidden | Out-Null
-    $port = 43127
-    if ($env:DC_WEB_PORT) { $port = [int]$env:DC_WEB_PORT }
-    $dashboard = "http://127.0.0.1:$port/admin"
-    for ($attempt = 0; $attempt -lt 60; $attempt++) {
-        Start-Sleep -Seconds 1
-        try {
-            $response = Invoke-WebRequest -Uri $dashboard -UseBasicParsing -TimeoutSec 2
-            if ($response.StatusCode -eq 200) { Start-Process $dashboard; break }
-        } catch { }
-    }
 }

@@ -19,6 +19,7 @@ $launcher = Join-Path $PSScriptRoot 'UmiBridge.ps1'
 $stateDir = Join-Path $root '.local-data'
 [void][IO.Directory]::CreateDirectory($stateDir)
 $stopPath = Join-Path $stateDir 'launcher-stop'
+$recheckPath = Join-Path $stateDir 'launcher-recheck'
 $trayState = Join-Path $stateDir 'tray-status.json'
 $shell = Join-Path ([Environment]::GetFolderPath('System')) 'WindowsPowerShell\v1.0\powershell.exe'
 $port = 43127
@@ -42,13 +43,12 @@ $acquired = $false
 try { $acquired = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $acquired = $true }
 if (-not $acquired) {
     $mutex.Dispose()
-    $target = "http://127.0.0.1:$($port + 1)/"
-    try { if ((Invoke-WebRequest -Uri $dashboard -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200) { $target = $dashboard } } catch { }
-    Start-Process $target
+    [IO.File]::WriteAllText($recheckPath, [DateTime]::UtcNow.ToString('o'))
     exit 0
 }
 
 . (Join-Path $PSScriptRoot 'Admin-Mode.ps1') -LibraryOnly
+. (Join-Path $PSScriptRoot 'Runtime-Health.ps1')
 $sid = Get-UmiCurrentSid
 $protected = Get-UmiProtectedLayout $sid
 $worker = $null
@@ -58,6 +58,8 @@ $offlineSince = $null
 $lastMessage = ''
 $exiting = $false
 $dashboardOpened = $false
+$startupVerified = $false
+$lastToolCheck = [DateTime]::MinValue
 $timer = New-Object Windows.Forms.Timer
 $timer.Interval = 5000
 $icon = New-Object Windows.Forms.NotifyIcon
@@ -78,8 +80,9 @@ function Set-TrayStatus([string]$Message, [bool]$Healthy = $false, [switch]$Noti
     $script:lastMessage = $Message
 }
 
-function Start-TrayWorker([switch]$Restart, [switch]$Initial, [switch]$StopOnly) {
+function Start-TrayWorker([switch]$Restart, [switch]$Initial, [switch]$StopOnly, [switch]$CheckOnly) {
     if ($script:worker -and -not $script:worker.HasExited) { return }
+    if ($Restart -and (Test-UmiWorkActive $port)) { Set-TrayStatus 'Waiting for active work before restart' -Notify; return }
     $quotedLauncher = "'" + $launcher.Replace("'", "''") + "'"
     $command = '$env:UMI_STARTUP_PROGRESS = "1"; '
     if ($Restart -or $StopOnly) {
@@ -87,6 +90,7 @@ function Start-TrayWorker([switch]$Restart, [switch]$Initial, [switch]$StopOnly)
     }
     if (-not $StopOnly) {
         $command += "& $quotedLauncher -Action start -NoDashboard"
+        if ($CheckOnly) { $command += ' -CheckOnly' }
         if (-not $Initial -or $NoUpdate) { $command += ' -NoUpdate' }
         if (-not $Initial -or $NoTunnelRepair) { $command += ' -NoTunnelRepair' }
         if ($LocalOnly) { $command += ' -LocalOnly' }
@@ -110,7 +114,9 @@ function Open-StartupPage {
     if (-not (Test-Path -LiteralPath $node)) { $node = (Get-Command node.exe -ErrorAction SilentlyContinue).Source }
     if (-not $node) { return }
     $pageUrl = "http://127.0.0.1:$($port + 1)/"
-    Start-Process -FilePath $node -ArgumentList @('"' + (Join-Path $root 'scripts\startup-page.mjs') + '"') -WorkingDirectory $root -WindowStyle Hidden | Out-Null
+    if (-not (Get-NetTCPConnection -LocalPort ($port+1) -State Listen -ErrorAction SilentlyContinue)) {
+        Start-Process -FilePath $node -ArgumentList @('"' + (Join-Path $root 'scripts\startup-page.mjs') + '"') -WorkingDirectory $root -WindowStyle Hidden | Out-Null
+    }
     for ($wait = 0; $wait -lt 20; $wait++) {
         try {
             if ((Invoke-WebRequest -Uri $pageUrl -UseBasicParsing -TimeoutSec 1).StatusCode -eq 200) {
@@ -171,24 +177,37 @@ $timer.Add_Tick({
                 if ($exitCode -eq 0) { [IO.File]::WriteAllText($stopPath, $now.ToString('o')); $context.ExitThread(); return }
                 $script:exiting = $false; Set-TrayStatus 'Stop cancelled or failed. Gateway retained' -Notify
             }
-            elseif ($exitCode -ne 0 -and -not (Test-TrayHealth)) {
-                [IO.File]::WriteAllText((Join-Path $stateDir 'startup-progress.json'), '{"state":"error","step":"Startup failed. See .local-data/launcher-error.log and retry Restart."}')
-                Set-TrayStatus 'Startup failed. See launcher-error.log' -Notify
+            elseif ($exitCode -eq 0) {
+                $script:startupVerified = $true; $script:lastToolCheck = $now
+            } else {
+                $script:startupVerified = $false
+                Set-TrayStatus 'Tool check failed. Automatic repair pending' -Notify
             }
         }
         if (Test-UmiModePending $sid) { $script:offlineSince = $null; Set-TrayStatus 'Waiting for Windows authorization'; return }
-        if (Test-TrayHealth) {
+        if (Test-Path -LiteralPath $recheckPath) {
+            Remove-Item -LiteralPath $recheckPath -Force
+            $attempts.Clear(); $script:startupVerified = $false; $script:offlineSince = $null
+            Open-StartupPage
+        }
+        $gatewayHealthy = Test-TrayHealth
+        if ($gatewayHealthy -and $script:startupVerified) {
+            if (($now - $script:lastToolCheck).TotalMinutes -ge 3) {
+                Start-TrayWorker -CheckOnly
+                Set-TrayStatus 'Checking tools in background' $true
+                return
+            }
             $script:offlineSince = $null; Set-TrayStatus 'Online' $true
             if (-not $script:dashboardOpened) { $script:dashboardOpened = $true; Start-Process $dashboard }
             return
         }
         if (-not $script:offlineSince) { $script:offlineSince = $now }
-        if (($now - $script:offlineSince).TotalSeconds -lt 15) { Set-TrayStatus 'Connection interrupted'; return }
+        if (($now - $script:offlineSince).TotalSeconds -lt 15) { Set-TrayStatus 'Checking recovery'; return }
         # Three restarts per ten minutes. Never rotate URLs or credentials here.
         while ($attempts.Count -gt 0 -and ($now - $attempts[0]).TotalMinutes -ge 10) { $attempts.RemoveAt(0) }
-        if ($attempts.Count -ge 3) { Set-TrayStatus 'Offline. Retry using Restart' -Notify; return }
+        if ($attempts.Count -ge 3) { Set-TrayStatus 'Needs attention. Open UmiBridge.cmd to retry' -Notify; return }
         $attempts.Add($now); $script:offlineSince = $now
-        Start-TrayWorker -Restart
+        if ($gatewayHealthy) { Start-TrayWorker -CheckOnly } else { $script:startupVerified = $false; Start-TrayWorker -Restart }
         Set-TrayStatus ('Recovering connection (' + $attempts.Count + '/3)') -Notify
     } catch {
         Add-Content -LiteralPath (Join-Path $stateDir 'launcher-error.log') -Value ([DateTime]::UtcNow.ToString('o') + ' TRAY ' + $_.Exception.Message)

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -12,7 +12,7 @@ const valueOf = result => {
 export function createToolHealth({ stateDir, readContext, callBackend, execution, orchestration, chrome, devices }) {
   let pending;
   async function check({ repair = false } = {}) {
-    const { context } = await readContext(); // listing reconnects disconnected runtime workers
+    const { context, paused } = await readContext(); // listing reconnects disconnected runtime workers
     const protectedMode = orchestration.settings().flags.workspaceLocksEnabled;
     const rows = context.tools.map(tool => ({ name: tool.name, group: tool.group,
       status: !tool.enabled ? 'disabled' : !tool.available ? 'blocked' : 'untested',
@@ -70,7 +70,7 @@ export function createToolHealth({ stateDir, readContext, callBackend, execution
         });
       }
       await probe('dc_status', async () => { if (!(await call('dc_status'))?.available) throw Error('desktop_unavailable'); });
-      await probe('windows_status', async () => { if (!(await call('windows_status'))?.available) throw Error('windows_unavailable'); });
+      await probe('windows_status', async () => { const status=await call('windows_status');if (!status?.available && status?.enabled!==false && status?.state!=='paused') throw Error('windows_unavailable'); });
       await probe('list_skills', () => call('list_skills'));
       await probe('list_devices', () => devices.listDevices());
       await probe('chrome_control', async () => { valueOf(await chrome.call({ action: 'tabs' })); });
@@ -81,7 +81,14 @@ export function createToolHealth({ stateDir, readContext, callBackend, execution
     const required = protectedMode ? ['scope_read_file', 'scope_write_file', 'scope_list_directory', 'corp_task_details', 'corp_submit_result'] : ['read_file', 'write_file', 'list_directory'];
     const missing = required.filter(name => !context.tools.some(tool => tool.name === name && tool.enabled && tool.available));
     const order = { failed: 0, recovered: 1, passed: 2, disabled: 3, blocked: 4, untested: 5 };
-    return { checkedAt: new Date().toISOString(), protectedMode, repair, checks, tools: rows.sort((a,b) => order[a.status] - order[b.status]),
+    const essentials = protectedMode ? ['scope_read_file','scope_write_file','scope_list_directory']
+      : ['read_file','write_file','list_directory','run_command','dc_status','dc_write_file','dc_read_file','dc_start_search',...(!paused?['windows_status','windows_control_status','windows_screenshot']:[])];
+    // Disabled tools and optional Chrome pairing are choices, not broken runtimes.
+    const unavailable = essentials.filter(name => {
+      const row=rows.find(item=>item.name===name);
+      return !row || row.status!=='disabled' && !['passed','recovered'].includes(row.status);
+    });
+    return { checkedAt: new Date().toISOString(), protectedMode, repair, critical: {ready:unavailable.length===0,unavailable}, checks, tools: rows.sort((a,b) => order[a.status] - order[b.status]),
       summary: { passed: checks.filter(row => row.passed).length, failed: checks.filter(row => !row.passed).length,
         recovered: checks.filter(row => row.recovered).length, untested: rows.filter(row => row.status === 'untested').length },
       corp: { ready: missing.length === 0, missing, requiredTools: required },
@@ -91,7 +98,11 @@ export function createToolHealth({ stateDir, readContext, callBackend, execution
   }
   return { run(options) {
     if (pending) return pending;
-    pending = check(options).finally(() => { pending = undefined; });
+    pending = check(options).then(async result=>{
+      const report=join(stateDir,'tool-health.json');
+      await writeFile(report+'.tmp',JSON.stringify(result,null,2));await rename(report+'.tmp',report);
+      return result;
+    }).finally(() => { pending = undefined; });
     return pending;
   } };
 }

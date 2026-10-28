@@ -3,7 +3,7 @@ import {createToolHealth} from './tool-health.mjs';
 import {createChromeBridge,chromeTool} from './chrome-bridge.mjs';
 import express from 'express';
 import { existsSync, readFileSync } from 'node:fs';
-import { unlink, writeFile } from 'node:fs/promises';
+import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -650,6 +650,10 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     const toolSettings = context => ({ tools: context.tools, autoPrompt: context.autoPrompt, prompt: context.prompt, revision: context.revision, protectedMode: orchestration.settings().flags.workspaceLocksEnabled });
     const toolHealth = createToolHealth({stateDir:resolve(configDir,'..'),readContext:readToolContext,
       callBackend:(name,args)=>backend.callTool({name,arguments:args},undefined,{timeout:15000}),execution,orchestration,chrome:chromeBridge,devices:deviceRegistry});
+    app.get('/admin/api/tools/check',localAdmin,async(_req,res)=>{
+      try{res.set('Cache-Control','no-store').json({version:APP_VERSION,installationRoot:ROOT,...JSON.parse(await readFile(resolve(configDir,'..','tool-health.json'),'utf8'))});}
+      catch{res.status(404).json({error:'No tool check has completed yet.'});}
+    });
     app.post('/admin/api/tools/check',localAdmin,adminWrite,express.json({limit:'1kb'}),async(req,res)=>{
       if(!req.body||Object.keys(req.body).some(key=>key!=='repair')||typeof req.body.repair!=='boolean')return res.status(400).json({error:'invalid_tool_check'});
       try{res.json({version:APP_VERSION,installationRoot:ROOT,...await toolHealth.run(req.body)});}catch{res.status(503).json({error:'Tool check could not finish. Check the gateway and retry.'});}

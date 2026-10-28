@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$InstallDirectory = (Join-Path $env:LOCALAPPDATA 'UmiBridge'),
     [switch]$SourceOnly,
@@ -88,6 +88,12 @@ try {
             }
         }
         $stop = Join-Path $root 'scripts\windows\Stop-ChatGPT.ps1'
+        $runtimeHealth = Join-Path $source 'scripts\windows\Runtime-Health.ps1'
+        if (Test-Path -LiteralPath $runtimeHealth) {
+            . $runtimeHealth
+            $workPort = if ($env:DC_WEB_PORT) { [int]$env:DC_WEB_PORT } else { 43127 }
+            if (Test-UmiWorkActive $workPort) { throw 'Có công việc đang chạy. Bản cập nhật sẽ được cài khi mở UmiBridge sau khi công việc kết thúc.' }
+        }
         if (Test-Path -LiteralPath $stop) {
             $stopArgs = @()
             if ($SourceOnly) { $stopArgs += '-KeepWatchdog' }
@@ -136,6 +142,7 @@ try {
         $shortcut.Save()
         Write-Host ('Runtime verified: ' + $root) -ForegroundColor Green
         if (-not $NoLaunch) {
+            $launchStarted=[DateTime]::UtcNow
             Start-Process -FilePath (Join-Path $root 'UmiBridge.cmd') -ArgumentList '-NoUpdate' -WorkingDirectory $root -WindowStyle Hidden
             $port = if ($env:DC_WEB_PORT) { [int]$env:DC_WEB_PORT } else { 43127 }
             $expectedVersion=(Get-Content -LiteralPath (Join-Path $root 'package.json') -Raw|ConvertFrom-Json).version
@@ -145,8 +152,9 @@ try {
                 try {
                     $page=Invoke-WebRequest -Uri ("http://127.0.0.1:{0}/admin" -f $port) -UseBasicParsing -TimeoutSec 2
                     if ($page.Content -match ('v'+[regex]::Escape($expectedVersion))) {
-                        $check=Invoke-RestMethod -Uri ("http://127.0.0.1:{0}/admin/api/tools/check" -f $port) -Method Post -Headers @{'X-DC-Admin-Action'='1'} -ContentType 'application/json' -Body '{"repair":true}' -TimeoutSec 180
-                        if ($check.version -eq $expectedVersion -and $check.installationRoot -eq $root -and $check.summary.failed -eq 0 -and $check.checks.Count -gt 0) { $ready=$true; break }
+                        $check=Invoke-RestMethod -Uri ("http://127.0.0.1:{0}/admin/api/tools/check" -f $port) -TimeoutSec 5
+                        $progress=Get-Content -LiteralPath (Join-Path $state 'startup-progress.json') -Raw|ConvertFrom-Json
+                        if ($check.version -eq $expectedVersion -and $check.installationRoot -eq $root -and $check.critical.ready -and $progress.state -eq 'ready' -and [DateTime]$check.checkedAt -ge $launchStarted) { $ready=$true; break }
                     }
                 } catch { }
                 Start-Sleep -Seconds 2

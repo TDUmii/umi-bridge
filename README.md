@@ -71,6 +71,16 @@ npm start
 - **Desktop Commander không sẵn sàng:** kiểm tra runtime `scripts/vendor/desktop-tools` và dependency đã được cài bằng `npm ci --ignore-scripts`, sau đó restart UmiBridge. `dc_status` phản ánh trạng thái runtime local.
 - **Extension chưa kết nối:** kiểm tra extension đã được nạp và ghép với dashboard; sau cập nhật extension, reload extension và các tab ChatGPT liên quan.
 
+### Mở hằng ngày bằng một nút
+
+Nhấp đúp **UmiBridge.cmd** hoặc shortcut **UmiBridge**. Ứng dụng tự kiểm tra bản cập nhật, runtime, tunnel, gateway và các công cụ bắt buộc. Trang khởi động hiển thị bước đang chạy; chỉ chuyển vào dashboard sau khi các phép thử đạt. Setup cũng tự mở ứng dụng sau khi cài xong.
+
+Nếu Umi đã chạy, mở lại cùng nút sẽ yêu cầu kiểm tra mới trên phiên hiện tại, không tạo gateway thứ hai. Kết quả được lưu local để setup và dashboard dùng chung, không chạy lại cùng một lượt chỉ để đọc kết quả.
+
+Khi chạy nền, Umi kiểm tra công cụ mỗi 3 phút. Mất worker được kết nối lại; nếu vẫn lỗi, ứng dụng có thể cài lại runtime riêng và kiểm tra lại một lần. Gateway ngừng chạy được khởi động lại có giới hạn. Tác vụ Corp/Arena đang chạy được giữ lại; sửa runtime hoặc cập nhật phải chờ công việc kết thúc. Quyền đã tắt, thư mục dự án, chat, URL và khóa kết nối được giữ nguyên.
+
+Các bước cần chủ tài khoản như đăng nhập tunnel, cấp quyền ChatGPT hoặc nạp/reload extension vẫn hiển thị để bạn hoàn tất. Umi không tự gửi lại lệnh công việc khi chưa biết lệnh cũ đã chạy hay chưa. Phép thử công cụ xác nhận các thao tác an toàn đã chạy, không khẳng định mọi thao tác GUI hay toàn bộ sản phẩm đều đã nghiệm thu.
+
 ## English
 
 UmiBridge is a Windows MCP gateway for ChatGPT with a local administration dashboard. It offers owner-selected file, shell, Windows desktop and Chrome tools, plus Corp workflows and Arena Beta.
@@ -95,6 +105,8 @@ The MIT-licensed desktop tools runtime is included under `scripts/vendor/desktop
 On Windows with Node.js 22.12.0 or newer, run `npm ci --ignore-scripts`, `npm run build`, then `npm start`. The build script checks syntax. Local credentials, runtime data, logs and chat data remain outside Git. Browser page content and screenshots are omitted from UmiBridge request history. Review enabled tools before connecting an MCP client.
 
 ### Tool checks and recovery
+
+Double-click **UmiBridge.cmd** for daily use. The same launcher checks updates, private runtimes, the tunnel, gateway and required live tools, repairs recoverable failures, and opens the dashboard only after verification. Opening it again requests a fresh check on the existing tray session. Setup reads the saved result instead of running a duplicate check. Background tool checks run every 3 minutes; failed workers reconnect, a broken private runtime can be reinstalled once, and stopped gateways restart within a bounded retry budget. Active Corp/Arena work defers file replacement and runtime repair. Owner-disabled features, work files, chats and saved connection credentials are preserved. Account sign-in and browser/client authorization still require the owner.
 
 To continue an existing Corp Project, select it in **Corp → Office** and use **Resume work** on its progress card. Access-mode recovery reuses the existing Project and chat; other blocked sends still require reviewing the queue. GUI launches from source use the managed installation when present, keeping one normal work queue. Use `npm start` for intentional source development.
 

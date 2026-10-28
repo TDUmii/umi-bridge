@@ -1369,20 +1369,25 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       await loadToolPolicy();$('toolHealthSummary').textContent='Full-machine tools enabled. Refresh the UmiBridge connection in ChatGPT.';
     }catch(error){$('toolHealthSummary').textContent=error.message;}finally{button.disabled=false;}
   });
-  $('checkTools').addEventListener('click',async()=>{
-    const button=$('checkTools');if(button.disabled)return;
-    button.disabled=true;$('toolHealthDetails').hidden=true;$('toolHealthGuidance').textContent='';$('toolHealthSummary').textContent='Checking live tools. Please wait...';
-    try{
-      const response=await fetch('/admin/api/tools/check',{method:'POST',headers:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},body:JSON.stringify({repair:$('repairTools').checked})});
-      if(!response.ok)throw Error('Tool check could not finish. Check the gateway and retry.');
-      const data=await response.json();
+  function renderToolHealth(data){
+      $('toolHealthDetails').hidden=false;
+      if($('toolHealthDetails').dataset.checkedAt===data.checkedAt)return;
+      $('toolHealthDetails').dataset.checkedAt=data.checkedAt;
       const s=data.summary;$('toolHealthSummary').textContent=!data.checks.length?'No live checks ran. Review disabled or unavailable tools.':s.failed?'Some live checks failed. Review the results below.':'Live checks passed. Other actions remain untested.';
       $('toolHealthGuidance').textContent=data.guidance;
       const labels={passed:'Live check passed',recovered:'Recovered',failed:'Live check failed',disabled:'Disabled by owner',blocked:'Blocked or unavailable',untested:'Catalog only; action untested'};
       $('toolHealthResults').innerHTML='<p>'+escapeHtml(new Date(data.checkedAt).toLocaleString())+'</p>'+
         '<p>'+escapeHtml(data.corp.ready?'Corp tool catalog is ready. Refresh the app connection if tools are missing in ChatGPT.':'Corp tool catalog is incomplete.')+'</p>'+(!data.corp.ready?'<p>'+data.corp.missing.map(escapeHtml).join(', ')+'</p>':'')+
         data.tools.map(row=>'<div class="tool-health-row"><code>'+escapeHtml(row.name)+'</code><span>'+escapeHtml(labels[row.status]||row.status)+'</span></div>').join('');
-      $('toolHealthDetails').hidden=false;await loadToolPolicy();
+      $('toolHealthDetails').hidden=false;
+  }
+  $('checkTools').addEventListener('click',async()=>{
+    const button=$('checkTools');if(button.disabled)return;
+    button.disabled=true;$('toolHealthDetails').hidden=true;$('toolHealthGuidance').textContent='';$('toolHealthSummary').textContent='Checking live tools. Please wait...';
+    try{
+      const response=await fetch('/admin/api/tools/check',{method:'POST',headers:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},body:JSON.stringify({repair:$('repairTools').checked})});
+      if(!response.ok)throw Error('Tool check could not finish. Check the gateway and retry.');
+      renderToolHealth(await response.json());await loadToolPolicy();
     }catch(error){$('toolHealthSummary').textContent=error.message;}
     finally{button.disabled=false;}
   });
@@ -1443,6 +1448,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
       const response=await fetch('/admin/api/tools',{cache:'no-store'});
       if(!response.ok)throw Error('Unable to load tool settings. Select Refresh to retry.');
       const data=await response.json();if(version===policyModel.version){applyToolPolicy(data);if($('permissionMessage').classList.contains('error'))permissionFeedback('');}
+      if(!$('checkTools').disabled){const health=await fetch('/admin/api/tools/check',{cache:'no-store'});if(health.ok)renderToolHealth(await health.json());}
     }catch(error){permissionFeedback(error.message,true);$('permissionList').setAttribute('aria-busy','false');if(!policyModel.fingerprint)$('permissionList').innerHTML='<p class="tool-empty">Unable to load tools. Select Refresh to retry.</p>';}
     finally{policyModel.loading=false;}
   }

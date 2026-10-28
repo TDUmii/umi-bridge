@@ -19,7 +19,8 @@ async function poll(){try{
     if(!auth.firstChild){const code=document.createElement('strong');const button=document.createElement('button');button.textContent='Mở tab đăng nhập tunnel';button.onclick=()=>{authTab=window.open('https://github.com/login/device','umibridge-tunnel-login');};auth.append(code,document.createElement('br'),button)}
     auth.firstChild.textContent='Mã đăng nhập: '+s.authCode;
   }else{if(authTab&&!authTab.closed)authTab.close();authTab=null;auth.replaceChildren()}
-  if(s.state==='error'){document.getElementById('title').textContent='UmiBridge chưa khởi động được';document.getElementById('busy').hidden=true;document.getElementById('detail').textContent='Đọc lỗi ở trên, sau đó chọn Restart từ biểu tượng UmiBridge để thử lại.'}
+  if(s.state==='error'){document.getElementById('title').textContent='UmiBridge đang chờ khôi phục';document.getElementById('busy').hidden=true;document.getElementById('detail').textContent='Umi sẽ thử khôi phục lỗi kỹ thuật có thể sửa an toàn. Nếu cần đăng nhập hoặc có công việc đang chạy, thông tin sẽ hiện ở trên. Bạn có thể mở lại UmiBridge.cmd để kiểm tra lại.'}
+  else{document.getElementById('title').textContent='Đang chuẩn bị UmiBridge';document.getElementById('busy').hidden=false}
   if(s.state==='ready'){location.replace('http://127.0.0.1:${port}/admin');return}
 }catch{}setTimeout(poll,1000)}poll()
 </script></html>`;
