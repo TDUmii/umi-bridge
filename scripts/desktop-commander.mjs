@@ -32,7 +32,9 @@ export function createDesktopCommander({ stateDir }) {
         const result = await next.listTools({}, {timeout:30000});
         catalog = result.tools.filter(tool => tool.name !== 'give_feedback_to_desktop_commander').map(tool => ({...tool,name:'dc_'+tool.name,description:'Desktop Commander on this PC. '+(tool.description || '')}));
         client = next; state = 'ready';
-        next.onclose = () => { client = undefined; catalog = []; state = 'disconnected'; };
+        const lost = () => { if(client===next){client=undefined;catalog=[];state='disconnected';} };
+        next.onclose = lost;
+        next.onerror = () => { lost(); void next.close().catch(()=>{}); };
       } catch { await next.close().catch(()=>{}); state = 'unavailable'; }
     })().finally(() => { pending = undefined; });
     return pending;

@@ -543,7 +543,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
   <div class="workspace">
     <header class="topbar">
       <div class="breadcrumb"><span>UmiBridge</span><span aria-hidden="true">/</span><strong>Dashboard</strong></div>
-      <div class="top-actions"><span id="adminVersion" class="admin-version">v1.9.6</span><label class="sr-only" for="languageSelect">Interface language / Ngôn ngữ</label><button id="languageSelect" class="language-select" type="button" aria-label="Switch language">VI / EN</button>
+      <div class="top-actions"><span id="adminVersion" class="admin-version">v{{APP_VERSION}}</span><label class="sr-only" for="languageSelect">Interface language / Ngôn ngữ</label><button id="languageSelect" class="language-select" type="button" aria-label="Switch language">VI / EN</button>
         <span id="connection" class="connection down" role="status"><i aria-hidden="true"></i><span id="connectionText">Checking...</span></span>
         <button class="icon-button" id="refresh" type="button" title="Refresh" aria-label="Refresh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg></button>
         <button id="theme" class="icon-button" type="button" title="Toggle light or dark theme" aria-label="Toggle light or dark theme"><svg class="icon"><use href="#i-sun"/></svg></button>
@@ -624,8 +624,16 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
         </div>
       </section>
       <section id="tool-permissions" class="panel skills-panel view-section" data-view="tools" aria-labelledby="permissionsTitle">
-        <div class="panel-title skills-head"><h2 id="permissionsTitle">Tools</h2><span id="permissionCount" class="panel-chip">Checking...</span></div>
+        <div class="panel-title skills-head"><h2 id="permissionsTitle">Tools</h2><div class="actions"><button id="checkTools" class="btn small" type="button">Check tools</button><span id="permissionCount" class="panel-chip">Checking...</span></div></div>
         <div class="permissions-body">
+          <div class="tool-health" aria-labelledby="toolHealthTitle">
+            <h3 id="toolHealthTitle">Tool health</h3>
+            <p>Runs safe file, command and status probes. Desktop input and destructive actions are not executed.</p>
+            <label><input id="repairTools" type="checkbox" checked> Reconnect and retry safe checks once</label>
+            <p id="toolHealthSummary" role="status" aria-live="polite">No check has run yet.</p>
+            <p id="toolHealthGuidance"></p>
+            <details id="toolHealthDetails" hidden><summary>View tool results</summary><div id="toolHealthResults"></div></details>
+          </div>
           <p class="permissions-intro">Choose which tools ChatGPT can call.</p>
           <div class="mcp-guidance">
             <div class="guidance-heading"><div><h3 id="autoPromptLabel">Automatic skill guidance</h3><p>Suggest enabled skills when they fit the task.</p></div><div class="permission-control"><span id="autoPromptState" class="permission-state">Checking...</span><button id="autoPromptToggle" class="permission-switch" type="button" role="switch" aria-checked="false" aria-labelledby="autoPromptLabel" disabled></button></div></div>
@@ -833,7 +841,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
           <div class="actions"><button id="showMore" type="button" class="btn small" hidden>Load more</button><button id="clear" type="button" class="btn small danger" disabled><svg class="icon"><use href="#i-trash"/></svg>Clear history</button></div>
         </div>
       </section>
-      <footer class="page-bottom"><span>UmiBridge <span aria-hidden="true">✿</span> Sakura Console · v1.9.6 · Private local workspace</span><span><strong>127.0.0.1</strong> /admin · Chat associations stay on this computer</span></footer>
+      <footer class="page-bottom"><span>UmiBridge <span aria-hidden="true">✿</span> Sakura Console · v{{APP_VERSION}} · Private local workspace</span><span><strong>127.0.0.1</strong> /admin · Chat associations stay on this computer</span></footer>
     </main>
   </div>
 </div>
@@ -1351,6 +1359,23 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
 
   // Keep policy refresh independent from request history and open previews.
   const policyModel={tools:[],group:'files',autoPrompt:false,loading:false,saving:false,fingerprint:'',version:0};
+  $('checkTools').addEventListener('click',async()=>{
+    const button=$('checkTools');if(button.disabled)return;
+    button.disabled=true;$('toolHealthDetails').hidden=true;$('toolHealthGuidance').textContent='';$('toolHealthSummary').textContent='Checking live tools. Please wait...';
+    try{
+      const response=await fetch('/admin/api/tools/check',{method:'POST',headers:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},body:JSON.stringify({repair:$('repairTools').checked})});
+      if(!response.ok)throw Error('Tool check could not finish. Check the gateway and retry.');
+      const data=await response.json();
+      const s=data.summary;$('toolHealthSummary').textContent=s.failed?'Some live checks failed. Review the results below.':'Live checks passed. Other actions remain untested.';
+      $('toolHealthGuidance').textContent=data.guidance;
+      const labels={passed:'Live check passed',recovered:'Recovered',failed:'Live check failed',disabled:'Disabled by owner',blocked:'Blocked or unavailable',untested:'Catalog only; action untested'};
+      $('toolHealthResults').innerHTML='<p>'+escapeHtml(new Date(data.checkedAt).toLocaleString())+'</p>'+
+        '<p>'+escapeHtml(data.corp.ready?'Corp tool catalog is ready. Refresh the app connection if tools are missing in ChatGPT.':'Corp tool catalog is incomplete.')+'</p>'+(!data.corp.ready?'<p>'+data.corp.missing.map(escapeHtml).join(', ')+'</p>':'')+
+        data.tools.map(row=>'<div class="tool-health-row"><code>'+escapeHtml(row.name)+'</code><span>'+escapeHtml(labels[row.status]||row.status)+'</span></div>').join('');
+      $('toolHealthDetails').hidden=false;await loadToolPolicy();
+    }catch(error){$('toolHealthSummary').textContent=error.message;}
+    finally{button.disabled=false;}
+  });
   const groupLabels={files:'Files',commands:'Commands',windows:'Windows',devices:'Devices',skills:'Skills'};
   const toolCopy={
     read_file:['Read files','Read text from a local file.'],write_file:['Write files','Create, overwrite or append text.'],edit_block:['Edit text','Replace one matching block in a file.'],list_directory:['Browse folders','List files and subfolders.'],create_directory:['Create folders','Create a folder and its parents.'],move_file:['Move or rename','Move a file or folder to another path.'],get_file_info:['File information','Read file size and basic metadata.'],search_files:['Search file text','Find matching text within a folder.'],
@@ -1563,5 +1588,3 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
 </script>
 </body>
 </html>
-.admin-version{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:.04em;white-space:nowrap}
-body[data-detail="low"] .admin-version{font-size:9px}

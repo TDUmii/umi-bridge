@@ -1,4 +1,5 @@
 /* Desktop workspace: graphite surfaces, jade controls, compact operational hierarchy. */
+.tool-health{padding:16px 0 20px;border-bottom:1px solid var(--line);margin-bottom:18px}.tool-health h3{margin:0 0 8px}.tool-health p{max-width:75ch;line-height:1.6;color:var(--muted)}.tool-health label{display:flex;align-items:center;gap:8px;font-size:14px}.tool-health input{accent-color:var(--purple)}.tool-health summary{cursor:pointer;padding:10px 0;color:var(--ink)}.tool-health-row{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line);font-size:14px}.tool-health-row code{overflow-wrap:anywhere}.tool-health-row span{color:var(--muted)}
 :root{--ink:#202e31;--muted:#52646a;--soft:#66767c;--surface:#fff;--canvas:#f1f5f4;--line:#d7e1de;--nav:#17262a;--purple:#19735e;--violet:#23816a;--blue:#376c8c;--r:12px;--shadow:none}
 body.dark{--ink:#e6efeb;--muted:#abbeb6;--soft:#a1b4ac;--surface:#1c2a2b;--canvas:#142022;--line:#364a48;--purple:#71d6b1;--violet:#90d4c0;--blue:#92bddd;--shadow:none}
 body{min-width:1080px;background:var(--canvas);caret-color:var(--purple)}

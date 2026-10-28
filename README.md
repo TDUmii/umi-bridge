@@ -57,6 +57,9 @@ npm start
 
 ## 🔧 Xử lý sự cố
 
+- **Kiểm tra công cụ:** vào **Tools → Check tools** (tiếng Việt: **Bộ công cụ → Kiểm tra công cụ**). Umi chạy phép thử đọc/ghi tệp trong thư mục tạm, kiểm tra lệnh vô hại khi chế độ cho phép, trạng thái runtime, skills, danh sách thiết bị và kết nối Chrome nếu đang bật. Mở **Xem kết quả từng công cụ** để phân biệt: đã thử đạt, khôi phục được, thất bại, chủ máy tắt, bị chặn/chưa khả dụng, hoặc chỉ có trong danh mục và chưa chạy thử. Kiểm tra trạng thái/danh sách không xác nhận các thao tác chuột, bàn phím, thiết bị từ xa hay hành động phá hủy.
+- **Tự khôi phục:** runtime desktop mất kết nối sẽ được kết nối lại ở lần gọi tiếp theo. Tùy chọn **Kết nối lại và thử lại phép kiểm tra an toàn một lần** áp dụng cho các phép thử có thể lặp an toàn. Umi không tự chạy lại lệnh công việc hoặc thao tác ghi sau lỗi, không tự bật quyền đã tắt, và không tự giao lại nhiệm vụ Corp.
+- **Corp báo thiếu công cụ workspace:** khi khóa workspace bật, Corp dùng `scope_read_file`, `scope_write_file`, `scope_list_directory`, `corp_task_details` và `corp_submit_result`; các công cụ tệp/shell/desktop toàn máy bị chặn theo cấu hình. Phép thử dùng workspace tạm riêng, không dùng token hoặc thư mục của nhiệm vụ đang chạy. Nếu kiểm tra local đạt nhưng chat thiếu `scope_*`, làm mới kết nối UmiBridge trong ChatGPT rồi mở lại chat. Gateway không thể tự làm mới danh mục công cụ của một phiên ChatGPT đã mở.
 - **Không kết nối được:** mở UmiBridge, kiểm tra dashboard và trạng thái gateway. Nếu cần, dùng **Restart** từ biểu tượng khay; kiểm tra tunnel và kết nối MCP trong ChatGPT.
 - **`windows_status` báo ready nhưng thiếu tool điều khiển:** kiểm tra tool có được bật, desktop có bị tạm dừng và khóa workspace có đang bật. Làm mới kết nối hoặc mở chat mới sau khi đổi quyền.
 - **Desktop Commander không sẵn sàng:** kiểm tra runtime `scripts/vendor/desktop-tools` và dependency đã được cài bằng `npm ci --ignore-scripts`, sau đó restart UmiBridge. `dc_status` phản ánh trạng thái runtime local.
@@ -82,5 +85,11 @@ The MIT-licensed desktop tools runtime is included under `scripts/vendor/desktop
 ### Source and privacy
 
 On Windows with Node.js 22.12.0 or newer, run `npm ci --ignore-scripts`, `npm run build`, then `npm start`. The build script checks syntax. Local credentials, runtime data, logs and chat data remain outside Git. Browser page content and screenshots are omitted from UmiBridge request history. Review enabled tools before connecting an MCP client.
+
+### Tool checks and recovery
+
+Open **Tools → Check tools** for live probes in a temporary workspace and a per-tool result list. Only safe file, command and status probes execute; desktop input, remote-device operations and destructive actions remain untested. Optional repair reconnects and retries safe probes once. A disconnected desktop runtime reconnects on the next call; work commands and writes are never automatically replayed after an error.
+
+Workspace protection requires the `scope_*` file tools for Corp. The check preserves existing permissions and active tasks. If local checks pass but a tool is missing in ChatGPT, refresh the UmiBridge app connection and reopen the chat; the gateway cannot refresh an existing client's tool catalog itself.
 
 UmiBridge is licensed under [MIT](LICENSE). Third-party asset and dependency notices are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

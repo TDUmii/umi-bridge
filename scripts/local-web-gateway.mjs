@@ -1,4 +1,5 @@
 import {corpChatTools} from './corp-chat.mjs';
+import {createToolHealth} from './tool-health.mjs';
 import {createChromeBridge,chromeTool} from './chrome-bridge.mjs';
 import express from 'express';
 import { existsSync, readFileSync } from 'node:fs';
@@ -259,7 +260,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       const paused = existsSync(resolve(configDir, '..', 'windows-tools-disabled'));
       const protectedMode=orchestration.settings().flags.workspaceLocksEnabled;
       const protectedNames=new Set([...scopedToolSpecs.map(row=>row.name),'list_skills','read_skill','windows_status','dc_status',chromeTool.name,...corpChatTools.map(tool=>tool.name)]);
-      const catalog = [...backendCatalog, ...deviceToolSpecs,...scopedToolSpecs,chromeTool,...corpChatTools].map(tool => ({ ...tool, available: (tool.name!==chromeTool.name||chromeBridge.available())&&(!protectedMode||protectedNames.has(tool.name))&&!(paused && tool.name.startsWith('windows_') && tool.name !== 'windows_status') }));
+      const catalog = [...backendCatalog, ...deviceToolSpecs,...scopedToolSpecs,chromeTool,...corpChatTools].map(tool => ({ ...tool, available: (tool.name!==chromeTool.name||chromeBridge.available())&&(protectedMode||!scopedToolSpecs.some(row=>row.name===tool.name))&&(!protectedMode||protectedNames.has(tool.name))&&!(paused && tool.name.startsWith('windows_') && tool.name !== 'windows_status') }));
       const names = new Set(catalog.map(tool => tool.name));
       const policyCatalog = [...catalog, ...WINDOWS_TOOL_NAMES.filter(name => !names.has(name)).map(name => ({ name, available: false, description: 'Named Windows desktop operation on linked devices. The local worker does not currently expose this operation.' }))];
       const skills = await skillLibrary.list().catch(() => []);
@@ -640,6 +641,12 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       }
     });
     const toolSettings = context => ({ tools: context.tools, autoPrompt: context.autoPrompt, prompt: context.prompt, revision: context.revision });
+    const toolHealth = createToolHealth({stateDir:resolve(configDir,'..'),readContext:readToolContext,
+      callBackend:(name,args)=>backend.callTool({name,arguments:args},undefined,{timeout:15000}),execution,orchestration,chrome:chromeBridge,devices:deviceRegistry});
+    app.post('/admin/api/tools/check',localAdmin,adminWrite,express.json({limit:'1kb'}),async(req,res)=>{
+      if(!req.body||Object.keys(req.body).some(key=>key!=='repair')||typeof req.body.repair!=='boolean')return res.status(400).json({error:'invalid_tool_check'});
+      try{res.json(await toolHealth.run(req.body));}catch{res.status(503).json({error:'Tool check could not finish. Check the gateway and retry.'});}
+    });
     app.get('/admin/api/tools', localAdmin, async (_req, res) => {
       try { res.json(toolSettings((await readToolContext()).context)); }
       catch { res.status(500).json({ error: 'Unable to load local tool settings.' }); }
@@ -759,13 +766,19 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
           if (paused && request.params.name === 'windows_on_device') throw new Error('Windows desktop tools are paused. Enable them in Dashboard Settings.');
           result = scopedToolSpecs.some(tool=>tool.name===request.params.name)
             ? (orchestration.settings().flags.workspaceLocksEnabled?{content:[{type:'text',text:JSON.stringify(await execution.execute(request.params.name,request.params.arguments??{}))}]}:{isError:true,content:[{type:'text',text:'Error: protected_workspace_disabled'}]})
-            : corpChatTools.some(tool=>tool.name===request.params.name)?{content:[{type:'text',text:JSON.stringify(await corp[request.params.name==='corp_task_details'?'taskDetails':'submitResult'](request.params.arguments??{}))}]}
+            : corpChatTools.some(tool=>tool.name===request.params.name)?{content:[{type:'text',text:JSON.stringify({
+              ...await corp[request.params.name==='corp_task_details'?'taskDetails':'submitResult'](request.params.arguments??{}),
+              ...(request.params.name==='corp_task_details'?{toolAccess:{mode:orchestration.settings().flags.workspaceLocksEnabled?'protected_workspace':'full_machine',
+                requiredTools:orchestration.settings().flags.workspaceLocksEnabled?scopedToolSpecs.map(tool=>tool.name):['read_file','write_file','list_directory'],
+                recovery:'If these tools are missing in this ChatGPT session, ask the owner to refresh the UmiBridge app connection and reopen the chat. Do not substitute global tools in protected mode. Run Check tools in the local dashboard to diagnose runtime versus policy. Report checks as {name,status: pass|fail|unverified,evidence}; use the same reference and receipt. Do not claim pass for missing artifacts.'}}:{})})}]}
             : request.params.name===chromeTool.name?await chromeBridge.call(request.params.arguments??{})
             : deviceToolsByName.has(request.params.name)
             ? await callDeviceTool(request.params.name, request.params.arguments ?? {})
             : withoutContext(await backend.callTool(request.params, undefined, options));
         } catch (cause) {
-          result = { isError: true, content: [{ type: 'text', text: `Error: ${cause instanceof Error ? cause.message : String(cause)}` }] };
+          const message=cause instanceof Error?cause.message:String(cause);
+          const recovery=message==='idea_report_invalid'?' Each check must include name, status (pass/fail/unverified) and evidence. pass requires artifacts and passing checks; pending_verification requires artifacts and checks. Use blocked for a real blocker, preserving the reference and receipt.':message.startsWith('protected_workspace_requires_scoped')?' Workspace protection requires scope_read_file, scope_write_file and scope_list_directory. If missing in this chat, refresh the UmiBridge connection in ChatGPT. Check tools in the local dashboard diagnoses runtime and policy.':'';
+          result = { isError: true, content: [{ type: 'text', text: `Error: ${message}${recovery}` }] };
         }
         const privateCorp=corpChatTools.some(tool=>tool.name===request.params.name);
         const historyArgs=privateCorp?{operation:request.params.name}:request.params.name===chromeTool.name?{action:request.params.arguments?.action,tab_id:request.params.arguments?.tab_id}:request.params.arguments?.scopeToken?{...request.params.arguments,scopeToken:'[redacted]'}:request.params.arguments;

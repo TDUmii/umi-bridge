@@ -393,5 +393,6 @@ export async function createChatLinksStore(filePath) {
 }
 
 export function renderAdminPage() {
-  return readFileSync(new URL('./admin-dashboard.html', import.meta.url), 'utf8');
+  const version = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+  return readFileSync(new URL('./admin-dashboard.html', import.meta.url), 'utf8').replaceAll('{{APP_VERSION}}', version);
 }
