@@ -3,10 +3,14 @@ setlocal
 title UmiBridge Setup
 set "UMIBRIDGE_SETUP_FILE=%~f0"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$text=[IO.File]::ReadAllText($env:UMIBRIDGE_SETUP_FILE); & ([scriptblock]::Create(($text -split '(?m)^# POWERSHELL-START\r?$',2)[1]))"
-if errorlevel 1 pause
-exit /b
+set "UMIBRIDGE_SETUP_EXIT=%ERRORLEVEL%"
+if not "%UMIBRIDGE_SETUP_EXIT%"=="0" pause
+exit /b %UMIBRIDGE_SETUP_EXIT%
 # POWERSHELL-START
 $ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -le 5) {
+    $env:PSModulePath = [IO.Path]::Combine([Environment]::GetFolderPath('System'), 'WindowsPowerShell\v1.0\Modules')
+}
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $stage = Join-Path ([IO.Path]::GetTempPath()) ('UmiBridge-Bootstrap-' + [guid]::NewGuid().ToString('N'))
@@ -24,4 +28,10 @@ try {
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer
     if ($LASTEXITCODE -ne 0) { throw 'Installation did not finish. Run this file again to retry.' }
 } catch { Write-Host $_.Exception.Message -ForegroundColor Red; exit 1 }
-finally { if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue } }
+finally {
+    if (Test-Path -LiteralPath $stage) {
+        $stageFull=[IO.Path]::GetFullPath($stage)
+        $stagePrefix=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')+'\UmiBridge-Bootstrap-'
+        if ($stageFull.StartsWith($stagePrefix,[StringComparison]::OrdinalIgnoreCase)) { Remove-Item -LiteralPath $stageFull -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
