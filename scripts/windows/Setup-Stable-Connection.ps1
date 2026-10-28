@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateRange(1024, 65535)][int]$Port = 43127,
     [switch]$Launch
@@ -30,8 +30,50 @@ function Invoke-Tunnel([string[]]$CliArgs, [switch]$NoRefresh) {
     $oldPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        $output = @(& $cli @CliArgs 2>&1)
-        $code = $LASTEXITCODE
+        if ($CliArgs[0] -eq 'user' -and $CliArgs[1] -eq 'login' -and $env:UMI_STARTUP_PROGRESS -eq '1') {
+            $loginOut = Join-Path $stateDir 'tunnel-device-login.stdout'
+            $loginErr = Join-Path $stateDir 'tunnel-device-login.stderr'
+            try {
+                $loginProcess = Start-Process -FilePath $cli -ArgumentList @('user','login','-g','-d') -WindowStyle Hidden -RedirectStandardOutput $loginOut -RedirectStandardError $loginErr -PassThru
+                $null = $loginProcess.Handle
+                $deadline = [DateTime]::UtcNow.AddMinutes(5)
+                while (-not $loginProcess.WaitForExit(1000)) {
+                    if ([DateTime]::UtcNow -gt $deadline) { $loginProcess.Kill(); $loginProcess.WaitForExit(); throw 'Tunnel login timed out. Restart UmiBridge to try again.' }
+                    $loginText = (Get-Content -LiteralPath $loginOut,$loginErr -Raw -ErrorAction SilentlyContinue) -join "`n"
+                    if ($loginText -match '\b[A-Z0-9]{4}-[A-Z0-9]{4}\b') {
+                        $progress = @{ state='auth'; step='Đăng nhập GitHub để kết nối tunnel'; authUrl='https://github.com/login/device'; authCode=$Matches[0] } | ConvertTo-Json -Compress
+                        [IO.File]::WriteAllText((Join-Path $stateDir 'startup-progress.json'), $progress, [Text.UTF8Encoding]::new($false))
+                    }
+                }
+                $code = $loginProcess.ExitCode
+                $output = @((Get-Content -LiteralPath $loginOut -Raw), (Get-Content -LiteralPath $loginErr -Raw))
+                $progress = @{ state='starting'; step='Tunnel sign-in finished. Checking connection...' } | ConvertTo-Json -Compress
+                [IO.File]::WriteAllText((Join-Path $stateDir 'startup-progress.json'), $progress)
+            } finally {
+                if ($loginProcess) { $loginProcess.Dispose() }
+                Remove-Item -LiteralPath $loginOut,$loginErr -Force -ErrorAction SilentlyContinue
+            }
+        } elseif ($CliArgs[0] -eq 'user' -and $CliArgs[1] -eq 'login') {
+            $output = @(& $cli @CliArgs 2>&1)
+            $code = $LASTEXITCODE
+        } else {
+            $probeId = [guid]::NewGuid().ToString('N')
+            $probeOut = Join-Path $stateDir ($probeId + '.stdout')
+            $probeErr = Join-Path $stateDir ($probeId + '.stderr')
+            try {
+                $probe = Start-Process -FilePath $cli -ArgumentList $CliArgs -WindowStyle Hidden -RedirectStandardOutput $probeOut -RedirectStandardError $probeErr -PassThru
+                $null = $probe.Handle
+                if (-not $probe.WaitForExit(60000)) {
+                    $probe.Kill(); $probe.WaitForExit()
+                    throw 'Dev Tunnels did not respond within 60 seconds. Check the network and retry startup.'
+                }
+                $code = $probe.ExitCode
+                $output = @((Get-Content -LiteralPath $probeOut -Raw), (Get-Content -LiteralPath $probeErr -Raw))
+            } finally {
+                if ($probe) { $probe.Dispose() }
+                Remove-Item -LiteralPath $probeOut,$probeErr -Force -ErrorAction SilentlyContinue
+            }
+        }
     } finally { $ErrorActionPreference = $oldPreference }
     $result = [pscustomobject]@{ ExitCode = $code; Text = ($output -join "`n") }
     # Credentials can expire between any two API calls, including port update.

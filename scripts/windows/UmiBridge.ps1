@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet('start','stop','pair','agent','repair','admin','normal')][string]$Action = 'start',
     [string]$Hub,
@@ -34,6 +34,13 @@ New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 function Write-LauncherLog([string]$Message) {
     $stamp = (Get-Date).ToString('s')
     Add-Content -LiteralPath $logPath -Value "$stamp $Message" -Encoding utf8
+}
+
+function Write-StartupProgress([string]$Step, [string]$State = 'starting') {
+    $progressFile = Join-Path $root '.local-data\startup-progress.json'
+    $json = @{ state = $State; step = $Step } | ConvertTo-Json -Compress
+    [IO.File]::WriteAllText($progressFile, $json, [Text.UTF8Encoding]::new($false))
+    Write-Host $Step
 }
 
 function Get-UsableNode {
@@ -73,6 +80,13 @@ function Get-RunningStatus {
         if ($health.StatusCode -eq 200) { return $status }
     } catch { }
     return $null
+}
+
+function Assert-BridgeReady {
+    Write-Host 'Checking gateway and dashboard before closing startup...'
+    $health = Invoke-WebRequest -Uri ("http://127.0.0.1:{0}/health" -f $port) -UseBasicParsing -TimeoutSec 5
+    $page = Invoke-WebRequest -Uri ("http://127.0.0.1:{0}/admin" -f $port) -UseBasicParsing -TimeoutSec 5
+    if ($health.StatusCode -ne 200 -or $page.StatusCode -ne 200) { throw 'Gateway or dashboard is not ready.' }
 }
 
 function Watch-Requests {
@@ -230,6 +244,7 @@ function Test-ProjectRuntime {
 }
 
 try {
+    Write-StartupProgress 'Đang kiểm tra quyền và chế độ chạy Windows...'
     if ($Action -eq 'stop' -and -not $KeepWatchdog) { [IO.File]::WriteAllText((Join-Path $stateDir 'launcher-stop'), [DateTime]::UtcNow.ToString('o')) }
     if ($Action -in @('admin', 'normal')) {
         $requestedMode = if ($Action -eq 'admin') { 'enable' } else { 'disable' }
@@ -255,6 +270,8 @@ try {
         if ($privilegeMode.needsUpdate) { Write-Host 'A source update is available. Switch to Normal and authorize Admin again to update its protected copy.' -ForegroundColor Yellow }
         $script:stateDir = $protectedState
         $script:statusPath = Join-Path $stateDir 'web-status.json'
+        Assert-BridgeReady
+        Write-StartupProgress 'Gateway và dashboard đã sẵn sàng.' 'ready'
         if (-not $NoDashboard) { Start-Process ("http://127.0.0.1:{0}/admin" -f $port) }
         if ($Monitor) { Watch-Requests }
         exit 0
@@ -278,7 +295,9 @@ try {
         exit 0
     }
     Write-Host 'UmiBridge Sakura Console - one-click start' -ForegroundColor Cyan
+    Write-StartupProgress 'Đang kiểm tra bản cập nhật...'
     $updated = Update-Source
+    Write-StartupProgress 'Đang kiểm tra runtime và dependency...'
     $stable = Get-TunnelConfig
     $cloudflared = Test-Path -LiteralPath (Join-Path $root 'local-bin\cloudflared.exe')
     $externalUrl = -not [string]::IsNullOrWhiteSpace($env:DC_PUBLIC_URL)
@@ -286,6 +305,7 @@ try {
 
     if ($updated -or -not (Test-ProjectRuntime) -or $needsTunnelBinary) {
         Write-Host 'Checking or repairing the runtime and dependencies...'
+        Write-StartupProgress 'Đang cài hoặc sửa runtime. Bước này có thể mất vài phút...'
         $setup = Join-Path $root 'scripts\windows\Setup-Local.ps1'
         $setupArgs = @()
         if (-not $TemporaryTunnel -or $stable -or $externalUrl -or $LocalOnly) { $setupArgs += '-SkipCloudflared' }
@@ -295,6 +315,7 @@ try {
     if (-not (Test-ProjectRuntime)) { throw 'UmiBridge build still fails after runtime repair.' }
 
     if (-not $LocalOnly -and -not $externalUrl -and -not $TemporaryTunnel -and -not $stable) {
+        Write-StartupProgress 'Đang đăng ký tunnel. Hoàn tất đăng nhập trên tab được mở...'
         Write-Host 'Setting up your reusable connection once...'
         Invoke-PowerShellScript (Join-Path $root 'scripts\windows\Setup-Stable-Connection.ps1')
         $stable = Get-TunnelConfig
@@ -303,6 +324,7 @@ try {
     # A temporary URL is an explicit advanced choice, never an automatic fallback.
     $fallbackTunnel = [bool]$TemporaryTunnel
     if (-not $LocalOnly -and -not $externalUrl -and -not $NoTunnelRepair -and -not $TemporaryTunnel -and $stable) {
+        Write-StartupProgress 'Đang kiểm tra kết nối tunnel đã lưu...'
         $devtunnel = Join-Path $root '.runtime\devtunnel\devtunnel.exe'
         if (Test-DevTunnelLogin $devtunnel $stable) {
             if (Test-DevTunnelPort $devtunnel $stable) {
@@ -343,6 +365,7 @@ try {
         Stop-Bridge
     }
 
+    Write-StartupProgress 'Đang mở gateway và kết nối HTTPS...'
     $start = Join-Path $root 'scripts\windows\Start-UmiBridge.ps1'
     $startArgs = @()
     if ($NoDashboard) { $startArgs += '-NoDashboard' }
@@ -365,6 +388,8 @@ try {
     }
 
     Write-Host ''
+    Assert-BridgeReady
+    Write-StartupProgress 'Gateway và dashboard đã sẵn sàng.' 'ready'
     Write-Host 'UmiBridge is ready.' -ForegroundColor Green
     Write-Host ("Dashboard: http://127.0.0.1:{0}/admin" -f $port)
     Write-Host 'ChatGPT uses this gateway; there is no provider mode to choose.'
@@ -373,6 +398,7 @@ try {
 } catch {
     $message = $_.Exception.Message
     Write-LauncherLog ('ERROR ' + $message)
+    Write-StartupProgress $message 'error'
     Write-Host ('UmiBridge could not start: ' + $message) -ForegroundColor Red
     exit 1
 }

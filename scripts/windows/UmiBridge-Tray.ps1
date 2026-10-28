@@ -40,7 +40,13 @@ finally { $hash.Dispose() }
 $mutex = New-Object Threading.Mutex($false, ('Local\UmiBridge-Tray-' + $identity))
 $acquired = $false
 try { $acquired = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $acquired = $true }
-if (-not $acquired) { $mutex.Dispose(); Start-Process $dashboard; exit 0 }
+if (-not $acquired) {
+    $mutex.Dispose()
+    $target = "http://127.0.0.1:$($port + 1)/"
+    try { if ((Invoke-WebRequest -Uri $dashboard -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200) { $target = $dashboard } } catch { }
+    Start-Process $target
+    exit 0
+}
 
 . (Join-Path $PSScriptRoot 'Admin-Mode.ps1') -LibraryOnly
 $sid = Get-UmiCurrentSid
@@ -75,7 +81,7 @@ function Set-TrayStatus([string]$Message, [bool]$Healthy = $false, [switch]$Noti
 function Start-TrayWorker([switch]$Restart, [switch]$Initial, [switch]$StopOnly) {
     if ($script:worker -and -not $script:worker.HasExited) { return }
     $quotedLauncher = "'" + $launcher.Replace("'", "''") + "'"
-    $command = ''
+    $command = '$env:UMI_STARTUP_PROGRESS = "1"; '
     if ($Restart -or $StopOnly) {
         $command += "& $quotedLauncher -Action stop -KeepWatchdog; if (`$LASTEXITCODE -ne 0) { exit 1 }; "
     }
@@ -98,10 +104,30 @@ function Start-TrayWorker([switch]$Restart, [switch]$Initial, [switch]$StopOnly)
     $script:workerStarted = [DateTime]::UtcNow
 }
 
+function Open-StartupPage {
+    [IO.File]::WriteAllText((Join-Path $stateDir 'startup-progress.json'), '{"state":"starting","step":"Preparing UmiBridge..."}')
+    $node = Join-Path $root '.runtime\node\node.exe'
+    if (-not (Test-Path -LiteralPath $node)) { $node = (Get-Command node.exe -ErrorAction SilentlyContinue).Source }
+    if (-not $node) { return }
+    $pageUrl = "http://127.0.0.1:$($port + 1)/"
+    Start-Process -FilePath $node -ArgumentList @('"' + (Join-Path $root 'scripts\startup-page.mjs') + '"') -WorkingDirectory $root -WindowStyle Hidden | Out-Null
+    for ($wait = 0; $wait -lt 20; $wait++) {
+        try {
+            if ((Invoke-WebRequest -Uri $pageUrl -UseBasicParsing -TimeoutSec 1).StatusCode -eq 200) {
+                Start-Process $pageUrl
+                $script:dashboardOpened = $true
+                return
+            }
+        } catch { }
+        Start-Sleep -Milliseconds 100
+    }
+}
+
 function Test-TrayHealth {
     try {
         $health = Invoke-WebRequest -Uri ("http://127.0.0.1:{0}/health" -f $port) -UseBasicParsing -TimeoutSec 2
-        return $health.StatusCode -eq 200
+        $page = Invoke-WebRequest -Uri $dashboard -UseBasicParsing -TimeoutSec 2
+        return $health.StatusCode -eq 200 -and $page.StatusCode -eq 200
     } catch { return $false }
 }
 
@@ -113,6 +139,7 @@ function Test-TrayHealth {
         if ($script:worker -and -not $script:worker.HasExited) { Set-TrayStatus 'Operation still running' -Notify; return }
         $attempts.Clear(); $script:offlineSince = $null
         Remove-Item -LiteralPath $stopPath -Force -ErrorAction SilentlyContinue
+        Open-StartupPage
         Start-TrayWorker -Restart
         Set-TrayStatus 'Restarting' -Notify
     } catch { Set-TrayStatus 'Restart failed. See launcher-error.log' -Notify }
@@ -144,7 +171,10 @@ $timer.Add_Tick({
                 if ($exitCode -eq 0) { [IO.File]::WriteAllText($stopPath, $now.ToString('o')); $context.ExitThread(); return }
                 $script:exiting = $false; Set-TrayStatus 'Stop cancelled or failed. Gateway retained' -Notify
             }
-            elseif ($exitCode -ne 0 -and -not (Test-TrayHealth)) { Set-TrayStatus 'Startup failed. See launcher-error.log' -Notify }
+            elseif ($exitCode -ne 0 -and -not (Test-TrayHealth)) {
+                [IO.File]::WriteAllText((Join-Path $stateDir 'startup-progress.json'), '{"state":"error","step":"Startup failed. See .local-data/launcher-error.log and retry Restart."}')
+                Set-TrayStatus 'Startup failed. See launcher-error.log' -Notify
+            }
         }
         if (Test-UmiModePending $sid) { $script:offlineSince = $null; Set-TrayStatus 'Waiting for Windows authorization'; return }
         if (Test-TrayHealth) {
@@ -168,8 +198,9 @@ $timer.Add_Tick({
 
 try {
     Remove-Item -LiteralPath $stopPath -Force -ErrorAction SilentlyContinue
+    Open-StartupPage
     Start-TrayWorker -Initial
-    Set-TrayStatus 'Starting in background' -Notify
+    Set-TrayStatus 'Checking startup - see startup window' -Notify
     $timer.Start()
     [Windows.Forms.Application]::Run($context)
 } finally {

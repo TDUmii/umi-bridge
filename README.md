@@ -18,6 +18,8 @@ UmiBridge kết nối ChatGPT với máy Windows qua MCP và cung cấp dashboar
 4. Trong dashboard, chọn **Tools** và bật những công cụ cần dùng. Nếu danh sách công cụ thay đổi, làm mới kết nối trong ChatGPT hoặc mở chat mới.
 5. Để dùng Corp, Arena hoặc điều khiển trang Chrome, nạp thư mục `extensions/umibridge-corp` vào Chrome và ghép tại **Corp → Connection**. Bật **Browser control** trong cài đặt extension nếu cần thao tác trang.
 
+Khi mở UmiBridge, trang tiến độ hiển thị bước kiểm tra runtime, cập nhật, đăng nhập tunnel và khởi động gateway. CMD chạy ẩn. Trang tự chuyển sang dashboard sau khi gateway và dashboard đều phản hồi; lỗi khởi động được giữ trên trang. Khi cần đăng nhập GitHub cho tunnel, bấm nút mở tab đăng nhập và nhập mã hiển thị; tab do trang này mở sẽ tự đóng khi bước đăng nhập kết thúc.
+
 > **Tích hợp sẵn từ 1.11.0:** Setup tải runtime desktop cùng UmiBridge và tự cài các dependency cần thiết. Bạn không cần cài Desktop Commander riêng hoặc chạy từ source. Cài đặt cần Internet để tải gói phát hành và dependency.
 
 ## ✨ Tính năng
