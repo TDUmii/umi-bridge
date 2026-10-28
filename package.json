@@ -16,6 +16,8 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
     "express": "^5.2.1",
-    "js-tiktoken": "1.0.21"
+    "js-tiktoken": "1.0.21",
+    "@umibridge/desktop-tools": "file:scripts/vendor/desktop-tools",
+    "@desktop-commander/telemetry-contract": "file:scripts/vendor/desktop-tools/vendor/telemetry-contract"
   }
 }

@@ -23,30 +23,17 @@ Trang cài đặt lấy **bản phát hành mới nhất**, có thể chậm hơ
 | Corp | Tổ chức các bộ phận, giao việc, theo dõi hàng đợi và lịch sử bàn giao trong ChatGPT. |
 | Arena Beta | Tạo các ứng viên độc lập, chấm theo tiêu chí và sửa sản phẩm qua các vòng; dashboard hỗ trợ từ 10 đến 100 ứng viên. |
 | Dashboard local | Quản lý quyền tool, skills, thiết bị, model, hoạt động, tùy chọn giao diện và Git private cho sản phẩm. |
-| Desktop Commander | Tích hợp local tùy chọn cho tệp, terminal và tìm kiếm qua các tool `dc_*`; cần cài Desktop Commander riêng. |
+| Desktop Commander | Runtime tích hợp cho tệp, terminal, tìm kiếm, tài liệu, cấu hình và thống kê qua các tool `dc_*`; không cần cài DC riêng. |
 
 Trang nội bộ Chrome, ô mật khẩu và chọn tệp cần thao tác trực tiếp. Ảnh màn hình và nội dung trang không được lưu trong lịch sử request của UmiBridge. Số token trong dashboard là ước tính, không phải số liệu thanh toán.
 
-## Desktop Commander local trên `main`
+## Công cụ desktop tích hợp
 
-Tích hợp này chạy một bản Desktop Commander MCP đã được cài và build trên cùng máy. Nó không tự kết nối các thiết bị của ứng dụng Remote Desktop Commander cloud. Các tool `dc_*` hỗ trợ tệp, tìm kiếm và terminal; chuột, bàn phím và ảnh màn hình vẫn dùng các tool `windows_*` của UmiBridge.
+UmiBridge đóng gói runtime tệp, terminal, tìm kiếm, tài liệu PDF/Office, cấu hình và thống kê tại `scripts/vendor/desktop-tools`, dựa trên Desktop Commander được cấp phép MIT. Không cần cài Desktop Commander riêng, không dùng đường dẫn `entry` bên ngoài. `npm ci --ignore-scripts` cài các dependency cùng Umi.
 
-1. Chuẩn bị bản Desktop Commander có `dist/index.js` và các dependency đã cài.
-2. Trước lần chạy đầu, tạo `.local-data/desktop-commander.json` trong thư mục UmiBridge. Thay các đường dẫn trong ví dụ bằng đường dẫn tuyệt đối thực tế:
+Các công cụ tương thích giữ tiền tố `dc_*`; chuột, bàn phím và ảnh màn hình dùng `windows_*`. `dc_status` kiểm tra runtime tích hợp. Cấu hình riêng nằm trong `.local-data/desktop-commander`; dữ liệu này không được đưa lên Git. Profile mới tắt telemetry mặc định. Có thể dùng các công cụ cấu hình để xem và sửa tùy chọn runtime; không có công cụ gửi phản hồi lên dịch vụ Desktop Commander.
 
-   ```json
-   {
-     "enabled": true,
-     "entry": "D:/path/to/DesktopCommanderMCP/dist/index.js",
-     "allowedDirectories": ["D:/your-workspace"]
-   }
-   ```
-
-3. Khởi động lại UmiBridge, kiểm tra `dc_status` và bật các tool cần dùng trong **Tools**. UmiBridge tạo profile Desktop Commander riêng và tắt telemetry khi tạo profile lần đầu.
-
-Danh sách `allowedDirectories` dùng cho các thao tác tệp của Desktop Commander; terminal có quyền rộng hơn và không bị giới hạn bởi danh sách này. Nếu bỏ trống tùy chọn, thư mục trạng thái local của UmiBridge được dùng mặc định. Phạm vi tệp được ghi vào profile Desktop Commander khi profile được tạo lần đầu; thay đổi trong `desktop-commander.json` về sau không tự cập nhật profile đã tồn tại.
-
-Khi bật **khóa workspace được bảo vệ**, UmiBridge chỉ công bố trạng thái Desktop Commander và chặn các tool toàn máy `dc_*`, Windows, tệp và shell. Để dùng chuột, bàn phím hoặc terminal toàn máy, chuyển khỏi chế độ khóa workspace trong dashboard. Thay đổi này cũng ảnh hưởng điều phối DAG phụ thuộc vào khóa; hãy tạm dừng và đối soát công việc đang chạy trước khi chuyển.
+Khóa workspace vẫn chặn các thao tác toàn máy. Danh sách thư mục cho phép chỉ áp dụng cho công cụ tệp, không phải sandbox cho terminal. Tài khoản và thiết bị trên dịch vụ Remote Desktop Commander cloud không được tự nhập; thiết bị từ xa của Umi dùng Hub/Agent riêng.
 
 ## Chạy từ source
 
@@ -80,11 +67,9 @@ UmiBridge is a Windows MCP gateway for ChatGPT with a local administration dashb
 
 The installer uses the latest release, which can lag behind `main`. Release **1.10.0** predates the optional Desktop Commander integration currently on `main`.
 
-### Optional local Desktop Commander
+### Bundled desktop tools
 
-Install and build Desktop Commander separately, then create `.local-data/desktop-commander.json` before starting the integration. The JSON example above uses an absolute path to `dist/index.js` and an absolute allowed directory. Restart UmiBridge and check `dc_status`. The integration creates a separate upstream profile with telemetry disabled on first creation; existing profile settings are retained. Its file allowlist does not sandbox terminal commands.
-
-The `dc_*` tools provide local file, search and terminal operations. Windows input and screenshots use `windows_*`. This local integration does not import devices from the separate Remote Desktop Commander cloud service. Protected workspace mode blocks global DC, Windows, file and shell operations; disabling workspace locks also requires disabling the dependent DAG scheduler.
+The MIT-licensed desktop tools runtime is included under scripts/vendor/desktop-tools. No separate Desktop Commander installation or external entry path is required. Run npm ci --ignore-scripts to install its dependencies. Compatible dc_* tools provide files, search, terminal, documents, settings and usage features; windows_* provides desktop input. Private runtime settings stay in .local-data. Cloud service accounts/devices are not imported; use UmiBridge Hub/Agent for remote devices.
 
 ### Source and privacy
 

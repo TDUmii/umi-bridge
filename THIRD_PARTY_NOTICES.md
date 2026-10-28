@@ -76,3 +76,6 @@ Tile coordinates and SHA-256: scripts/corp-office/assets/provenance.kenney-indoo
 Six unmodified 16x16 weapon/shield tiles from **Tiny Dungeon 1.0** by **Kenney**, CC0-1.0.
 Source: https://kenney.nl/assets/tiny-dungeon.
 License: scripts/arena-assets/LICENSE.Kenney.txt. Exact tile indices, archive/output SHA-256 hashes: scripts/arena-assets/provenance.json.
+
+## Bundled desktop tools
+Desktop Commander 0.3.0, copyright 2024-2025 Eduard Ruzga and Desktop Commander Contributors, MIT. Built runtime and license: scripts/vendor/desktop-tools. Dependencies retain their own licenses. This runtime is included in UmiBridge; no separate DC installation is required.

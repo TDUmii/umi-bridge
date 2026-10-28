@@ -32,3 +32,5 @@ scripts/qa-*
 scripts/watch-dashboard.*
 scripts/prepare-arena-sprites.py
 assets/umibridge-banner.svg
+
+/scripts/vendor/*.tgz

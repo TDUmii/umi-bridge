@@ -1,20 +1,21 @@
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-// Optional local upstream. Configuration is owner-controlled, never supplied by MCP callers.
+// Bundled UmiBridge desktop tools, derived from MIT-licensed Desktop Commander.
 export function createDesktopCommander({ stateDir }) {
   let client, transport, pending, catalog = [];
   let state = 'disabled';
-  const allowed = new Set(['create_directory','edit_block','get_file_info','get_more_search_results','interact_with_process','list_directory','list_processes','list_searches','list_sessions','move_file','read_file','read_multiple_files','read_process_output','start_process','start_search','stop_search','force_terminate','kill_process','write_file','write_pdf']);
   async function connect() {
     if (client) return;
     if (pending) return pending;
     pending = (async () => {
       let config;
       try { config = JSON.parse(await readFile(join(stateDir, 'desktop-commander.json'), 'utf8')); }
-      catch (error) { state = error.code === 'ENOENT' ? 'disabled' : 'invalid_config'; return; }
+      catch (error) { if(error.code !== 'ENOENT'){state='invalid_config';return;} config={enabled:true}; }
+      config.entry=fileURLToPath(new URL('./vendor/desktop-tools/dist/index.js',import.meta.url));
       if (config.enabled !== true) { state = 'disabled'; return; }
       if (typeof config.entry !== 'string' || !isAbsolute(config.entry) || !config.entry.endsWith('.js') ||
           config.allowedDirectories !== undefined && (!Array.isArray(config.allowedDirectories) || !config.allowedDirectories.length || config.allowedDirectories.some(path => typeof path !== 'string' || !isAbsolute(path)))) { state = 'invalid_config'; return; }
@@ -28,7 +29,7 @@ export function createDesktopCommander({ stateDir }) {
       try {
         await next.connect(transport, {timeout:30000});
         const result = await next.listTools({}, {timeout:30000});
-        catalog = result.tools.filter(tool => allowed.has(tool.name)).map(tool => ({...tool,name:'dc_'+tool.name,description:'Desktop Commander on this PC. '+(tool.description || '')}));
+        catalog = result.tools.filter(tool => tool.name !== 'give_feedback_to_desktop_commander').map(tool => ({...tool,name:'dc_'+tool.name,description:'Desktop Commander on this PC. '+(tool.description || '')}));
         client = next; state = 'ready';
         next.onclose = () => { client = undefined; catalog = []; state = 'disconnected'; };
       } catch { await next.close().catch(()=>{}); state = 'unavailable'; }
