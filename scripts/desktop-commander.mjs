@@ -5,7 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 // Bundled UmiBridge desktop tools, derived from MIT-licensed Desktop Commander.
-export function createDesktopCommander({ stateDir }) {
+export function createDesktopCommander({ stateDir, timeoutMs = 60000 }) {
   let client, transport, pending, catalog = [];
   let state = 'disabled';
   async function connect() {
@@ -19,11 +19,11 @@ export function createDesktopCommander({ stateDir }) {
       config.entry=fileURLToPath(new URL('./vendor/desktop-tools/dist/index.js',import.meta.url));
       if (config.enabled !== true) { state = 'disabled'; return; }
       if (typeof config.entry !== 'string' || !isAbsolute(config.entry) || !config.entry.endsWith('.js') ||
-          config.allowedDirectories !== undefined && (!Array.isArray(config.allowedDirectories) || !config.allowedDirectories.length || config.allowedDirectories.some(path => typeof path !== 'string' || !isAbsolute(path)))) { state = 'invalid_config'; return; }
+          config.allowedDirectories !== undefined && (!Array.isArray(config.allowedDirectories) || config.allowedDirectories.some(path => typeof path !== 'string' || !isAbsolute(path)))) { state = 'invalid_config'; return; }
       const directory = join(stateDir, 'desktop-commander');
       await mkdir(directory, { recursive: true });
       // Isolate upstream preferences and disable telemetry before the first startup.
-      await writeFile(join(directory, 'config.json'), JSON.stringify({telemetryEnabled:false,allowedDirectories:config.allowedDirectories || [stateDir]}), {flag:'wx'}).catch(error => { if (error.code !== 'EEXIST') throw error; });
+      await writeFile(join(directory, 'config.json'), JSON.stringify({telemetryEnabled:false,allowedDirectories:config.allowedDirectories ?? []}), {flag:'wx'}).catch(error => { if (error.code !== 'EEXIST') throw error; });
       transport = new StdioClientTransport({ command: process.execPath, args:[config.entry,'--no-onboarding'], env:{...getDefaultEnvironment(),UV_THREADPOOL_SIZE:'32',DESKTOP_COMMANDER_CONFIG_DIR:directory}, stderr:'pipe' });
       transport.stderr?.on('data', () => {});
       const next = new Client({name:'umibridge-desktop-commander',version:'1.0.0'});
@@ -46,7 +46,7 @@ export function createDesktopCommander({ stateDir }) {
       if (name === 'dc_status') return {content:[{type:'text',text:JSON.stringify({state,available:state==='ready',toolCount:catalog.length})}]};
       if (!client || !catalog.some(tool=>tool.name===name)) throw Error('desktop_commander_unavailable');
       // Never retry a side effect after transport failure.
-      return client.callTool({name:name.slice(3),arguments:args},undefined,{timeout:60000});
+      return client.callTool({name:name.slice(3),arguments:args},undefined,{timeout:timeoutMs});
     },
     async close() { await pending; await client?.close(); }
   };

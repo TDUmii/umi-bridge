@@ -1,11 +1,16 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [switch]$Launch,
-    [switch]$SkipCloudflared
+    [switch]$SkipCloudflared,
+    [switch]$UseSystemNode,
+    [switch]$NoBrowser
 )
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -le 5) {
+    $env:PSModulePath = [IO.Path]::Combine([Environment]::GetFolderPath('System'), 'WindowsPowerShell\v1.0\Modules')
+}
 Set-Location -LiteralPath $projectRoot
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
@@ -13,6 +18,22 @@ $minimumNodeVersion = [version]'22.12.0'
 $runtimeRoot = Join-Path $projectRoot '.runtime'
 $localNodeRoot = Join-Path $runtimeRoot 'node'
 $localNode = Join-Path $localNodeRoot 'node.exe'
+trap {
+    if ($projectRoot) {
+        $failureState=Join-Path $projectRoot '.local-data'
+        New-Item -ItemType Directory -Path $failureState -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $failureState 'startup-progress.json'), (@{state='error';step=('Setup failed: '+$_.Exception.Message)}|ConvertTo-Json -Compress))
+    }
+    Write-Host $_.Exception.Message -ForegroundColor Red
+    exit 1
+}
+
+function Write-SetupProgress([string]$Step) {
+    $state = Join-Path $projectRoot '.local-data'
+    New-Item -ItemType Directory -Path $state -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $state 'startup-progress.json'), (@{state='starting';step=$Step}|ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+    Write-Host $Step
+}
 
 function Get-NodeVersion([string]$Executable) {
     if (-not $Executable -or -not (Test-Path -LiteralPath $Executable)) { return $null }
@@ -23,11 +44,17 @@ function Get-NodeVersion([string]$Executable) {
     return $null
 }
 
+function Assert-SetupRuntimePath([string]$Path) {
+    $full=[IO.Path]::GetFullPath($Path)
+    if (-not $full.StartsWith(([IO.Path]::GetFullPath($runtimeRoot).TrimEnd('\')+'\'),[StringComparison]::OrdinalIgnoreCase)) { throw 'Refusing to change a path outside the private runtime.' }
+    return $full
+}
+
 function Find-UsableNode {
     $candidates = @()
     if (Test-Path -LiteralPath $localNode) { $candidates += $localNode }
     $systemNode = Get-Command node.exe -ErrorAction SilentlyContinue
-    if ($systemNode) { $candidates += $systemNode.Source }
+    if ($UseSystemNode -and $systemNode) { $candidates += $systemNode.Source }
     foreach ($candidate in $candidates | Select-Object -Unique) {
         $version = Get-NodeVersion $candidate
         if ($version -and $version -ge $minimumNodeVersion) {
@@ -38,7 +65,7 @@ function Find-UsableNode {
 }
 
 function Install-PortableNode {
-    Write-Host 'Node.js 22.12+ was not found. Downloading the latest official Windows x64 LTS runtime...'
+    Write-Host 'Installing the private official Windows x64 Node.js LTS runtime...'
     $index = Invoke-RestMethod -Uri 'https://nodejs.org/dist/index.json' -Headers @{ 'User-Agent' = 'UmiBridge-Sakura-Console' }
     $release = $index |
         Where-Object { $_.lts -and ([version]($_.version.TrimStart('v'))) -ge $minimumNodeVersion } |
@@ -67,12 +94,12 @@ function Install-PortableNode {
         Expand-Archive -LiteralPath $zipPath -DestinationPath $stage -Force
         $extracted = Get-ChildItem -LiteralPath $stage -Directory | Select-Object -First 1
         if (-not $extracted -or -not (Test-Path -LiteralPath (Join-Path $extracted.FullName 'node.exe'))) { throw 'Node.js archive has an unexpected layout.' }
-        if (Test-Path -LiteralPath $localNodeRoot) { Remove-Item -LiteralPath $localNodeRoot -Recurse -Force }
+        if (Test-Path -LiteralPath $localNodeRoot) { Remove-Item -LiteralPath (Assert-SetupRuntimePath $localNodeRoot) -Recurse -Force }
         Move-Item -LiteralPath $extracted.FullName -Destination $localNodeRoot
         @{ version = $version; sha256 = $actualHash; source = ($baseUrl + $zipName) } |
             ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runtimeRoot 'node-version.json') -Encoding utf8
     } finally {
-        Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath (Assert-SetupRuntimePath $stage) -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
     }
     return [pscustomobject]@{ Path = $localNode; Version = [version]$version.TrimStart('v'); Local = $true }
@@ -85,12 +112,21 @@ $env:PATH = (Split-Path -Parent $nodeExe) + ';' + $env:PATH
 $npmExe = Join-Path (Split-Path -Parent $nodeExe) 'npm.cmd'
 if (-not (Test-Path -LiteralPath $npmExe)) { throw "npm.cmd is missing next to $nodeExe." }
 Write-Host ("Using Node.js {0} ({1})" -f $node.Version, $(if ($node.Local) { 'portable local runtime' } else { 'system runtime' }))
+Write-SetupProgress 'Đang cài các thành phần tệp, terminal, tìm kiếm và tài liệu...'
+if (-not $NoBrowser) {
+    $port = if ($env:DC_WEB_PORT) { [int]$env:DC_WEB_PORT } else { 43127 }
+    if (-not (Get-NetTCPConnection -LocalPort ($port+1) -State Listen -ErrorAction SilentlyContinue)) {
+        Start-Process -FilePath $nodeExe -ArgumentList @('"' + (Join-Path $projectRoot 'scripts\startup-page.mjs') + '"') -WorkingDirectory $projectRoot -WindowStyle Hidden | Out-Null
+    }
+    Start-Process ("http://127.0.0.1:{0}/" -f ($port+1))
+}
 
 & $npmExe ci --ignore-scripts --no-audit --no-fund
 if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
 & $npmExe run build
 if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
 
+Write-SetupProgress 'Đang cài Python riêng và công cụ điều khiển Windows...'
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $projectRoot 'scripts\windows\Setup-Windows-Tools.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Windows tools installation failed. Reopen UmiBridge.cmd to retry.' }
 
@@ -111,13 +147,17 @@ if (-not $SkipCloudflared) {
 }
 
 Write-Host ''
-Write-Host 'UmiBridge is installed and ready.' -ForegroundColor Green
+Write-SetupProgress 'Đang chạy thử các công cụ trước khi hoàn tất cài đặt...'
+& $nodeExe (Join-Path $projectRoot 'scripts\setup-check.mjs')
+if ($LASTEXITCODE -ne 0) { throw 'Tool verification failed. Setup has not reported readiness. See .local-data\setup-check.json and retry setup.' }
+Write-SetupProgress 'Các công cụ đã chạy thử thành công. Đang chuẩn bị khởi động gateway...'
+Write-Host 'UmiBridge runtime installed; all setup tool probes passed.' -ForegroundColor Green
 Write-Host 'Double-click UmiBridge.cmd whenever you want to start it.'
 Write-Host 'After the first OAuth connection, use UmiBridge.cmd to run in the background, monitor requests and open the dashboard.'
 
 if ($Launch) {
     $startFile = Join-Path $projectRoot 'UmiBridge.cmd'
-    Start-Process -FilePath $startFile -WorkingDirectory $projectRoot | Out-Null
+    Start-Process -FilePath $startFile -WorkingDirectory $projectRoot -WindowStyle Hidden | Out-Null
     $port = 43127
     if ($env:DC_WEB_PORT) { $port = [int]$env:DC_WEB_PORT }
     $dashboard = "http://127.0.0.1:$port/admin"

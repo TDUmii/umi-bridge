@@ -16,7 +16,7 @@ export function createToolHealth({ stateDir, readContext, callBackend, execution
     const protectedMode = orchestration.settings().flags.workspaceLocksEnabled;
     const rows = context.tools.map(tool => ({ name: tool.name, group: tool.group,
       status: !tool.enabled ? 'disabled' : !tool.available ? 'blocked' : 'untested',
-      detail: !tool.enabled ? 'Disabled by owner.' : !tool.available ? 'Unavailable in the current mode.' : 'Catalog available; action not executed.' }));
+      detail: !tool.enabled ? 'Disabled by owner.' : !tool.available ? tool.unavailableReason || 'Unavailable in the current mode.' : 'Catalog available; action not executed.' }));
     const checks = [];
     const probe = async (name, run, retrySafe = true) => {
       const row = rows.find(item => item.name === name);
@@ -58,7 +58,16 @@ export function createToolHealth({ stateDir, readContext, callBackend, execution
           if (result?.exit_code !== 0 || !result.stdout?.includes('UMIBRIDGE_TOOL_CHECK')) throw Error('command_probe_failed');
         });
         await probe('dc_get_usage_stats', () => call('dc_get_usage_stats'));
+        await probe('dc_write_file', () => call('dc_write_file', {path:join(scratch,'desktop-probe.txt'),content:'UMIBRIDGE_TOOL_CHECK'}), false);
+        await probe('dc_read_file', async()=>{
+          if(!JSON.stringify(await call('dc_read_file',{path:join(scratch,'desktop-probe.txt')})).includes('UMIBRIDGE_TOOL_CHECK'))throw Error('readback_mismatch');
+        });
+        await probe('dc_start_search', () => call('dc_start_search',{path:scratch,pattern:'desktop-probe.txt',searchType:'files',timeout_ms:5000}));
         await probe('windows_control_status', () => call('windows_control_status'));
+        await probe('windows_screenshot', async()=>{
+          const result=await callBackend('windows_screenshot',{});
+          if(result?.isError||!result?.content?.some(item=>item.type==='image'&&item.data?.length))throw Error('screenshot_probe_failed');
+        });
       }
       await probe('dc_status', async () => { if (!(await call('dc_status'))?.available) throw Error('desktop_unavailable'); });
       await probe('windows_status', async () => { if (!(await call('windows_status'))?.available) throw Error('windows_unavailable'); });

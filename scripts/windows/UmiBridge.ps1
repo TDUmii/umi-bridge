@@ -87,6 +87,10 @@ function Assert-BridgeReady {
     $health = Invoke-WebRequest -Uri ("http://127.0.0.1:{0}/health" -f $port) -UseBasicParsing -TimeoutSec 5
     $page = Invoke-WebRequest -Uri ("http://127.0.0.1:{0}/admin" -f $port) -UseBasicParsing -TimeoutSec 5
     if ($health.StatusCode -ne 200 -or $page.StatusCode -ne 200) { throw 'Gateway or dashboard is not ready.' }
+    Write-StartupProgress 'Đang kiểm tra công cụ tệp, terminal và Windows trên gateway...'
+    $check = Invoke-RestMethod -Uri ("http://127.0.0.1:{0}/admin/api/tools/check" -f $port) -Method Post -Headers @{'X-DC-Admin-Action'='1'} -ContentType 'application/json' -Body '{"repair":true}' -TimeoutSec 180
+    if ($check.installationRoot -ne $root) { throw 'This port belongs to another UmiBridge installation. Stop that instance before starting this one.' }
+    if ($check.summary.failed -gt 0 -or $check.checks.Count -eq 0) { throw 'Gateway started but tool checks failed. Open Tools to review results; startup is not ready.' }
 }
 
 function Watch-Requests {

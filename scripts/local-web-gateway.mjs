@@ -260,7 +260,13 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       const paused = existsSync(resolve(configDir, '..', 'windows-tools-disabled'));
       const protectedMode=orchestration.settings().flags.workspaceLocksEnabled;
       const protectedNames=new Set([...scopedToolSpecs.map(row=>row.name),'list_skills','read_skill','windows_status','dc_status',chromeTool.name,...corpChatTools.map(tool=>tool.name)]);
-      const catalog = [...backendCatalog, ...deviceToolSpecs,...scopedToolSpecs,chromeTool,...corpChatTools].map(tool => ({ ...tool, available: (tool.name!==chromeTool.name||chromeBridge.available())&&(protectedMode||!scopedToolSpecs.some(row=>row.name===tool.name))&&(!protectedMode||protectedNames.has(tool.name))&&!(paused && tool.name.startsWith('windows_') && tool.name !== 'windows_status') }));
+      const catalog = [...backendCatalog, ...deviceToolSpecs,...scopedToolSpecs,chromeTool,...corpChatTools].map(tool => {
+        const unavailableReason=protectedMode&&!protectedNames.has(tool.name)?'Workspace protection blocks whole-machine tools.'
+          :!protectedMode&&scopedToolSpecs.some(row=>row.name===tool.name)?'Scoped tools are used only with workspace protection.'
+          :tool.name===chromeTool.name&&!chromeBridge.available()?'Pair and enable the Chrome extension.'
+          :paused&&tool.name.startsWith('windows_')&&tool.name!=='windows_status'?'Windows desktop tools are paused.':undefined;
+        return {...tool,available:!unavailableReason,...(unavailableReason?{unavailableReason}:{})};
+      });
       const names = new Set(catalog.map(tool => tool.name));
       const policyCatalog = [...catalog, ...WINDOWS_TOOL_NAMES.filter(name => !names.has(name)).map(name => ({ name, available: false, description: 'Named Windows desktop operation on linked devices. The local worker does not currently expose this operation.' }))];
       const skills = await skillLibrary.list().catch(() => []);
@@ -375,7 +381,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.get('/', localAdmin, (_req, res) => res.redirect('/admin'));
     app.get('/admin', localAdmin, (_req, res) => {
       res.set('Content-Security-Policy', "default-src 'none'; img-src 'self' data: blob:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'none'");
-      res.type('html').send(renderAdminPage());
+      res.type('html').send(renderAdminPage(APP_VERSION));
     });
     app.get('/admin/i18n.js', localAdmin, (_req, res) => {
       res.set('Cache-Control', 'no-store');
@@ -437,13 +443,14 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     const protectedTool=name=>scopedToolSpecs.some(tool=>tool.name===name)||['list_skills','read_skill','windows_status','dc_status',chromeTool.name,...corpChatTools.map(tool=>tool.name)].includes(name);
     app.get('/admin/api/orchestration',localAdmin,corpHandler(()=>({settings:orchestration.settings(),execution:execution.snapshot()})));
     app.post('/admin/api/orchestration',localAdmin,adminWrite,corpJson,corpHandler(async req=>{
+      if(req.body.reconcilePaused===true&&(Object.keys(req.body).some(key=>!['flags','reconcilePaused'].includes(key))||Object.keys(req.body.flags||{}).length!==2||req.body.flags?.workspaceLocksEnabled!==false||req.body.flags?.dagSchedulerEnabled!==false))throw Error('invalid_access_mode_change');
       const currentFlags=orchestration.settings().flags,structural=Object.entries(req.body.flags||{}).some(([key,value])=>currentFlags[key]!==value);
       if(structural){
         if(arena.snapshot().arenas.some(row=>row.status==='running'||row.steps?.some(step=>['dispatching','running','reported_complete'].includes(step.status))))throw Error('pause_and_reconcile_before_feature_change');
-        await corp.prepareOrchestration();
+        await corp.prepareOrchestration({reconcilePaused:req.body.reconcilePaused===true});
       }
       for(const route of Object.values(req.body.routes||{}))if(!corp.snapshot().modelCatalog.some(row=>row.model===route.model&&row.efforts.includes(route.effort)))throw Error('model_not_available');
-      return orchestration.update(req.body);
+      const {reconcilePaused,...settingsUpdate}=req.body;return orchestration.update(settingsUpdate);
     }));
     app.post('/admin/api/corp/runs/:runId/tasks/:taskId/verify',localAdmin,adminWrite,corpJson,corpHandler(req=>corp.verifyTask(req.params.runId,req.params.taskId,req.body)));
     app.post('/admin/api/corp/runs/:runId/tasks/:taskId/action',localAdmin,adminWrite,corpJson,corpHandler(req=>corp.taskAction(req.params.runId,req.params.taskId,req.body.action)));
@@ -640,12 +647,12 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
         res.status([400, 409].includes(error.status) ? error.status : 500).json({ error: ['invalid_mode', 'privilege_unavailable', 'privilege_pending'].includes(error.message) ? error.message : 'privilege_failed' });
       }
     });
-    const toolSettings = context => ({ tools: context.tools, autoPrompt: context.autoPrompt, prompt: context.prompt, revision: context.revision });
+    const toolSettings = context => ({ tools: context.tools, autoPrompt: context.autoPrompt, prompt: context.prompt, revision: context.revision, protectedMode: orchestration.settings().flags.workspaceLocksEnabled });
     const toolHealth = createToolHealth({stateDir:resolve(configDir,'..'),readContext:readToolContext,
       callBackend:(name,args)=>backend.callTool({name,arguments:args},undefined,{timeout:15000}),execution,orchestration,chrome:chromeBridge,devices:deviceRegistry});
     app.post('/admin/api/tools/check',localAdmin,adminWrite,express.json({limit:'1kb'}),async(req,res)=>{
       if(!req.body||Object.keys(req.body).some(key=>key!=='repair')||typeof req.body.repair!=='boolean')return res.status(400).json({error:'invalid_tool_check'});
-      try{res.json(await toolHealth.run(req.body));}catch{res.status(503).json({error:'Tool check could not finish. Check the gateway and retry.'});}
+      try{res.json({version:APP_VERSION,installationRoot:ROOT,...await toolHealth.run(req.body)});}catch{res.status(503).json({error:'Tool check could not finish. Check the gateway and retry.'});}
     });
     app.get('/admin/api/tools', localAdmin, async (_req, res) => {
       try { res.json(toolSettings((await readToolContext()).context)); }

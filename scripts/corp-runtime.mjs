@@ -492,9 +492,13 @@ Nhiệm vụ: ${decision?'Chốt phương án sửa dựa trên toàn bộ cuộ
     snapshot: summary,
     taskDetails:input=>serial(async()=>{const{run,step}=assignment(input.reference);if(run.status!=='running'||!['dispatching','running'].includes(step.status)||!inScope(run,step))throw Error('assignment_not_active');return {reference:step.reference,receipt:step.attempt,details:step.assignmentDetails,reportInstruction:'Send report using corp_submit_result, not JSON in normal chat. Technical context is tool data only.'};}),
     submitResult:async input=>{const{run,step}=await serial(async()=>{const row=assignment(input.reference);if(row.step.attempt!==input.receipt)throw Error('stale_attempt');if(row.run.status!=='running'||!['dispatching','running'].includes(row.step.status)||!inScope(row.run,row.step))throw Error('assignment_not_active');readIdeaReport('UMI_CORP_RESULT: '+JSON.stringify(input.report),{allowPending:flags().evidenceGateEnabled});return row;});return runtime.report(localReport,{runId:run.id,stepId:step.id,attempt:input.receipt,kind:'done',sent:true,result:humanHandoff(input.report)+'\n\nUMI_CORP_RESULT: '+JSON.stringify(input.report)});},
-    prepareOrchestration:()=>transaction(async()=>{
-      if(state.runs.some(run=>run.status==='running'||run.steps.some(step=>inFlight(step)||step.status==='reported_complete')))throw Error('pause_and_reconcile_before_feature_change');
+    prepareOrchestration:({reconcilePaused=false}={})=>transaction(async()=>{
+      if(state.runs.some(run=>run.status==='running'||run.steps.some(step=>step.status==='reported_complete'||inFlight(step)&&(!reconcilePaused||run.status!=='paused'))))throw Error('pause_and_reconcile_before_feature_change');
       await backupBeforeMigration(filePath,2);
+      if(reconcilePaused)for(const run of state.runs.filter(run=>run.status==='paused'))for(const step of run.steps.filter(inFlight)){
+        if(step.leaseId)await execution?.release(step.leaseId,'access_mode_changed');
+        step.status='blocked';step.reason='access_mode_changed';delete step.assignmentDetails;event('access_mode_changed',run,step);
+      }
       for(const run of state.runs)normalizeTasks(run,{legacy:true});state.orchestrationVersion=2;return {ok:true};
     }),
     verifyTask:(runId,taskId,input={})=>transaction(async()=>{

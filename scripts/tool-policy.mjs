@@ -62,6 +62,7 @@ export function createToolPolicy({ stateDir } = {}) {
     const entries = catalog.map(tool => ({
       name: tool.name, description: tool.description ?? '', group: toolGroup(tool.name),
       enabled: enabled(tool.name), available: tool.available !== false,
+      ...(tool.unavailableReason ? { unavailableReason: clean(tool.unavailableReason, 160) } : {}),
       annotations: tool.annotations ?? {},
       ...(toolOperation(tool.name) !== tool.name && !selected(toolOperation(tool.name)) ? { blockedBy: toolOperation(tool.name) } : {}),
     }));

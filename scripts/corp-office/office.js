@@ -28,7 +28,7 @@
   function resizeView() {
     if($('scene').clientWidth<=16||$('scene').clientHeight<=16)return;
     const g=geometry(1,false);const maxZoom=Math.max(.1,Math.min(2,($('scene').clientWidth-16)/g.width,($('scene').clientHeight-16)/g.height));
-    zoom=fit?maxZoom:Math.min(zoom,maxZoom);
+    zoom=fit?maxZoom:Math.max(.25,Math.min(zoom,2));
     const next = geometry(zoom), changed = sceneWidth !== next.width || sceneHeight !== next.height || columns !== next.cols ||
       deskRows !== next.rows || seatCount !== next.count || firstRow !== next.first || rowGap !== next.gap;
     if (changed || viewScale !== zoom) hideTooltip();
@@ -48,7 +48,7 @@
     $('zoom-value').textContent = `${Math.round(zoom * 100)}%`;
     $('zoom-fit').setAttribute('aria-pressed', String(fit));
     $('zoom-out').disabled = zoom <= .25;
-    $('zoom-in').disabled = zoom >= maxZoom-.01;
+    $('zoom-in').disabled = zoom >= 2;
     for (const label of $('seat-labels').children) {
       const p = people.get(label.dataset.agent);
       if (!p) continue;
@@ -111,9 +111,9 @@
   function select(id) {selected=id;lastRoster='';renderUI();draw();}
   function applyInfoConfig(){for(const [key,value] of Object.entries(infoConfig)){document.querySelectorAll(`[data-info="${key}"]`).forEach(input=>input.checked=value);}const panel={team:'panel-team',customers:'panel-customers',handoffs:'panel-handoffs'};for(const [key,id] of Object.entries(panel)){const enabled=infoConfig[key];document.querySelector(`[data-office-tab="${key}"]`)?.toggleAttribute('hidden',!enabled);const node=$(id);if(node&&!enabled)node.hidden=true;}document.querySelector('.conversation-section').hidden=!infoConfig.conversation;}
   function avatar(a) {
-    const c=document.createElement('canvas');c.width=24;c.height=40;c.className='avatar';c.setAttribute('aria-hidden','true');
+    const c=document.createElement('canvas');c.width=32;c.height=64;c.className='avatar';c.setAttribute('aria-hidden','true');
     const g=c.getContext('2d'), im=images[`char_${hash(a.id)%6}`];g.imageSmoothingEnabled=false;
-    if(im?.naturalWidth)g.drawImage(im,16,0,16,32,2,0,20,40);
+    if(im?.naturalWidth)g.drawImage(im,16,0,16,32,0,0,32,64);
     return c;
   }
   function renderUI() {

@@ -55,7 +55,7 @@ try {
             }
         } finally { $zip.Dispose() }
         Expand-Archive -LiteralPath $archive -DestinationPath $source
-        foreach ($required in @('package.json', 'package-lock.json', 'UmiBridge.cmd', 'scripts\windows\Setup-Local.ps1', 'scripts\windows\Install-UmiBridge.ps1', 'scripts\vendor\desktop-tools\dist\index.js', 'scripts\vendor\desktop-tools\package.json', 'scripts\vendor\desktop-tools\vendor\telemetry-contract\package.json')) {
+        foreach ($required in @('package.json', 'package-lock.json', 'UmiBridge.cmd', 'scripts\setup-check.mjs', 'scripts\tool-health.mjs', 'scripts\windows\Setup-Local.ps1', 'scripts\windows\Install-UmiBridge.ps1', 'scripts\vendor\desktop-tools\dist\index.js', 'scripts\vendor\desktop-tools\package.json', 'scripts\vendor\desktop-tools\vendor\telemetry-contract\package.json')) {
             if (-not (Test-Path -LiteralPath (Join-Path $source $required) -PathType Leaf)) { throw ('Release is missing ' + $required) }
         }
         $files = @{}
@@ -122,7 +122,9 @@ try {
             & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $stop
             if ($LASTEXITCODE -ne 0) { throw 'Could not stop existing gateway before runtime setup.' }
         }
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts\windows\Setup-Local.ps1') -SkipCloudflared
+        $setupArgs = @('-SkipCloudflared')
+        if ($NoLaunch) { $setupArgs += '-NoBrowser' }
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts\windows\Setup-Local.ps1') @setupArgs
         if ($LASTEXITCODE -ne 0) { throw 'Runtime setup failed. Run UmiBridge-Setup.cmd again to retry; saved settings remain intact.' }
         $shell = New-Object -ComObject WScript.Shell
         $shortcut = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'UmiBridge.lnk'))
@@ -132,15 +134,37 @@ try {
         $shortcut.WorkingDirectory = $root
         $shortcut.IconLocation = Join-Path $root 'scripts\windows\UmiBridge.ico'
         $shortcut.Save()
-        Write-Host ('UmiBridge ready: ' + $root) -ForegroundColor Green
-        if (-not $NoLaunch) { Start-Process -FilePath (Join-Path $root 'UmiBridge.cmd') -ArgumentList '-NoUpdate' -WorkingDirectory $root -WindowStyle Hidden }
+        Write-Host ('Runtime verified: ' + $root) -ForegroundColor Green
+        if (-not $NoLaunch) {
+            Start-Process -FilePath (Join-Path $root 'UmiBridge.cmd') -ArgumentList '-NoUpdate' -WorkingDirectory $root -WindowStyle Hidden
+            $port = if ($env:DC_WEB_PORT) { [int]$env:DC_WEB_PORT } else { 43127 }
+            $expectedVersion=(Get-Content -LiteralPath (Join-Path $root 'package.json') -Raw|ConvertFrom-Json).version
+            $deadline=[DateTime]::UtcNow.AddMinutes(10)
+            $ready=$false
+            while ([DateTime]::UtcNow -lt $deadline) {
+                try {
+                    $page=Invoke-WebRequest -Uri ("http://127.0.0.1:{0}/admin" -f $port) -UseBasicParsing -TimeoutSec 2
+                    if ($page.Content -match ('v'+[regex]::Escape($expectedVersion))) {
+                        $check=Invoke-RestMethod -Uri ("http://127.0.0.1:{0}/admin/api/tools/check" -f $port) -Method Post -Headers @{'X-DC-Admin-Action'='1'} -ContentType 'application/json' -Body '{"repair":true}' -TimeoutSec 180
+                        if ($check.version -eq $expectedVersion -and $check.installationRoot -eq $root -and $check.summary.failed -eq 0 -and $check.checks.Count -gt 0) { $ready=$true; break }
+                    }
+                } catch { }
+                Start-Sleep -Seconds 2
+            }
+            if (-not $ready) { throw 'Gateway tool verification did not finish. Complete tunnel sign-in on the startup page, or review its error, then retry.' }
+            Write-Host 'UmiBridge ready: gateway, dashboard and live tool checks passed.' -ForegroundColor Green
+        }
     }
 } catch {
     Write-Host ('Setup failed: ' + $_.Exception.Message) -ForegroundColor Red
     exit 1
 } finally {
     if ($lock) { $lock.Dispose() }
-    if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $stage) {
+        $stageFull=[IO.Path]::GetFullPath($stage)
+        $stagePrefix=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')+'\UmiBridge-Setup-'
+        if ($stageFull.StartsWith($stagePrefix,[StringComparison]::OrdinalIgnoreCase)) { Remove-Item -LiteralPath $stageFull -Recurse -Force -ErrorAction SilentlyContinue }
+    }
 }
 if ($SourceOnly -and $changed) { exit 10 }
 exit 0

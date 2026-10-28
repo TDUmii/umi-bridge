@@ -5,6 +5,15 @@
 (() => {
   'use strict';
   const VI_TO_EN = {
+  "Bật công cụ toàn máy": "Enable full-machine tools",
+  "Chế độ workspace: tệp, terminal và thao tác Windows toàn máy đang bị chặn. Tạm dừng các nhiệm vụ đang chạy trước khi chuyển chế độ.": "Workspace mode: whole-machine file, terminal and Windows actions are blocked. Pause active tasks before switching.",
+  "Chế độ toàn máy: có thể gọi các công cụ tệp, terminal và Windows đã bật. Máy từ xa và Chrome vẫn cần ghép nối.": "Full-machine mode: enabled file, terminal and Windows tools can be called. Remote PCs and Chrome still require pairing.",
+  "Đã bật công cụ toàn máy. Hãy làm mới kết nối UmiBridge trong ChatGPT.": "Full-machine tools enabled. Refresh the UmiBridge connection in ChatGPT.",
+  "Tạm dừng các nhiệm vụ Corp và Arena đang chạy trước khi chuyển chế độ truy cập.": "Pause active Corp and Arena tasks before changing the access mode.",
+  "Khóa workspace đang chặn công cụ toàn máy.": "Workspace protection blocks whole-machine tools.",
+  "Công cụ scope chỉ dùng khi bật bảo vệ workspace.": "Scoped tools are used only with workspace protection.",
+  "Ghép nối và bật extension Chrome.": "Pair and enable the Chrome extension.",
+  "Công cụ desktop Windows đang tạm dừng.": "Windows desktop tools are paused.",
   "Kiểm tra công cụ": "Check tools",
   "Tình trạng công cụ": "Tool health",
   "Thử tệp, lệnh và trạng thái bằng các phép kiểm tra an toàn. Không thao tác chuột/bàn phím hoặc chạy hành động phá hủy.": "Runs safe file, command and status probes. Desktop input and destructive actions are not executed.",
@@ -642,6 +651,8 @@
   try { language = localStorage.getItem('umibridge.admin.language') === 'vi' ? 'vi' : 'en'; } catch {}
   try { if(!localStorage.getItem('umibridge.admin.language'))localStorage.setItem('umibridge.admin.language',language); } catch {}
   const patterns = [
+    [/^(\d+) \/ (\d+) tools available$/, (m,a,b,l)=>l==='vi'?a+' / '+b+' công cụ khả dụng':m],
+    [/^(\d+) \/ (\d+) công cụ khả dụng$/, (m,a,b,l)=>l==='en'?a+' / '+b+' tools available':m],
     [/^Enable ([a-z0-9_]+) first\.$/, (m,name,l)=>l==='vi'?'Bật '+name+' trước.':m],
     [/^Bật ([a-z0-9_]+) trước\.$/, (m,name,l)=>l==='en'?'Enable '+name+' first.':m],
     [/^(\d+) \/ (\d+) tools enabled$/, (m,a,b,l)=>l==='vi'?a+' / '+b+' công cụ đang bật':m],

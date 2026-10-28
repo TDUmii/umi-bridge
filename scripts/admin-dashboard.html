@@ -628,6 +628,8 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
         <div class="permissions-body">
           <div class="tool-health" aria-labelledby="toolHealthTitle">
             <h3 id="toolHealthTitle">Tool health</h3>
+            <p id="toolAccessMode" role="status">Checking...</p>
+            <button id="enableFullMachine" class="btn small" type="button" hidden>Enable full-machine tools</button>
             <p>Runs safe file, command and status probes. Desktop input and destructive actions are not executed.</p>
             <label><input id="repairTools" type="checkbox" checked> Reconnect and retry safe checks once</label>
             <p id="toolHealthSummary" role="status" aria-live="polite">No check has run yet.</p>
@@ -1359,6 +1361,14 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
 
   // Keep policy refresh independent from request history and open previews.
   const policyModel={tools:[],group:'files',autoPrompt:false,loading:false,saving:false,fingerprint:'',version:0};
+  $('enableFullMachine').addEventListener('click',async()=>{
+    const button=$('enableFullMachine');button.disabled=true;
+    try{
+      const response=await fetch('/admin/api/orchestration',{method:'POST',headers:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},body:JSON.stringify({flags:{dagSchedulerEnabled:false,workspaceLocksEnabled:false},reconcilePaused:true})});
+      if(!response.ok)throw Error('Pause active Corp and Arena tasks before changing the access mode.');
+      await loadToolPolicy();$('toolHealthSummary').textContent='Full-machine tools enabled. Refresh the UmiBridge connection in ChatGPT.';
+    }catch(error){$('toolHealthSummary').textContent=error.message;}finally{button.disabled=false;}
+  });
   $('checkTools').addEventListener('click',async()=>{
     const button=$('checkTools');if(button.disabled)return;
     button.disabled=true;$('toolHealthDetails').hidden=true;$('toolHealthGuidance').textContent='';$('toolHealthSummary').textContent='Checking live tools. Please wait...';
@@ -1393,11 +1403,13 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
     const all=policyModel.tools,group=policyModel.group,groupTools=all.filter(tool=>tool.group===group);
     const query=$('permissionSearch').value.trim().toLocaleLowerCase();
     const rows=groupTools.filter(tool=>{const copy=toolText(tool);return !query||[tool.name,copy.title,copy.description,tool.description,...[copy.title,copy.description].map(value=>globalThis.UmiBridgeI18n?.text(value)||value)].some(value=>String(value??'').toLocaleLowerCase().includes(query));});
-    $('permissionCount').textContent=all.filter(tool=>tool.enabled).length+' / '+all.length+' tools enabled';
+    $('permissionCount').textContent=all.filter(tool=>tool.enabled&&tool.available).length+' / '+all.length+' tools available';
+    $('toolAccessMode').textContent=policyModel.protectedMode?'Workspace mode: whole-machine file, terminal and Windows actions are blocked. Pause active tasks before switching.':'Full-machine mode: enabled file, terminal and Windows tools can be called. Remote PCs and Chrome still require pairing.';
+    $('enableFullMachine').hidden=!policyModel.protectedMode;
     for(const button of $('permissionGroups').querySelectorAll('[data-tool-group]')){
       const items=all.filter(tool=>tool.group===button.dataset.toolGroup);
       button.setAttribute('aria-pressed',String(button.dataset.toolGroup===group));
-      button.querySelector('small').textContent=items.filter(tool=>tool.enabled).length+'/'+items.length;
+      button.querySelector('small').textContent=items.filter(tool=>tool.enabled&&tool.available).length+'/'+items.length;
     }
     $('permissionGroupTitle').textContent=groupLabels[group];
     $('permissionGroupNote').textContent=group==='commands'?'PowerShell allows broad shell access. Tool switches do not sandbox files.':group==='windows'?'Desktop actions affect the selected PC. Paused or missing tools cannot run.':group==='skills'?'These tools read skill instructions. Choose individual skills in Skill Center.':'These switches control tool access, not filesystem permissions.';
@@ -1407,7 +1419,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
     $('permissionList').setAttribute('aria-busy','false');
     $('permissionList').innerHTML=rows.length?rows.map((tool,index)=>{
       const copy=toolText(tool),blocked=Array.isArray(tool.blockedBy)?tool.blockedBy[0]:tool.blockedBy,state=blocked?'Blocked':tool.available===false?(tool.enabled?'Unavailable':'Disabled'):tool.enabled?'Enabled':'Disabled';
-      return '<article class="permission-row'+(tool.available===false?' unavailable':'')+'"><div class="permission-copy"><h4 id="permissionLabel'+index+'">'+escapeHtml(copy.title)+(copy.remote?' <span class="permission-state">· <span>Paired PC</span></span>':'')+'</h4><span class="permission-name">'+escapeHtml(tool.name)+'</span><p>'+escapeHtml(copy.description)+'</p>'+(blocked?'<p id="permissionBlock'+index+'">Enable '+escapeHtml(blocked)+' first.</p>':'')+'</div><div class="permission-control"><span class="permission-state">'+state+'</span><button class="permission-switch" type="button" role="switch" aria-checked="'+Boolean(tool.enabled)+'" aria-labelledby="permissionLabel'+index+'"'+(blocked?' aria-describedby="permissionBlock'+index+'"':'')+' data-tool-name="'+escapeHtml(tool.name)+'"'+(policyModel.saving||blocked?' disabled':'')+'></button></div></article>';
+      return '<article class="permission-row'+(tool.available===false?' unavailable':'')+'"><div class="permission-copy"><h4 id="permissionLabel'+index+'">'+escapeHtml(copy.title)+(copy.remote?' <span class="permission-state">· <span>Paired PC</span></span>':'')+'</h4><span class="permission-name">'+escapeHtml(tool.name)+'</span><p>'+escapeHtml(copy.description)+'</p>'+(tool.unavailableReason?'<p>'+escapeHtml(tool.unavailableReason)+'</p>':'')+(blocked?'<p id="permissionBlock'+index+'">Enable '+escapeHtml(blocked)+' first.</p>':'')+'</div><div class="permission-control"><span class="permission-state">'+state+'</span><button class="permission-switch" type="button" role="switch" aria-checked="'+Boolean(tool.enabled)+'" aria-labelledby="permissionLabel'+index+'"'+(blocked?' aria-describedby="permissionBlock'+index+'"':'')+' data-tool-name="'+escapeHtml(tool.name)+'"'+(policyModel.saving||blocked?' disabled':'')+'></button></div></article>';
     }).join(''):'<div class="tool-empty">'+(query?'No matching tools. Try another search.':'No tools available in this group. Refresh after setup.')+'</div>';
     $('autoPromptToggle').setAttribute('aria-checked',String(policyModel.autoPrompt));
     $('autoPromptToggle').disabled=!policyModel.fingerprint||policyModel.saving;
@@ -1416,7 +1428,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
   function applyToolPolicy(data){
     if(!Array.isArray(data.tools)||typeof data.autoPrompt!=='boolean'||typeof data.prompt!=='string')throw Error('Invalid tool settings. Refresh to try again.');
     const fingerprint=JSON.stringify([data.tools,data.autoPrompt,data.prompt]);
-    policyModel.tools=data.tools;policyModel.autoPrompt=data.autoPrompt;
+    policyModel.tools=data.tools;policyModel.autoPrompt=data.autoPrompt;policyModel.protectedMode=data.protectedMode===true;
     if(fingerprint!==policyModel.fingerprint){
       const focused=document.activeElement?.dataset.toolName;
       policyModel.fingerprint=fingerprint;renderToolPolicy();

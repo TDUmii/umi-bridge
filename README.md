@@ -20,6 +20,10 @@ UmiBridge kết nối ChatGPT với máy Windows qua MCP và cung cấp dashboar
 
 Khi mở UmiBridge, trang tiến độ hiển thị bước kiểm tra runtime, cập nhật, đăng nhập tunnel và khởi động gateway. CMD chạy ẩn. Trang tự chuyển sang dashboard sau khi gateway và dashboard đều phản hồi; lỗi khởi động được giữ trên trang. Khi cần đăng nhập GitHub cho tunnel, bấm nút mở tab đăng nhập và nhập mã hiển thị; tab do trang này mở sẽ tự đóng khi bước đăng nhập kết thúc.
 
+**Setup trên máy Windows x64 mới:** Umi tự tải Node.js portable, Python riêng, runtime Windows và dependency desktop. Không cần cài Node/Python/Git trước. Sau khi có Node, trang tiến độ theo dõi việc cài và chạy thử công cụ. Setup kiểm tra đọc/ghi tệp, PowerShell, terminal tích hợp, tìm kiếm, tạo PDF và chụp màn hình; khởi động chỉ báo sẵn sàng khi gateway và phép thử công cụ đã đạt. Báo cáo cục bộ nằm tại `.local-data/setup-check.json`. Cần Internet và một phiên desktop Windows đang mở; lần đăng nhập tunnel và cấp quyền kết nối ChatGPT vẫn do chủ máy thực hiện.
+
+Cài mới mặc định dùng công cụ toàn máy với quyền tài khoản Windows đang chạy. Trong **Bộ công cụ**, số khả dụng khác số công tắc đang bật; mỗi công cụ bị chặn có lý do cụ thể. Nếu bật bảo vệ workspace, hãy tạm dừng nhiệm vụ đang chạy trước khi dùng **Bật công cụ toàn máy**. Chuyển chế độ đóng lease cũ của nhiệm vụ đã tạm dừng và đánh dấu cần đối soát; không tự gửi lại công việc. Thư mục cho phép đã tùy chỉnh của runtime desktop được giữ khi cập nhật; profile mới không bị giới hạn vào thư mục dữ liệu nội bộ.
+
 > **Tích hợp sẵn từ 1.11.0:** Setup tải runtime desktop cùng UmiBridge và tự cài các dependency cần thiết. Bạn không cần cài Desktop Commander riêng hoặc chạy từ source. Cài đặt cần Internet để tải gói phát hành và dependency.
 
 ## ✨ Tính năng
@@ -77,6 +81,8 @@ UmiBridge is a Windows MCP gateway for ChatGPT with a local administration dashb
 4. For Corp, Arena or Chrome page control, load `extensions/umibridge-corp` in Chrome and pair it under **Corp → Connection**. Enable **Browser control** in the extension for page actions.
 
 **Included since 1.11.0:** Setup downloads the bundled desktop runtime and installs its dependencies automatically. No separate Desktop Commander installation or source checkout is required. Internet access is needed to download the release and dependencies.
+
+On a fresh Windows x64 machine, Setup provisions private Node.js and Python runtimes without requiring Node, Python or Git beforehand. It runs real file, terminal, search, PDF and screenshot probes before completion, then verifies the gateway's live tools before declaring readiness. A signed-in Windows desktop and Internet access are required. Tunnel sign-in and ChatGPT authorization still require the owner. New profiles allow full-machine tools under the current Windows account; existing custom directory limits are preserved.
 
 ### Bundled desktop tools
 
