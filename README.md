@@ -1,10 +1,16 @@
-# UmiBridge
+# 🌸 UmiBridge
 
-UmiBridge kết nối ChatGPT với máy Windows qua MCP, kèm dashboard quản trị chạy trên máy. Bạn có thể cấp quyền cho từng công cụ để đọc, sửa tệp, chạy lệnh, điều khiển màn hình và làm việc với trình duyệt. Corp và Arena cung cấp các luồng làm việc có điều phối trong ChatGPT.
+**Đưa ChatGPT đến gần hơn với máy Windows của bạn.**
 
-[English](#english) · [Bản phát hành](https://github.com/TDUmii/umi-bridge/releases) · [Giấy phép](LICENSE)
+UmiBridge kết nối ChatGPT với máy Windows qua MCP và cung cấp dashboard quản trị ngay trên máy. Bạn chọn công cụ được phép dùng để làm việc với tệp, terminal, màn hình và trình duyệt; Corp và Arena hỗ trợ tổ chức những công việc nhiều bước.
 
-## Cài đặt và kết nối
+[Bắt đầu](#-bắt-đầu) · [Tính năng](#-tính-năng) · [Công cụ desktop](#-công-cụ-desktop-tích-hợp) · [Xử lý sự cố](#-xử-lý-sự-cố) · [English](#english)
+
+[Bản phát hành](https://github.com/TDUmii/umi-bridge/releases) · [Giấy phép MIT](LICENSE)
+
+## 🚀 Bắt đầu
+
+### Cài đặt và kết nối
 
 1. Tải [UmiBridge-Setup.cmd](https://github.com/TDUmii/umi-bridge/releases/latest/download/UmiBridge-Setup.cmd) và mở tệp trên Windows. Trình cài đặt tải bản phát hành mới nhất và kiểm tra SHA-256 trước khi cài.
 2. Mở shortcut **UmiBridge** trên Desktop. Ứng dụng chạy ở khay hệ thống; chọn **Exit** để dừng. Mở [dashboard local](http://127.0.0.1:43127/admin) trên chính máy đó.
@@ -12,9 +18,9 @@ UmiBridge kết nối ChatGPT với máy Windows qua MCP, kèm dashboard quản 
 4. Trong dashboard, chọn **Tools** và bật những công cụ cần dùng. Nếu danh sách công cụ thay đổi, làm mới kết nối trong ChatGPT hoặc mở chat mới.
 5. Để dùng Corp, Arena hoặc điều khiển trang Chrome, nạp thư mục `extensions/umibridge-corp` vào Chrome và ghép tại **Corp → Connection**. Bật **Browser control** trong cài đặt extension nếu cần thao tác trang.
 
-Trang cài đặt lấy **bản phát hành mới nhất**, có thể chậm hơn mã trên `main`. Tại thời điểm viết, bản phát hành là **1.10.0**; tích hợp Desktop Commander mô tả bên dưới nằm trên `main` và cần bản phát hành mới hoặc chạy từ source để sử dụng.
+> **Lưu ý về phiên bản:** Trình cài đặt lấy bản phát hành mới nhất, có thể chậm hơn mã trên `main`. Bản phát hành 1.10.0 có trước tích hợp Desktop Commander; để dùng tích hợp này, cần bản phát hành mới hơn hoặc chạy từ source.
 
-## Tính năng
+## ✨ Tính năng
 
 | Thành phần | Chức năng |
 | --- | --- |
@@ -27,7 +33,7 @@ Trang cài đặt lấy **bản phát hành mới nhất**, có thể chậm hơ
 
 Trang nội bộ Chrome, ô mật khẩu và chọn tệp cần thao tác trực tiếp. Ảnh màn hình và nội dung trang không được lưu trong lịch sử request của UmiBridge. Số token trong dashboard là ước tính, không phải số liệu thanh toán.
 
-## Công cụ desktop tích hợp
+## 🖥️ Công cụ desktop tích hợp
 
 UmiBridge đóng gói runtime tệp, terminal, tìm kiếm, tài liệu PDF/Office, cấu hình và thống kê tại `scripts/vendor/desktop-tools`, dựa trên Desktop Commander được cấp phép MIT. Không cần cài Desktop Commander riêng, không dùng đường dẫn `entry` bên ngoài. `npm ci --ignore-scripts` cài các dependency cùng Umi.
 
@@ -35,7 +41,7 @@ Các công cụ tương thích giữ tiền tố `dc_*`; chuột, bàn phím và
 
 Khóa workspace vẫn chặn các thao tác toàn máy. Danh sách thư mục cho phép chỉ áp dụng cho công cụ tệp, không phải sandbox cho terminal. Tài khoản và thiết bị trên dịch vụ Remote Desktop Commander cloud không được tự nhập; thiết bị từ xa của Umi dùng Hub/Agent riêng.
 
-## Chạy từ source
+## 🛠️ Chạy từ source
 
 Yêu cầu Windows và Node.js **22.12.0 trở lên**. Tại thư mục dự án:
 
@@ -47,11 +53,11 @@ npm start
 
 `npm run build` kiểm tra cú pháp các module; nó không thay thế kiểm thử chức năng. Thiết lập Windows runtime và tunnel dùng launcher/công cụ cài đặt của dự án. Các thư mục `.local-data`, `.runtime`, log, dữ liệu chat và khóa là dữ liệu riêng của máy, không đưa vào Git hay chia sẻ công khai.
 
-## Xử lý sự cố
+## 🔧 Xử lý sự cố
 
 - **Không kết nối được:** mở UmiBridge, kiểm tra dashboard và trạng thái gateway. Nếu cần, dùng **Restart** từ biểu tượng khay; kiểm tra tunnel và kết nối MCP trong ChatGPT.
 - **`windows_status` báo ready nhưng thiếu tool điều khiển:** kiểm tra tool có được bật, desktop có bị tạm dừng và khóa workspace có đang bật. Làm mới kết nối hoặc mở chat mới sau khi đổi quyền.
-- **Desktop Commander không sẵn sàng:** kiểm tra `entry`, bản build và dependency của Desktop Commander, cấu hình đường dẫn, sau đó restart UmiBridge. `dc_status` phản ánh trạng thái backend local.
+- **Desktop Commander không sẵn sàng:** kiểm tra runtime `scripts/vendor/desktop-tools` và dependency đã được cài bằng `npm ci --ignore-scripts`, sau đó restart UmiBridge. `dc_status` phản ánh trạng thái runtime local.
 - **Extension chưa kết nối:** kiểm tra extension đã được nạp và ghép với dashboard; sau cập nhật extension, reload extension và các tab ChatGPT liên quan.
 
 ## English
@@ -65,11 +71,11 @@ UmiBridge is a Windows MCP gateway for ChatGPT with a local administration dashb
 3. Add the displayed MCP server URL in ChatGPT, select OAuth and authorize it with the connection code shown locally. Enable the tools you need in **Tools**.
 4. For Corp, Arena or Chrome page control, load `extensions/umibridge-corp` in Chrome and pair it under **Corp → Connection**. Enable **Browser control** in the extension for page actions.
 
-The installer uses the latest release, which can lag behind `main`. Release **1.10.0** predates the optional Desktop Commander integration currently on `main`.
+The installer uses the latest release, which can lag behind `main`. Release **1.10.0** predates the bundled Desktop Commander integration currently on `main`.
 
 ### Bundled desktop tools
 
-The MIT-licensed desktop tools runtime is included under scripts/vendor/desktop-tools. No separate Desktop Commander installation or external entry path is required. Run npm ci --ignore-scripts to install its dependencies. Compatible dc_* tools provide files, search, terminal, documents, settings and usage features; windows_* provides desktop input. Private runtime settings stay in .local-data. Cloud service accounts/devices are not imported; use UmiBridge Hub/Agent for remote devices.
+The MIT-licensed desktop tools runtime is included under `scripts/vendor/desktop-tools`. No separate Desktop Commander installation or external entry path is required. Run `npm ci --ignore-scripts` to install its dependencies. Compatible `dc_*` tools provide files, search, terminal, documents, settings and usage features; `windows_*` provides desktop input. Private runtime settings stay in `.local-data`. Cloud service accounts/devices are not imported; use UmiBridge Hub/Agent for remote devices.
 
 ### Source and privacy
 
