@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([switch]$LocalOnly, [switch]$NoDashboard)
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -76,6 +76,7 @@ for ($attempt = 0; $attempt -lt 60; $attempt++) {
         $gatewayProcess.Refresh()
         if ($gatewayProcess.HasExited) {
             $failure = Get-Content -LiteralPath (Join-Path $stateDir 'server-error.log') -Raw -ErrorAction SilentlyContinue
+            if ($failure -match 'TUNNEL_AUTH_REQUIRED') { throw 'TUNNEL_AUTH_REQUIRED: The saved tunnel sign-in was rejected. Retry the connection and complete GitHub sign-in.' }
             if ($failure -match 'Tunnel exited \(') { throw 'TUNNEL_START_FAILED: The HTTPS tunnel stopped before the gateway became ready.' }
             throw 'The gateway process stopped during startup. Check .local-data\server-error.log; no connection keys have been changed.'
         }

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet('start','stop','pair','agent','repair','admin','normal')][string]$Action = 'start',
     [string]$Hub,
@@ -19,6 +19,7 @@ $launcher = Join-Path $PSScriptRoot 'UmiBridge.ps1'
 $stateDir = Join-Path $root '.local-data'
 [void][IO.Directory]::CreateDirectory($stateDir)
 $stopPath = Join-Path $stateDir 'launcher-stop'
+$retryPath = Join-Path $stateDir 'launcher-retry'
 $trayState = Join-Path $stateDir 'tray-status.json'
 $shell = Join-Path ([Environment]::GetFolderPath('System')) 'WindowsPowerShell\v1.0\powershell.exe'
 $port = 43127
@@ -42,7 +43,13 @@ $acquired = $false
 try { $acquired = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $acquired = $true }
 if (-not $acquired) {
     $mutex.Dispose()
-    Start-Process $dashboard
+    try {
+        $null = Invoke-WebRequest -Uri $dashboard -UseBasicParsing -TimeoutSec 2
+        Start-Process $dashboard
+    } catch {
+        [IO.File]::WriteAllText($retryPath, [DateTime]::UtcNow.ToString('o'))
+        Start-Process ("http://127.0.0.1:$($port + 1)/")
+    }
     exit 0
 }
 
@@ -77,7 +84,7 @@ function Set-TrayStatus([string]$Message, [bool]$Healthy = $false, [switch]$Noti
     $script:lastMessage = $Message
 }
 
-function Start-TrayWorker([switch]$Restart, [switch]$Initial, [switch]$StopOnly, [switch]$CheckOnly) {
+function Start-TrayWorker([switch]$Restart, [switch]$Initial, [switch]$StopOnly, [switch]$CheckOnly, [switch]$Interactive) {
     if ($script:worker -and -not $script:worker.HasExited) { return }
     if ($Restart -and (Test-UmiWorkActive $port)) { Set-TrayStatus 'Waiting for active work before restart' -Notify; return }
     $quotedLauncher = "'" + $launcher.Replace("'", "''") + "'"
@@ -89,7 +96,8 @@ function Start-TrayWorker([switch]$Restart, [switch]$Initial, [switch]$StopOnly,
         $command += "& $quotedLauncher -Action start -NoDashboard"
         if ($CheckOnly) { $command += ' -CheckOnly' }
         if (-not $Initial -or $NoUpdate) { $command += ' -NoUpdate' }
-        if (-not $Initial -or $NoTunnelRepair) { $command += ' -NoTunnelRepair' }
+        if ($NoTunnelRepair) { $command += ' -NoTunnelRepair' }
+        if (-not $Initial -and -not $Interactive) { $command += ' -Recovery' }
         if ($LocalOnly) { $command += ' -LocalOnly' }
         if ($TemporaryTunnel) { $command += ' -TemporaryTunnel' }
         $command += '; exit $LASTEXITCODE'
@@ -141,7 +149,8 @@ function Test-TrayHealth {
         if (Test-UmiModePending $sid) { Set-TrayStatus 'Waiting for Windows authorization' -Notify; return }
         if ($script:worker -and -not $script:worker.HasExited) { Set-TrayStatus 'Operation still running' -Notify; return }
         Open-StartupPage
-        Start-TrayWorker -CheckOnly
+        if (Test-TrayHealth) { Start-TrayWorker -CheckOnly }
+        else { Start-TrayWorker -Restart -Interactive }
         Set-TrayStatus 'Repair requested' -Notify
     } catch { Set-TrayStatus 'Repair failed. See launcher-error.log' -Notify }
 })
@@ -152,7 +161,7 @@ function Test-TrayHealth {
         $attempts.Clear(); $script:offlineSince = $null
         Remove-Item -LiteralPath $stopPath -Force -ErrorAction SilentlyContinue
         Open-StartupPage
-        Start-TrayWorker -Restart
+        Start-TrayWorker -Restart -Interactive
         Set-TrayStatus 'Restarting' -Notify
     } catch { Set-TrayStatus 'Restart failed. See launcher-error.log' -Notify }
 })
@@ -188,10 +197,28 @@ $timer.Add_Tick({
             }
         }
         if (Test-UmiModePending $sid) { $script:offlineSince = $null; Set-TrayStatus 'Waiting for Windows authorization'; return }
+        if (Test-Path -LiteralPath $retryPath) {
+            Remove-Item -LiteralPath $retryPath -Force
+            $attempts.Clear(); $script:offlineSince = $null
+            if (Test-TrayHealth) {
+                [IO.File]::WriteAllText((Join-Path $stateDir 'startup-progress.json'), '{"state":"ready","step":"Gateway và dashboard đã sẵn sàng."}', [Text.UTF8Encoding]::new($false))
+                Set-TrayStatus 'Online' $true
+                return
+            }
+            Open-StartupPage
+            Start-TrayWorker -Restart -Interactive
+            Set-TrayStatus 'Retrying saved tunnel connection' -Notify
+            return
+        }
         $gatewayHealthy = Test-TrayHealth
         if ($gatewayHealthy) {
             $script:offlineSince = $null; Set-TrayStatus 'Online' $true
             if (-not $script:dashboardOpened) { $script:dashboardOpened = $true; Start-Process $dashboard }
+            return
+        }
+        try { $startup = Get-Content -LiteralPath (Join-Path $stateDir 'startup-progress.json') -Raw | ConvertFrom-Json } catch { $startup = $null }
+        if ($startup.state -eq 'error' -and $startup.reason -eq 'tunnel_auth_required') {
+            Set-TrayStatus 'Tunnel sign-in required. Open UmiBridge.cmd' -Notify
             return
         }
         if (-not $script:offlineSince) { $script:offlineSince = $now }

@@ -10,7 +10,8 @@ param(
     [switch]$Monitor,
     [switch]$NoDashboard,
     [switch]$KeepWatchdog,
-    [switch]$CheckOnly
+    [switch]$CheckOnly,
+    [switch]$Recovery
 )
 
 if ($PSVersionTable.PSVersion.Major -le 5) {
@@ -38,9 +39,9 @@ function Write-LauncherLog([string]$Message) {
     Add-Content -LiteralPath $logPath -Value "$stamp $Message" -Encoding utf8
 }
 
-function Write-StartupProgress([string]$Step, [string]$State = 'starting') {
+function Write-StartupProgress([string]$Step, [string]$State = 'starting', [string]$Reason = '') {
     $progressFile = Join-Path $root '.local-data\startup-progress.json'
-    $json = @{ state = $State; step = $Step } | ConvertTo-Json -Compress
+    $json = @{ state = $State; step = $Step; reason = $Reason } | ConvertTo-Json -Compress
     [IO.File]::WriteAllText($progressFile, $json, [Text.UTF8Encoding]::new($false))
     Write-Host $Step
 }
@@ -167,9 +168,23 @@ function Watch-Requests {
 }
 
 function Invoke-PowerShellScript([string]$Path, [string[]]$Arguments = @(), [switch]$Quiet) {
+    if ($Recovery -and [IO.Path]::GetFileName($Path) -eq 'Setup-Stable-Connection.ps1') { $Arguments += '-NoLogin' }
     if ($Quiet) { & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Path @Arguments *> $null }
     else { & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Path @Arguments }
-    if ($LASTEXITCODE -ne 0) { throw "Script failed: $([IO.Path]::GetFileName($Path))." }
+    if ($LASTEXITCODE -ne 0) {
+        $scriptName = [IO.Path]::GetFileName($Path)
+        if ($scriptName -eq 'Start-UmiBridge.ps1') {
+            $failure = Get-Content -LiteralPath (Join-Path $stateDir 'server-error.log') -Raw -ErrorAction SilentlyContinue
+            if ($failure -match 'TUNNEL_AUTH_REQUIRED') { throw 'TUNNEL_AUTH_REQUIRED: Phiên đăng nhập tunnel đã hết hạn hoặc bị từ chối. Bấm Thử lại kết nối và hoàn tất đăng nhập GitHub nếu được yêu cầu.' }
+            if ($failure -match 'Tunnel exited|tunnel did not return a URL') { throw 'TUNNEL_START_FAILED: Chưa kết nối được máy chủ tunnel. Kiểm tra Internet rồi bấm Thử lại kết nối. URL và khóa kết nối đã được giữ nguyên.' }
+        }
+        if ($scriptName -eq 'Setup-Stable-Connection.ps1') {
+            try { $setupFailure = Get-Content -LiteralPath (Join-Path $stateDir 'tunnel-setup-error.json') -Raw | ConvertFrom-Json } catch { $setupFailure = $null }
+            if ($setupFailure.reason -eq 'tunnel_auth_required') { throw ('TUNNEL_AUTH_REQUIRED: ' + $setupFailure.step) }
+            throw 'TUNNEL_SETUP_FAILED: Không kiểm tra được kết nối tunnel đã lưu. Kiểm tra Internet rồi bấm Thử lại kết nối.'
+        }
+        throw "Script failed: $scriptName."
+    }
 }
 
 function Stop-Bridge {
@@ -374,6 +389,7 @@ try {
                     $stable = Get-TunnelConfig
                 } catch {
                     Write-LauncherLog ('STABLE_TUNNEL_FAILED ' + $_.Exception.Message)
+                    if ($_.Exception.Message -match '^TUNNEL_AUTH_REQUIRED:') { throw }
                     throw 'Persistent connection repair failed. The saved URL and keys have been kept. Check the network and reopen UmiBridge.cmd; a temporary link was not created.'
                 }
             }
@@ -384,6 +400,7 @@ try {
                 $stable = Get-TunnelConfig
             } catch {
                 Write-LauncherLog ('STABLE_TUNNEL_LOGIN_UNAVAILABLE ' + $_.Exception.Message)
+                if ($_.Exception.Message -match '^TUNNEL_AUTH_REQUIRED:') { throw }
                 throw 'Persistent tunnel sign-in could not be refreshed. The saved URL and keys have been kept. Reopen UmiBridge.cmd to retry; a temporary link was not created.'
             }
         }
@@ -416,7 +433,7 @@ try {
             Invoke-PowerShellScript $start $startArgs
         } catch {
             $failure = Get-Content -LiteralPath (Join-Path $stateDir 'server-error.log') -Raw -ErrorAction SilentlyContinue
-            if (-not $LocalOnly -and -not $NoTunnelRepair -and -not $externalUrl -and -not $fallbackTunnel -and $stable -and $failure -match 'Tunnel exited \(') {
+            if (-not $LocalOnly -and -not $NoTunnelRepair -and -not $externalUrl -and -not $fallbackTunnel -and $stable -and $failure -match 'Tunnel exited \(|TUNNEL_AUTH_REQUIRED') {
                 Write-Host 'The saved tunnel could not host this session. Repairing it once without changing the URL or keys...' -ForegroundColor Yellow
                 Invoke-PowerShellScript (Join-Path $root 'scripts\windows\Setup-Stable-Connection.ps1') -Quiet
                 Invoke-PowerShellScript $start $startArgs
@@ -437,7 +454,8 @@ try {
 } catch {
     $message = $_.Exception.Message
     Write-LauncherLog ('ERROR ' + $message)
-    Write-StartupProgress $message 'error'
+    $reason = if ($message -match '^TUNNEL_AUTH_REQUIRED:') { 'tunnel_auth_required' } elseif ($message -match '^TUNNEL_') { 'tunnel_unavailable' } else { 'startup_failed' }
+    Write-StartupProgress $message 'error' $reason
     Write-Host ('UmiBridge could not start: ' + $message) -ForegroundColor Red
     exit 1
 }

@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,11 +7,16 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number(process.env.DC_WEB_PORT || 43127);
 const statusFile = path.join(root, '.local-data', 'startup-progress.json');
 const html = `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>UmiBridge - Đang khởi động</title>
-<style>body{margin:0;background:#101b19;color:#edf5ef;font:17px system-ui;display:grid;place-items:center;min-height:100vh}main{width:min(560px,85vw);padding:36px;border:1px solid #365448;border-radius:24px;background:#192b25}small{color:#9fc6ac}h1{font-size:30px}p{line-height:1.7}#step{color:#bce6c8}a{color:#bce6c8}progress{width:100%;accent-color:#86be9a}</style>
-<main><small>UMIBRIDGE SAKURA CONSOLE</small><h1 id="title">Đang chuẩn bị UmiBridge</h1><progress id="busy"></progress><p id="step" role="status" aria-live="polite">Đang kiểm tra ứng dụng...</p><p id="detail">Trang này sẽ tự chuyển vào dashboard khi gateway sẵn sàng. Nếu cần đăng nhập tunnel, hãy hoàn tất trên tab đăng nhập.</p><a href="http://127.0.0.1:${port}/admin">Mở dashboard</a></main>
+<style>body{margin:0;background:#101b19;color:#edf5ef;font:17px system-ui;display:grid;place-items:center;min-height:100vh}main{box-sizing:border-box;width:min(632px,90vw);padding:36px;border:1px solid #365448;border-radius:24px;background:#192b25}small{color:#9fc6ac}h1{font-size:30px}p{line-height:1.7}#step{color:#bce6c8}a{color:#bce6c8}progress{width:100%;accent-color:#86be9a}button{font:inherit;padding:10px 16px;margin:0 12px 16px 0;background:#bce6c8;color:#101b19;border:0;border-radius:8px;cursor:pointer}button:disabled{opacity:.65;cursor:wait}button:focus-visible,a:focus-visible{outline:3px solid #bce6c8;outline-offset:4px}</style>
+<main><small>UMIBRIDGE SAKURA CONSOLE</small><h1 id="title">Đang chuẩn bị UmiBridge</h1><progress id="busy"></progress><p id="step" role="status" aria-live="polite">Đang kiểm tra ứng dụng...</p><p id="detail">Trang này sẽ tự chuyển vào dashboard khi gateway sẵn sàng. Nếu cần đăng nhập tunnel, hãy hoàn tất trên tab đăng nhập.</p><button id="retry" type="button" hidden>Thử lại kết nối</button><a href="http://127.0.0.1:${port}/admin">Mở dashboard</a></main>
 <script>
 let authTab=null;
 const auth=document.createElement('p');document.querySelector('main').append(auth);
+document.getElementById('retry').onclick=async()=>{
+ const button=document.getElementById('retry');button.disabled=true;
+ try{const response=await fetch('/retry',{method:'POST',headers:{'X-DC-Startup-Action':'1'}});if(!response.ok)throw Error();document.getElementById('step').textContent='Đang thử lại kết nối đã lưu...';}
+ catch{document.getElementById('step').textContent='Không gửi được yêu cầu. Mở lại UmiBridge.cmd để thử lại.';button.disabled=false}
+};
 async function poll(){try{
   const r=await fetch('/status',{cache:'no-store'});const s=await r.json();
   document.getElementById('step').textContent=s.step;
@@ -19,14 +24,24 @@ async function poll(){try{
     if(!auth.firstChild){const code=document.createElement('strong');const button=document.createElement('button');button.textContent='Mở tab đăng nhập tunnel';button.onclick=()=>{authTab=window.open('https://github.com/login/device','umibridge-tunnel-login');};auth.append(code,document.createElement('br'),button)}
     auth.firstChild.textContent='Mã đăng nhập: '+s.authCode;
   }else{if(authTab&&!authTab.closed)authTab.close();authTab=null;auth.replaceChildren()}
-  if(s.state==='error'){document.getElementById('title').textContent='UmiBridge đang chờ khôi phục';document.getElementById('busy').hidden=true;document.getElementById('detail').textContent='Umi sẽ thử khôi phục lỗi kỹ thuật có thể sửa an toàn. Nếu cần đăng nhập hoặc có công việc đang chạy, thông tin sẽ hiện ở trên. Bạn có thể mở lại UmiBridge.cmd để kiểm tra lại.'}
-  else{document.getElementById('title').textContent='Đang chuẩn bị UmiBridge';document.getElementById('busy').hidden=false}
+  document.getElementById('retry').hidden=s.state!=='error';
+  if(s.state==='error'){document.getElementById('retry').disabled=false;document.getElementById('title').textContent=s.reason==='tunnel_auth_required'?'Cần đăng nhập lại tunnel':'Chưa kết nối được UmiBridge';document.getElementById('busy').hidden=true;document.getElementById('detail').textContent=s.reason==='tunnel_auth_required'?'Bấm Thử lại kết nối, sau đó hoàn tất đăng nhập GitHub trên tab được mở. URL, khóa và Project hiện có được giữ nguyên.':'Bấm Thử lại kết nối hoặc mở lại UmiBridge.cmd. Việc này không chạy kiểm tra màn hình.'}
+  else{document.getElementById('title').textContent=s.state==='auth'?'Đăng nhập tunnel để tiếp tục':'Đang chuẩn bị UmiBridge';document.getElementById('busy').hidden=false}
   if(s.state==='ready'){location.replace('http://127.0.0.1:${port}/admin');return}
 }catch{}setTimeout(poll,1000)}poll()
 </script></html>`;
 const server = createServer(async (req, res) => {
   if (req.headers.host !== `127.0.0.1:${port + 1}`) { res.writeHead(403); res.end(); return; }
   res.setHeader('Cache-Control', 'no-store');
+  if (req.url === '/retry') {
+    if (req.method !== 'POST' || req.headers['x-dc-startup-action'] !== '1' || req.headers.origin !== `http://127.0.0.1:${port + 1}`) { res.writeHead(403); res.end(); return; }
+    try {
+      await writeFile(path.join(root,'.local-data','launcher-retry'),new Date().toISOString());
+      await writeFile(statusFile,JSON.stringify({state:'starting',step:'Đang thử lại kết nối đã lưu...'}));
+      res.writeHead(202);res.end();
+    } catch { res.writeHead(503);res.end(); }
+    return;
+  }
   if (req.url === '/status') {
     let status = { state: 'starting', step: 'Đang chuẩn bị ứng dụng...' };
     try { status = JSON.parse(await readFile(statusFile, 'utf8')); } catch {}

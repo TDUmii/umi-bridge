@@ -37,6 +37,7 @@ try { secret = (await readFile(secretFile, 'utf8')).trim(); } catch (error) {
 }
 if (!/^[A-Za-z0-9_-]{32,}$/.test(secret)) throw new Error('Invalid local connection secret. Restore .local-data/connection-secret.txt.');
 let tunnel;
+let tunnelAuthorizationRejected = false;
 let gateway;
 let publicUrl = process.env.DC_PUBLIC_URL;
 const localOnly = process.env.DC_LOCAL_ONLY === '1';
@@ -123,13 +124,14 @@ try {
         const chunk = data.toString();
         void appendFile(path.join(stateDir, 'tunnel.log'), chunk).catch(() => {});
         buffer = (buffer + chunk).slice(-16_384);
+        if (/unauthorized|login token expired|authentication token expired|not authenticated/i.test(buffer)) tunnelAuthorizationRejected = true;
         const url = tunnelUrlFromOutput(buffer, tunnelProvider, port);
         if (url) { clearTimeout(timeout); resolve(url); }
       };
       tunnel.stdout.on('data', onOutput);
       tunnel.stderr.on('data', onOutput);
       tunnel.once('error', error => { clearTimeout(timeout); reject(error); });
-      tunnel.once('exit', code => { clearTimeout(timeout); reject(new Error(`Tunnel exited (${code}). Sign in again with UmiBridge.cmd -Action repair or see .local-data/tunnel.log.`)); });
+      tunnel.once('exit', code => { clearTimeout(timeout); reject(new Error(tunnelAuthorizationRejected ? 'TUNNEL_AUTH_REQUIRED: The saved tunnel sign-in was rejected.' : `Tunnel exited (${code}). Check the network or see .local-data/tunnel.log.`)); });
     });
     if (tunnelProvider === 'devtunnel') {
       if (config.publicUrl && config.publicUrl !== publicUrl) throw new Error('The saved tunnel address changed. Reconfigure the ChatGPT connection before using this tunnel.');
@@ -140,7 +142,7 @@ try {
       }
     }
     tunnel.once('exit', () => {
-      if (!closing) { console.error('HTTPS tunnel disconnected. Please restart UmiBridge.'); void close(1); }
+      if (!closing) { console.error(tunnelAuthorizationRejected ? 'TUNNEL_AUTH_REQUIRED: The saved tunnel sign-in was rejected.' : 'HTTPS tunnel disconnected. Please restart UmiBridge.'); void close(1); }
     });
   }
   gateway = await startGateway({ port: 0, publicUrl, connectionSecret: secret, configDir: path.join(stateDir, 'profile') });

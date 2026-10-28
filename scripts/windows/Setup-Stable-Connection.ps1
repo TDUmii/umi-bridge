@@ -1,7 +1,8 @@
 ﻿[CmdletBinding()]
 param(
     [ValidateRange(1024, 65535)][int]$Port = 43127,
-    [switch]$Launch
+    [switch]$Launch,
+    [switch]$NoLogin
 )
 
 $projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -17,6 +18,17 @@ $runtimeDir = Join-Path $projectRoot '.runtime\devtunnel'
 $cli = Join-Path $runtimeDir 'devtunnel.exe'
 $stateDir = Join-Path $projectRoot '.local-data'
 $configPath = Join-Path $stateDir 'tunnel-config.json'
+New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+Remove-Item -LiteralPath (Join-Path $stateDir 'tunnel-setup-error.json') -Force -ErrorAction SilentlyContinue
+trap {
+    $needsLogin = $_.Exception.Message -match '^TUNNEL_AUTH_REQUIRED:'
+    $step = if ($needsLogin) { 'Cần đăng nhập lại GitHub cho tunnel. Bấm Thử lại kết nối và hoàn tất đăng nhập trên tab được mở.' } else { 'Không kiểm tra được tunnel đã lưu. Kiểm tra kết nối Internet rồi thử lại.' }
+    $failure = @{state='error';step=$step;reason=$(if($needsLogin){'tunnel_auth_required'}else{'tunnel_unavailable'})} | ConvertTo-Json -Compress
+    [IO.File]::WriteAllText((Join-Path $stateDir 'tunnel-setup-error.json'), $failure, [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText((Join-Path $stateDir 'startup-progress.json'), $failure, [Text.UTF8Encoding]::new($false))
+    Write-Host $step
+    exit 1
+}
 
 function Assert-MicrosoftBinary([string]$Path) {
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
@@ -27,6 +39,7 @@ function Assert-MicrosoftBinary([string]$Path) {
 
 # Capture CLI output locally: tunnel responses can include access tokens.
 function Invoke-Tunnel([string[]]$CliArgs, [switch]$NoRefresh) {
+    if ($NoLogin -and $CliArgs[0] -eq 'user' -and $CliArgs[1] -eq 'login') { throw 'TUNNEL_AUTH_REQUIRED: Background recovery cannot complete interactive sign-in.' }
     $oldPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
@@ -38,7 +51,7 @@ function Invoke-Tunnel([string[]]$CliArgs, [switch]$NoRefresh) {
                 $null = $loginProcess.Handle
                 $deadline = [DateTime]::UtcNow.AddMinutes(5)
                 while (-not $loginProcess.WaitForExit(1000)) {
-                    if ([DateTime]::UtcNow -gt $deadline) { $loginProcess.Kill(); $loginProcess.WaitForExit(); throw 'Tunnel login timed out. Restart UmiBridge to try again.' }
+                    if ([DateTime]::UtcNow -gt $deadline) { $loginProcess.Kill(); $loginProcess.WaitForExit(); throw 'TUNNEL_AUTH_REQUIRED: Tunnel login timed out. Retry the connection to sign in.' }
                     $loginText = (Get-Content -LiteralPath $loginOut,$loginErr -Raw -ErrorAction SilentlyContinue) -join "`n"
                     if ($loginText -match '\b[A-Z0-9]{4}-[A-Z0-9]{4}\b') {
                         $progress = @{ state='auth'; step='Đăng nhập GitHub để kết nối tunnel'; authUrl='https://github.com/login/device'; authCode=$Matches[0] } | ConvertTo-Json -Compress
@@ -46,6 +59,7 @@ function Invoke-Tunnel([string[]]$CliArgs, [switch]$NoRefresh) {
                     }
                 }
                 $code = $loginProcess.ExitCode
+                if ($code -ne 0) { throw 'TUNNEL_AUTH_REQUIRED: GitHub sign-in was not completed.' }
                 $output = @((Get-Content -LiteralPath $loginOut -Raw), (Get-Content -LiteralPath $loginErr -Raw))
                 $progress = @{ state='starting'; step='Tunnel sign-in finished. Checking connection...' } | ConvertTo-Json -Compress
                 [IO.File]::WriteAllText((Join-Path $stateDir 'startup-progress.json'), $progress)
@@ -75,6 +89,7 @@ function Invoke-Tunnel([string[]]$CliArgs, [switch]$NoRefresh) {
             }
         }
     } finally { $ErrorActionPreference = $oldPreference }
+    if ($CliArgs[0] -eq 'user' -and $CliArgs[1] -eq 'login' -and $code -ne 0) { throw 'TUNNEL_AUTH_REQUIRED: GitHub sign-in was not completed.' }
     $result = [pscustomobject]@{ ExitCode = $code; Text = ($output -join "`n") }
     # Credentials can expire between any two API calls, including port update.
     # Retry only an explicit authentication rejection, once per setup run.
