@@ -538,7 +538,8 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       next();
     }, express.static(resolve(ROOT, 'scripts/corp-office'), { dotfiles: 'deny', index: 'index.html' }));
     app.use('/admin/arena/assets', localAdmin, express.static(resolve(ROOT, 'scripts/arena-assets'), {dotfiles:'deny', index:false}));
-    for (const asset of ['corp-git-ui.js','corp-git-ui.css','orchestration-dashboard.js','orchestration-dashboard.css','help-center.js', 'model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
+    app.use('/admin/fonts', localAdmin, express.static(resolve(ROOT, 'scripts/fonts'), {dotfiles:'deny', index:false}));
+    for (const asset of ['corp-git-ui.js','corp-git-ui.css','orchestration-dashboard.js','orchestration-dashboard.css','help-center.js', 'model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css','dashboard-motion.js','dashboard-motion.css','dashboard-atmosphere.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
       app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
     }
     const workflowAvailable = (_req, res, next) => {

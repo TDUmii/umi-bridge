@@ -1,0 +1,51 @@
+@font-face{font-family:Manrope;src:url('/admin/fonts/Manrope-VF.ttf') format('truetype');font-weight:200 800;font-display:swap}
+body,button,input,select,textarea{font-family:Manrope,'Segoe UI',sans-serif}
+.view-section{transform-origin:50% 0}
+.page-head h1,.usage-heading h2,.corp-title h2,.arena-head h2{overflow:visible;text-wrap:balance}
+.overview-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:18px;align-items:stretch;margin-top:24px}
+.overview-grid>section{min-width:0;padding:24px;border:1px solid var(--line);border-radius:16px;background:var(--surface)}
+.overview-activity,.overview-signal{box-shadow:var(--shadow-card)}
+.overview-grid h3{margin:0;font-size:16px;letter-spacing:-.02em;font-weight:600}
+.overview-flow-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:10px}
+.overview-flow-head span{color:var(--muted);font-size:12px}
+.overview-flow-total{display:flex;align-items:baseline;gap:10px;margin:14px 0 0}
+.overview-flow-total strong{font-size:35px;line-height:1.15;letter-spacing:-.035em;font-variant-numeric:tabular-nums}
+.overview-flow-total span{color:var(--muted);font-size:12px}
+.overview-flow-note{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:14px;color:var(--muted);font-size:12px}
+.overview-flow-note a{color:var(--ink);text-decoration-thickness:1px;text-underline-offset:4px}
+.overview-flow-legend{display:flex;gap:18px;justify-content:flex-end;color:var(--muted);font-size:11px;margin-top:8px}
+.overview-flow-legend span::before{content:'';display:inline-block;vertical-align:middle;width:18px;margin-right:7px;border-top:2px solid var(--ink)}
+.overview-flow-legend span+span::before{border-top:2px dashed var(--muted)}
+.overview-focus .studio-status{display:grid;grid-template-columns:1fr;gap:0;margin:12px 0}
+.overview-focus .studio-counter{display:flex;justify-content:space-between;flex-direction:row-reverse;padding:16px 0;border-bottom:1px solid var(--line)}
+.overview-focus .studio-counter strong{font-size:27px;line-height:1.1}
+.overview-focus .studio-counter span{font-size:13px}
+.overview-focus .studio-people{min-height:60px;flex-wrap:wrap;border:0;padding:10px 0 0;gap:12px}
+.overview-focus .studio-people p{font-size:12px;line-height:1.7;max-width:42ch;margin:0}
+.overview-activity #studioProjects,.overview-signal #studioEvents{margin-top:16px}
+.overview-grid .studio-project{min-height:58px;padding:16px 0;gap:16px}
+.overview-signal #studioEvents li{min-height:44px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.overview-signal #studioEvents li:last-child,.overview-grid .studio-project:last-child{border-bottom:0}
+.overview-flow-chart{min-height:210px;margin-top:18px;position:relative}
+.usage-chart:has(.usage-line-chart){display:block;height:auto;min-height:230px;position:relative}
+.usage-line-chart{display:block;width:100%;height:218px;overflow:visible;color:var(--ink)}
+.usage-chart-grid{stroke:var(--line);stroke-width:1;fill:none}
+.usage-chart-tick{fill:var(--muted);font:11px Manrope,'Segoe UI',sans-serif}
+.usage-line-input,.usage-line-output{fill:none;stroke:var(--ink);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.usage-line-output{stroke:var(--muted);stroke-dasharray:5 7;stroke-width:1.8}
+.usage-line-area{opacity:.18}
+.usage-line-dot{fill:var(--ink);stroke:var(--surface);stroke-width:3}
+.usage-chart-empty{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:var(--muted);font-size:13px;line-height:1.6;background:transparent;padding:24px}
+.usage-chart-empty strong{font-weight:500;color:var(--ink);margin-bottom:4px}
+.umi-motion-toggle{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:16px 0}
+.umi-motion-toggle input{accent-color:var(--ink);width:16px;height:16px}
+.overview-status-note{color:var(--muted);font-size:12px;line-height:1.7}
+.has-user-background .app{background:transparent!important}
+.has-user-background :is(.panel,.settings-card,.metric,.hero,.sidebar,.topbar,.overview-grid>section,.usage-pane){background:color-mix(in srgb,var(--surface) calc(var(--user-surface-opacity,.95)*100%),transparent)!important}
+body[data-density=compact] main#main{padding:14px 20px!important}
+body[data-density=compact] .nav-link{min-height:34px!important;padding-block:7px!important}
+body[data-density=compact] :is(.settings-card,.overview-grid>section,.usage-pane){padding:16px!important}
+body[data-ui-motion=off] *,body[data-ui-motion=off] *::before,body[data-ui-motion=off] *::after{animation-duration:0s!important;animation-iteration-count:1!important;transition-duration:0s!important;scroll-behavior:auto!important}
+@media(max-width:1200px){.overview-grid{gap:14px;grid-template-columns:minmax(0,1.35fr) minmax(270px,1fr)}.overview-grid>section{padding:20px}.overview-flow-total strong{font-size:30px}}
+@media(max-width:800px){.overview-grid{grid-template-columns:1fr}.overview-focus .studio-status{grid-template-columns:repeat(3,1fr);gap:14px}.overview-focus .studio-counter{display:grid;gap:10px;padding:14px 0}.overview-grid>section{padding:18px!important}.overview-focus .studio-counter span{font-size:11px}.appearance-editor .settings-actions{flex-wrap:wrap}.usage-tabs{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.view-section{transform:none!important}}

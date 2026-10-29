@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#201735">
+<meta name="theme-color" content="#0b0b0e">
 <meta name="description" content="UmiBridge Sakura Console: a private local dashboard for ChatGPT MCP activity.">
 <title>UmiBridge ✦ Sakura Console</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231d5848'/%3E%3Cpath d='M17 16v22c0 18 30 18 30 0V16h-8v22c0 8-14 8-14 0V16z' fill='%23fff3cf'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2318181b'/%3E%3Cpath d='M17 16v22c0 18 30 18 30 0V16h-8v22c0 8-14 8-14 0V16z' fill='%23f5f5f7'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/admin/corp-dashboard.css">
 <link rel="stylesheet" href="/admin/arena-dashboard.css">
 <link rel="stylesheet" href="/admin/corp-git-ui.css">
@@ -19,6 +19,7 @@
 <script defer src="/admin/model-settings.js"></script>
 <script defer src="/admin/arena-dashboard.js"></script>
 <script defer src="/admin/dashboard-experience.js"></script>
+<script defer src="/admin/dashboard-motion.js"></script>
 <script defer src="/admin/help-center.js"></script>
 <script defer src="/admin/usage-dashboard.js"></script>
 <style>
@@ -485,6 +486,8 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
 @media(prefers-reduced-motion:reduce){.permission-switch:before,.permission-switch:after{transition:none}}
 </style>
 <link rel="stylesheet" href="/admin/console.css">
+<link rel="stylesheet" href="/admin/dashboard-atmosphere.css">
+<link rel="stylesheet" href="/admin/dashboard-motion.css">
 <style>.admin-version{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:.04em;white-space:nowrap} body[data-detail="low"] .admin-version{font-size:9px}</style>
 </head>
 <body>
@@ -900,7 +903,8 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
   function setConnection(ok){$('connection').classList.toggle('down',!ok);$('connectionText').textContent=ok?'Gateway local hoạt động':'Không kết nối được';if($('settingsConnection'))$('settingsConnection').textContent=ok?'Connected':'Offline';}
   function stored(key,fallback){try{return localStorage.getItem(key)??fallback;}catch{return fallback;}}
   function save(key,value){try{localStorage.setItem(key,value);}catch{}}
-  function themePreference(){const value=stored('dc_dashboard_theme','light');return ['light','dark','system'].includes(value)?value:'light';}
+  if(!stored('umibridge.atmosphere.v1','')){save('dc_dashboard_theme','dark');save('umibridge.atmosphere.v1','1');}
+  function themePreference(){const value=stored('dc_dashboard_theme','dark');return ['light','dark','system'].includes(value)?value:'dark';}
   let themePreview=null;
   function applyTheme(value,persist=true){
     const preference=['light','dark','system'].includes(value)?value:'light';

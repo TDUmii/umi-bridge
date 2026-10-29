@@ -30,6 +30,8 @@ Cài mới mặc định dùng công cụ toàn máy với quyền tài khoản 
 
 ## ✨ Tính năng
 
+**Giao diện 1.13.0:** dashboard trắng/đen, nền than và ánh sáng nhẹ, font Manrope được đóng gói để dùng offline. Tổng quan có biểu đồ từ lịch sử thực, dự án gần đây và trạng thái công việc. Khi đổi tab, tiêu đề xuất hiện theo nhịp, các bảng chuyển nhẹ và đường biểu đồ tự vẽ; thao tác chọn/nhấn có phản hồi. Trong **Cài đặt → Giao diện**, có thể tắt **Hiệu ứng chuyển động**; cài đặt giảm chuyển động của Windows cũng được tôn trọng. Các hiệu ứng không gọi chụp màn hình hoặc kiểm tra công cụ.
+
 | Thành phần | Chức năng |
 | --- | --- |
 | Windows và tệp | Các công cụ MCP cho tệp, PowerShell, ảnh màn hình và thao tác chuột, bàn phím trên máy đã chọn. |

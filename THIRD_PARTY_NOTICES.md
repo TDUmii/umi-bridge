@@ -79,3 +79,11 @@ License: scripts/arena-assets/LICENSE.Kenney.txt. Exact tile indices, archive/ou
 
 ## Bundled desktop tools
 Desktop Commander 0.3.0, copyright 2024-2025 Eduard Ruzga and Desktop Commander Contributors, MIT. Built runtime and license: scripts/vendor/desktop-tools. Dependencies retain their own licenses. This runtime is included in UmiBridge; no separate DC installation is required.
+
+## Manrope dashboard typeface
+
+`scripts/fonts/Manrope-VF.ttf` is Manrope, copyright 2018 The Manrope Project Authors, licensed under the SIL Open Font License 1.1. Full license: `scripts/fonts/OFL.txt`.
+
+Source: https://github.com/google/fonts/tree/b31870aff700ab7a1d74fa0c6887d95beb9e0037/ofl/manrope
+
+SHA-256: `3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6`.

@@ -39,7 +39,13 @@
     rowTable($('usageGroups'), report.groups[$('usageGroup').value], [r => labels[r.name] || r.name, r => fmt(r.requests), r => fmt(r.inputTokens), r => fmt(r.outputTokens), r => fmt(r.totalTokens), r => fmt(r.errors), r => ms(r.averageMs)]);
   }
   function renderChart() {
-    const chart = $('usageChart'); chart.replaceChildren();
+    const chart = $('usageChart');
+    if(window.umiCharts){
+      window.umiCharts.render(chart,report.timeline,{hourly:['today','24h'].includes(period),label:usageLanguage()==='en'?'Estimated input and output tokens over time':'Token input và output ước tính theo thời gian'});
+      $('usageChartScope').textContent=report.chartDays?'Biểu đồ 60 ngày gần nhất · tổng tính toàn bộ':'Giờ trên máy';
+      return;
+    }
+    chart.replaceChildren();
     const max = Math.max(1, ...report.timeline.map(row => row.totalTokens));
     const hourly = ['today','24h'].includes(period);
     for (const [index, row] of report.timeline.entries()) {
