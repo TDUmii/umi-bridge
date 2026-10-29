@@ -1261,10 +1261,9 @@ body:not(.dark) .token-table tr:hover td {
 }
 
 /* Form Controls (Inputs, Textareas, Selects) */
-input,
+input:not(.search input):not(.guide-search input),
 select,
 textarea,
-.search input,
 .setting-select {
   font-family: var(--font-sans) !important;
   background: var(--surface-raised) !important;
@@ -1277,17 +1276,202 @@ textarea,
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-input:hover,
+input:not(.search input):not(.guide-search input):hover,
 select:hover,
 textarea:hover {
   border-color: var(--line-highlight) !important;
 }
 
-input:focus,
+input:not(.search input):not(.guide-search input):focus,
 select:focus,
 textarea:focus {
   background: var(--surface) !important;
   border-color: var(--ink) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Search Composite Field (Unified Single Outer Frame)
+   Applies to .search (Skills, Permissions, Activity history) & .guide-search
+   -------------------------------------------------------------------------- */
+.search,
+.guide-search {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 0 12px !important;
+  min-height: 38px !important;
+  height: 38px !important;
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12) !important;
+  cursor: text !important;
+  box-sizing: border-box !important;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, outline 0.15s ease !important;
+}
+
+body:not(.dark) .search,
+body:not(.dark) .guide-search {
+  background: #ffffff !important;
+  border-color: var(--line-strong) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Outer frame hover */
+.search:hover,
+.guide-search:hover {
+  background: var(--surface-hover) !important;
+  border-color: var(--line-highlight) !important;
+}
+
+body:not(.dark) .search:hover,
+body:not(.dark) .guide-search:hover {
+  background: #ffffff !important;
+  border-color: var(--line-highlight) !important;
+}
+
+/* Outer frame focus-within & keyboard focus (Distinct, crisp indicator) */
+.search:focus-within,
+.guide-search:focus-within {
+  background: var(--surface) !important;
+  border-color: var(--ink) !important;
+  box-shadow: 0 0 0 1px var(--ink), 0 0 0 3px rgba(255, 255, 255, 0.08) !important;
+}
+
+body:not(.dark) .search:focus-within,
+body:not(.dark) .guide-search:focus-within {
+  background: #ffffff !important;
+  border-color: #111114 !important;
+  box-shadow: 0 0 0 1px #111114, 0 0 0 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+.search:has(input:focus-visible),
+.guide-search:has(input:focus-visible),
+.search:focus-visible,
+.guide-search:focus-visible {
+  outline: 2px solid var(--ink) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06) !important;
+}
+
+body:not(.dark) .search:has(input:focus-visible),
+body:not(.dark) .guide-search:has(input:focus-visible),
+body:not(.dark) .search:focus-visible,
+body:not(.dark) .guide-search:focus-visible {
+  outline: 2px solid #111114 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Centered, non-shrinking search icon */
+.search .icon,
+.guide-search .icon {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  flex: 0 0 16px !important;
+  flex-shrink: 0 !important;
+  display: block !important;
+  color: var(--soft) !important;
+  stroke-width: 2 !important;
+  margin: 0 !important;
+  align-self: center !important;
+  pointer-events: none !important;
+}
+
+.search:hover .icon,
+.search:focus-within .icon,
+.guide-search:hover .icon,
+.guide-search:focus-within .icon {
+  color: var(--muted) !important;
+}
+
+/* Inner input: completely transparent, borderless, shadowless, radius-less */
+.search input,
+.search input[type="search"],
+.guide-search input,
+.guide-search input[type="search"] {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 0 2px !important;
+  margin: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  border-width: 0 !important;
+  border-style: none !important;
+  border-color: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  outline-offset: 0 !important;
+  color: var(--ink) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 13px !important;
+  line-height: normal !important;
+}
+
+.search input:hover,
+.search input:focus,
+.search input:focus-visible,
+.search input:active,
+.guide-search input:hover,
+.guide-search input:focus,
+.guide-search input:focus-visible,
+.guide-search input:active,
+body:not(.dark) .search input:hover,
+body:not(.dark) .search input:focus,
+body:not(.dark) .search input:focus-visible,
+body:not(.dark) .search input:active,
+body:not(.dark) .guide-search input:hover,
+body:not(.dark) .guide-search input:focus,
+body:not(.dark) .guide-search input:focus-visible,
+body:not(.dark) .guide-search input:active {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  outline-offset: 0 !important;
+}
+
+.search input::placeholder,
+.guide-search input::placeholder {
+  color: var(--soft) !important;
+  opacity: 1 !important;
+}
+
+body:not(.dark) .search input::placeholder,
+body:not(.dark) .guide-search input::placeholder {
+  color: var(--soft) !important;
+  opacity: 0.9 !important;
+}
+
+/* Native type="search" clear / cancel button behavior preserved and styled */
+.search input[type="search"]::-webkit-search-cancel-button,
+.guide-search input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: searchfield-cancel-button;
+  cursor: pointer !important;
+  padding: 2px !important;
+  margin-left: 4px !important;
+  opacity: 0.65 !important;
+  transition: opacity 0.15s ease !important;
+}
+
+.search input[type="search"]::-webkit-search-cancel-button:hover,
+.guide-search input[type="search"]::-webkit-search-cancel-button:hover {
+  opacity: 1 !important;
+}
+
+body.dark .search input[type="search"]::-webkit-search-cancel-button,
+body.dark .guide-search input[type="search"]::-webkit-search-cancel-button {
+  filter: invert(0.85) !important;
 }
 
 /* Native Customizable Select Dropdowns */
