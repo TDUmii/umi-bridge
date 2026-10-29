@@ -99,9 +99,10 @@
   }
   function render() {
     const totals = report.totals;
-    for (const [id,key] of Object.entries({usageTotal:'totalTokens',usageInput:'inputTokens',usageOutput:'outputTokens',usageRequests:'requests'})) $(id).textContent = fmt(totals[key]);
-    $('usageSuccess').textContent = totals.successRate == null ? '-' : fmt(totals.successRate) + '%';
-    $('usageLatency').textContent = ms(totals.averageMs);
+    const set=(id,value,format=fmt)=>window.umiNumbers?window.umiNumbers.set($(id),value,format):$(id).textContent=format(value);
+    for (const [id,key] of Object.entries({usageTotal:'totalTokens',usageInput:'inputTokens',usageOutput:'outputTokens',usageRequests:'requests'})) set(id,totals[key]);
+    set('usageSuccess',totals.successRate,value=>value==null?'-':fmt(value)+'%');
+    set('usageLatency',totals.averageMs,ms);
     $('usageCoverage').textContent = fmt(totals.measured) + '/' + fmt(totals.requests) + ' có số đếm · ' + fmt(totals.partial) + ' một phần';
     $('usageBytes').textContent = fmt(totals.inputBytes) + ' byte input · ' + fmt(totals.outputBytes) + ' byte output · ' + fmt(totals.unmeasured) + ' lượt không đếm được';
     selectOptions('usageApplication', report.options.applications); selectOptions('usageTool', report.options.tools);

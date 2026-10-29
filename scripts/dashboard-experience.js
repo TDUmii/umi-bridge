@@ -81,7 +81,7 @@
         const item=matches.find(row=>runs.includes(row))||matches[0],a=item&&runs.includes(item)?projectLink(item,null,'studio-counter'):node('a',null,'studio-counter');
         a.href=item&&arenas.includes(item)?'#arena':'#corp';a.dataset.focusKey='counter-'+filter+'-'+name;
         if(!item||jobs.includes(item))a.onclick=event=>{event.preventDefault();navigateCorp({workspaceId:item?.workspaceId,action:'queue',filter});};
-        a.append(node('strong',String(matches.length)),node('span',name));$('studioStatus').append(a);
+        const count=node('strong',String(matches.length));a.append(count,node('span',name));$('studioStatus').append(a);window.umiNumbers?.set(count,matches.length);
       }
       const workers=runs.filter(run=>run.status==='running').flatMap(run=>run.steps.filter(step=>['running','dispatching'].includes(step.status))).slice(0,6);
       $('studioPeople').replaceChildren();

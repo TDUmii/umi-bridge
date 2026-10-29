@@ -1208,6 +1208,28 @@ body:not(.dark) .token-table tr:hover td {
   gap: 16px !important;
 }
 
+/* Settings uses one surface per section, with space around its tab strip. */
+#settings-view.panel{background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible}
+#settings-view>.panel-title{padding:0 0 20px!important;border:0!important}
+#settings-view .settings-tabs{padding:6px!important;margin:0 0 24px!important;gap:6px!important;border:1px solid var(--line)!important;border-radius:10px;background:var(--surface);flex-wrap:wrap}
+#settings-view .settings-tabs button{border:0!important;background:transparent!important;box-shadow:none!important;border-radius:6px!important;color:var(--muted)!important}
+#settings-view .settings-tabs button[aria-selected=true]{background:var(--surface-active)!important;color:var(--ink)!important}
+#settings-view .settings-body{padding:0!important}
+#settings-view .settings-grid{align-items:start!important;gap:24px!important}
+#settings-view .settings-grid.single-setting{grid-template-columns:minmax(0,1fr)!important}
+#settings-view .settings-card{box-shadow:none!important;overflow:hidden}
+#settings-view .setting-row:first-of-type{margin-top:16px}
+#settings-view .settings-actions{flex-wrap:wrap}
+
+/* Skill surfaces inherit the same neutral tokens as the rest of the console. */
+#skill-center .skill-card,#skill-center .skill-card.top-skill{background:var(--surface)!important;border-color:var(--line)!important;box-shadow:none}
+#skill-center :is(.skill-bubble,.skill-tag,.skill-tag.off){background:var(--surface-raised)!important;color:var(--ink)!important}
+#skill-center :is(.skill-eyebrow,.skill-flower){color:var(--muted)!important}
+#skill-center .skill-install{background:var(--canvas)!important;border-color:var(--line-strong)!important}
+#skill-center .skill-actions .btn[data-skill-action=toggle]{background:var(--surface-raised)!important;color:var(--ink)!important;border-color:var(--line-strong)!important}
+#skill-center .skill-actions .btn[data-skill-action=toggle]:hover{background:var(--surface-hover)!important}
+#skill-center .skill-preview-panel,#skill-center .skill-preview-panel pre{background:var(--surface)!important;color:var(--ink)!important;border-color:var(--line)!important}
+
 .settings-card {
   padding: 20px 22px !important;
 }

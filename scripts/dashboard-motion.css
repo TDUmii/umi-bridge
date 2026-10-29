@@ -39,6 +39,7 @@ body,button,input,select,textarea{font-family:Manrope,'Segoe UI',sans-serif}
 .usage-chart-empty strong{font-weight:500;color:var(--ink);margin-bottom:4px}
 .umi-motion-toggle{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:16px 0}
 .umi-motion-toggle input{accent-color:var(--ink);width:16px;height:16px}
+.umi-counter{font-variant-numeric:tabular-nums;display:inline-block;transform-origin:50% 50%;max-width:100%}
 .overview-status-note{color:var(--muted);font-size:12px;line-height:1.7}
 .has-user-background .app{background:transparent!important}
 .has-user-background :is(.panel,.settings-card,.metric,.hero,.sidebar,.topbar,.overview-grid>section,.usage-pane){background:color-mix(in srgb,var(--surface) calc(var(--user-surface-opacity,.95)*100%),transparent)!important}

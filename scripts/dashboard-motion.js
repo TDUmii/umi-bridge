@@ -10,7 +10,24 @@
     const animation=node.animate(frames,{duration:360,easing:ease,...options});animations.add(animation);
     const done=()=>animations.delete(animation);animation.onfinish=done;animation.oncancel=done;return animation;
   }
-  function stop(){for(const animation of animations)animation.cancel();animations.clear();}
+  const counters=new WeakMap(),counting=new Set();
+  const numberFormat=value=>new Intl.NumberFormat(vi()?'vi-VN':'en-US',{maximumFractionDigits:1}).format(value);
+  function finishCount(state){cancelAnimationFrame(state.frame);state.node.textContent=state.format(state.value);delete state.node.dataset.counterRunning;counting.delete(state);state.frame=0;}
+  function count(state,from=0){
+    finishCount(state);if(calm()||!state.node.getClientRects().length)return;
+    state.node.style.minWidth='';state.node.style.minWidth=Math.ceil(state.node.getBoundingClientRect().width)+'px';
+    const started=performance.now();counting.add(state);state.node.dataset.counterRunning='true';
+    const tick=now=>{if(calm()||!state.node.isConnected){finishCount(state);delete state.node.dataset.counterRunning;return}const progress=Math.min(1,(now-started)/950),value=from+(state.value-from)*(1-(1-progress)**3);state.node.textContent=state.format(state.integer?Math.round(value):Math.round(value*10)/10);if(progress<1)state.frame=requestAnimationFrame(tick);else{finishCount(state);delete state.node.dataset.counterRunning}};
+    state.frame=requestAnimationFrame(tick);animate(state.node,[{transform:'translateY(5px)',opacity:.65},{transform:'translateY(0)',opacity:1}],{duration:500});
+  }
+  function setNumber(node,value,format=numberFormat){
+    if(!node)return;const previous=counters.get(node);
+    if(value==null||!Number.isFinite(Number(value))){if(previous)finishCount(previous);counters.delete(node);delete node.dataset.counterValue;node.removeAttribute('aria-label');node.style.minWidth='';node.textContent=format(value);return}
+    const target=Number(value),label=format(target);if(previous?.value===target&&previous.label===label)return;
+    if(previous)finishCount(previous);const state={node,value:target,format,label,integer:Number.isInteger(target),frame:0};counters.set(node,state);node.dataset.counterValue=String(target);node.classList.add('umi-counter');node.setAttribute('aria-label',label);node.textContent=label;count(state,previous?.value||0);
+  }
+  window.umiNumbers={set:setNumber};
+  function stop(){for(const animation of animations)animation.cancel();animations.clear();for(const state of counting){finishCount(state);delete state.node.dataset.counterRunning;}}
   function heading(node){animate(node,[{transform:'translateY(11px)',clipPath:'inset(0 0 90% 0)',filter:'blur(4px)'},{transform:'translateY(-1px)',clipPath:'inset(-10% -2% -10% -2%)',filter:'blur(0)',offset:.82},{transform:'translateY(0)',filter:'blur(0)'}],{duration:520});}
   function draw(root){
     if(!root?.getClientRects().length||calm())return;
@@ -61,6 +78,7 @@
       const items=[...active.querySelectorAll('.overview-grid>section,.metric,.settings-card:not([hidden]),.usage-metrics>div')].filter(node=>node.getClientRects().length).slice(0,7);
       items.forEach((node,index)=>animate(node,[{opacity:.45,transform:'translateY(10px)'},{opacity:1,transform:'translateY(0)'}],{duration:400,delay:Math.min(index*45,180)}));
       for(const chart of active.querySelectorAll('.overview-flow-chart,#usageChart'))draw(chart);
+      for(const node of active.querySelectorAll('[data-counter-value]')){const state=counters.get(node);if(state)count(state);}
       const nav=document.querySelector(`.nav-link[data-view="${current}"]`);animate(nav,[{boxShadow:'inset 0 0 0 1px rgba(255,255,255,.28)'},{boxShadow:'inset 0 0 0 1px rgba(255,255,255,0)'}],{duration:450});
     }
     const selected=[...active.querySelectorAll('[role=tab][aria-selected=true],.usage-tabs button[aria-pressed=true],.segmented button[aria-pressed=true]')];
@@ -86,8 +104,8 @@
     grid.append(flow,focus);if(projects){projects.classList.add('overview-activity');grid.append(projects);}if(events){events.classList.add('overview-signal');grid.append(events);}columns?.remove();studio.append(grid);
     function labels(){for(const [id,a,b]of [['overviewFlowTitle','Nhịp hoạt động','Activity rhythm'],['overviewFlowPeriod','7 ngày gần nhất','Last 7 days'],['overviewFlowUnit','token ước tính','estimated tokens'],['overviewFlowLink','Xem phân tích','View analytics'],['overviewFocusTitle','Công việc của bạn','Your work']])$(id).textContent=tr(a,b);}
     async function overview(force=false){labels();if(overviewLoading||document.hidden||!$('overview').classList.contains('view-active')||!force&&Date.now()-lastOverview<30000)return;overviewLoading=true;
-      try{const response=await fetch('/admin/api/usage?period=7d&source=all&offset='+new Date().getTimezoneOffset(),{cache:'no-store'});if(!response.ok)throw Error();const data=await response.json();$('overviewFlowTotal').textContent=new Intl.NumberFormat(vi()?'vi-VN':'en-US').format(num(data.totals.totalTokens));$('overviewFlowCount').textContent=new Intl.NumberFormat(vi()?'vi-VN':'en-US').format(num(data.totals.requests))+' '+tr('lượt được ghi nhận','recorded requests');renderChart($('overviewFlowChart'),data.timeline,{label:tr('Token ước tính trong 7 ngày gần nhất','Estimated tokens in the last 7 days')});lastOverview=Date.now();}
-      catch{$('overviewFlowTotal').textContent='—';$('overviewFlowCount').textContent=tr('Chưa tải được dữ liệu. Thử Làm mới.','Data unavailable. Select Refresh to retry.');}
+      try{const response=await fetch('/admin/api/usage?period=7d&source=all&offset='+new Date().getTimezoneOffset(),{cache:'no-store'});if(!response.ok)throw Error();const data=await response.json();setNumber($('overviewFlowTotal'),num(data.totals.totalTokens));$('overviewFlowCount').textContent=new Intl.NumberFormat(vi()?'vi-VN':'en-US').format(num(data.totals.requests))+' '+tr('lượt được ghi nhận','recorded requests');renderChart($('overviewFlowChart'),data.timeline,{label:tr('Token ước tính trong 7 ngày gần nhất','Estimated tokens in the last 7 days')});lastOverview=Date.now();}
+      catch{setNumber($('overviewFlowTotal'),null,()=> '—');$('overviewFlowCount').textContent=tr('Chưa tải được dữ liệu. Thử Làm mới.','Data unavailable. Select Refresh to retry.');}
       finally{overviewLoading=false;}
     }
     window.addEventListener('umibridge-view',event=>{if(event.detail==='overview')void overview();});$('languageSelect').addEventListener('change',()=>void overview(true));$('refresh').addEventListener('click',()=>void overview(true));void overview();

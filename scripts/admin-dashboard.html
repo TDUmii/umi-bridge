@@ -937,10 +937,11 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
   function renderStats(){
     const s=model.stats;if(!s)return;
     const received=s.received??s,historyLimit=s.historyLimit??500;
-    $('total').textContent=number(received.total);$('success').textContent=number(received.success);$('errors').textContent=number(received.errors);
+    const set=(id,value,format=number)=>window.umiNumbers?window.umiNumbers.set($(id),value,format):$(id).textContent=format(value);
+    set('total',received.total);set('success',received.success);set('errors',received.errors);
     $('historyScope').textContent='Latest '+number(historyLimit)+' records in memory; request execution continues past '+number(historyLimit)+'.';
-    $('average').textContent=ms(s.averageMs);$('p95').textContent='P95: '+ms(s.p95Ms);
-    $('p95Value').textContent=ms(s.p95Ms);$('recent24h').textContent=number(s.recent24h);
+    set('average',s.averageMs,ms);$('p95').textContent='P95: '+ms(s.p95Ms);
+    set('p95Value',s.p95Ms,ms);set('recent24h',s.recent24h);
     const rate=received.total ? Math.round(1000*received.success/received.total)/10 : 0;
     $('successRate').textContent='Tỉ lệ thành công: '+rate.toLocaleString('vi-VN')+'%';
     $('errorRate').textContent='Tỉ lệ lỗi: '+(received.total?Math.round(1000*received.errors/received.total)/10:0).toLocaleString('vi-VN')+'%';
