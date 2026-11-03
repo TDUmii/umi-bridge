@@ -30,6 +30,10 @@ Cài mới mặc định dùng công cụ toàn máy với quyền tài khoản 
 
 ## ✨ Tính năng
 
+**Terminal từ 1.14.0:** mở **Terminal → Phiên mới**, đặt tên và thư mục làm việc để dùng Windows PowerShell thật trong dashboard. Có màu ANSI, nhiều phiên, chia đôi, tìm trong output, tự cuộn, Ctrl+C, đổi tên và xuất phần output đang giữ thành tệp. Chi tiết phiên hiển thị thư mục hiện tại, lệnh hoàn tất, exit code và thời gian; bấm lệnh trong lịch sử để sao chép, không tự chạy lại. **Hoạt động UmiBridge** là chế độ chỉ đọc các lệnh công cụ đã ghi nhận, có bộ lọc thành công/lỗi.
+
+Terminal tương tác chỉ dùng tại địa chỉ local trên máy Windows, không mở qua tunnel. Mở tab không tự tạo shell hay chạy lệnh. Phiên/output nằm trong bộ nhớ, lịch sử PSReadLine không lưu xuống đĩa; đóng phiên sẽ dừng tiến trình của phiên đó, khởi động lại gateway sẽ đóng tất cả phiên. Tối đa 8 phiên, mỗi phiên giữ phần output gần nhất trong giới hạn bộ nhớ. Gói setup tự tải xterm.js và runtime ConPTY đi kèm, không yêu cầu tự cài terminal riêng.
+
 **Bản 1.13.2:** ô tìm kiếm dùng một khung thống nhất, gồm biểu tượng, nội dung nhập và nút xóa; focus bàn phím hiển thị trên khung ngoài.
 
 **Bản 1.13.1:** màn khởi động và Skill Center dùng cùng bảng màu trung tính; Cài đặt có khoảng cách giữa tab và nội dung, tránh viền chồng nhau. Các số tổng quan và phân tích đếm lên khi mở tab hoặc thay đổi dữ liệu, dừng đúng giá trị thực và không chạy lại khi polling không đổi.

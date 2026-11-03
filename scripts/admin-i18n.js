@@ -656,7 +656,7 @@
   const TO_VI = Object.freeze({ ...Object.fromEntries(Object.entries(VI_TO_EN).map(([vi,en]) => [en,vi])), ...EXTRA_EN_TO_VI });
   const originals = new WeakMap();
   const originalAttributes = new WeakMap();
-  const ignored = 'script,style,pre,code,textarea,.conversation-text,.conversation-task,.conversation-entry strong,#detail-task,.tool-name,.permission-name,.time,.detail-code,.detail-meta code,.endpoint-info code,.chat-row strong,.chat-row small';
+  const ignored = 'script,style,pre,code,textarea,.terminal-host,.terminal-history,.terminal-details,.conversation-text,.conversation-task,.conversation-entry strong,#detail-task,.tool-name,.permission-name,.time,.detail-code,.detail-meta code,.endpoint-info code,.chat-row strong,.chat-row small';
   let language = 'en';
   try { language = localStorage.getItem('umibridge.admin.language') === 'vi' ? 'vi' : 'en'; } catch {}
   try { if(!localStorage.getItem('umibridge.admin.language'))localStorage.setItem('umibridge.admin.language',language); } catch {}

@@ -256,7 +256,7 @@ function Test-ProjectRuntime {
     $sdk = Test-Path -LiteralPath (Join-Path $root 'node_modules\@modelcontextprotocol\sdk\package.json')
     $tokenizer = Test-Path -LiteralPath (Join-Path $root 'node_modules\js-tiktoken\package.json')
     if (-not $node -or -not $sdk -or -not $tokenizer) { Write-LauncherLog 'RUNTIME_MISSING node/sdk/tokenizer'; return $false }
-    foreach ($dependency in @('@umibridge\desktop-tools', '@desktop-commander\telemetry-contract', 'exceljs', 'md-to-pdf', 'pizzip')) {
+    foreach ($dependency in @('@umibridge\desktop-tools', '@desktop-commander\telemetry-contract', 'exceljs', 'md-to-pdf', 'pizzip', 'node-pty', '@xterm\xterm', '@xterm\addon-fit', '@xterm\addon-search')) {
         if (-not (Test-Path -LiteralPath (Join-Path $root ('node_modules\' + $dependency + '\package.json')))) {
             Write-LauncherLog 'RUNTIME_MISSING bundled desktop dependencies'; return $false
         }

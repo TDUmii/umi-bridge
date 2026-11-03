@@ -20,6 +20,10 @@
 <script defer src="/admin/arena-dashboard.js"></script>
 <script defer src="/admin/dashboard-experience.js"></script>
 <script defer src="/admin/dashboard-motion.js"></script>
+<script defer src="/admin/terminal-assets/xterm.js"></script>
+<script defer src="/admin/terminal-assets/addon-fit.js"></script>
+<script defer src="/admin/terminal-assets/addon-search.js"></script>
+<script defer src="/admin/terminal-dashboard.js"></script>
 <script defer src="/admin/help-center.js"></script>
 <script defer src="/admin/usage-dashboard.js"></script>
 <style>
@@ -488,6 +492,8 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
 <link rel="stylesheet" href="/admin/console.css">
 <link rel="stylesheet" href="/admin/dashboard-atmosphere.css">
 <link rel="stylesheet" href="/admin/dashboard-motion.css">
+<link rel="stylesheet" href="/admin/terminal-assets/xterm.css">
+<link rel="stylesheet" href="/admin/terminal-dashboard.css">
 <style>.admin-version{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:.04em;white-space:nowrap} body[data-detail="low"] .admin-version{font-size:9px}</style>
 </head>
 <body>
@@ -527,6 +533,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
     <nav class="nav" aria-label="Sections">
       <a href="#overview" data-view="overview" class="nav-link active"><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg> Overview</a>
       <a href="#analytics" data-view="analytics" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-activity"/></svg> Analytics</a>
+      <a href="#terminal" data-view="terminal" class="nav-link"><svg class="icon" aria-hidden="true"><path d="m5 6 6 6-6 6M13 18h6"/></svg> Terminal</a>
       <a href="#conversations" data-view="conversations" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg> Projects & chats</a>
       <a href="#devices" data-view="devices" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-link"/></svg> Devices</a>
       <a href="#tools" data-view="tools" class="nav-link"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg> Tools</a>
@@ -766,6 +773,17 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
 
 
         <dialog id="corpFolderDialog" class="corp-folder-dialog" aria-labelledby="corpFolderTitle"><h3 id="corpFolderTitle">Chọn thư mục lưu</h3><div class="corp-folder-toolbar"><label class="sr-only" for="corpFolderDrive">Ổ đĩa</label><select id="corpFolderDrive"></select><button id="corpFolderUp" class="btn small" type="button">Lên một cấp</button></div><form id="corpFolderNavigate" class="corp-path-control"><label class="sr-only" for="corpFolderPath">Đường dẫn thư mục</label><input id="corpFolderPath" type="text" maxlength="1500" spellcheck="false" autocomplete="off"><button id="corpFolderOpen" class="btn" type="submit">Mở</button></form><p id="corpFolderError" role="alert" hidden></p><div id="corpFolderList" class="corp-folder-list" aria-label="Thư mục con" aria-busy="false"></div><p id="corpFolderEmpty" class="corp-folder-status" role="status" hidden></p><div class="actions"><button id="corpFolderCancel" class="btn" type="button">Hủy</button><button id="corpFolderSelect" class="btn primary" type="button" disabled>Dùng thư mục này</button></div></dialog>
+      <section id="terminal-view" class="view-section" data-view="terminal" aria-labelledby="terminalTitle">
+        <div class="terminal-heading"><h2 id="terminalTitle">Terminal</h2><div class="actions"><button id="terminalRefresh" class="btn" type="button">Refresh</button><button id="terminalRename" class="btn" type="button" disabled>Rename</button><button id="terminalSplit" class="btn" type="button" aria-pressed="false" disabled>Split view</button><button id="terminalStop" class="btn" type="button" disabled>Interrupt Ctrl+C</button><button id="terminalNew" class="btn primary" type="button">New session</button></div></div>
+        <p id="terminalError" class="terminal-error" role="alert" hidden></p>
+        <div class="terminal-log-filters" id="terminalModes"><button class="btn" type="button" id="terminalShellMode" aria-pressed="true">PowerShell</button><button class="btn" type="button" id="terminalActivityMode" aria-pressed="false">UmiBridge activity</button></div>
+        <form id="terminalCreate" class="terminal-create" hidden><h3 id="terminalCreateTitle">Open a PowerShell session</h3><label><span id="terminalNameLabel">Session name</span><input id="terminalName" maxlength="80" required autocomplete="off"></label><label><span id="terminalCwdLabel">Working folder</span><input id="terminalCwd" maxlength="1500" required spellcheck="false" autocomplete="off"></label><div class="actions"><button id="terminalCreateButton" class="btn primary" type="submit">Open terminal</button><button id="terminalCreateCancel" class="btn" type="button">Cancel</button></div></form>
+        <nav id="terminalTabs" class="terminal-tabs" role="tablist" aria-label="Terminal sessions"></nav>
+        <div id="terminalEmpty" class="terminal-empty"><svg class="icon" aria-hidden="true"><path d="m5 6 6 6-6 6M13 18h6"/></svg><h3 id="terminalEmptyTitle">Your terminal</h3><p id="terminalEmptyText">Open a session to run commands directly.</p></div>
+        <div id="terminalLayout" class="terminal-layout" hidden><div id="terminalConsoles" class="terminal-consoles"></div><aside class="terminal-inspector"><h3 id="terminalDetailsTitle">Session details</h3><dl id="terminalDetails" class="terminal-details"></dl><h3 id="terminalRecentTitle">Recent commands</h3><ul id="terminalHistory" class="terminal-history"></ul></aside></div>
+        <section id="terminalActivity" class="terminal-console terminal-activity" hidden aria-label="UmiBridge command activity"><div class="terminal-toolbar"><h3 id="terminalActivityTitle">Recorded commands</h3><div class="terminal-log-filters"><button type="button" class="btn small" data-log-filter="all" aria-pressed="true">All</button><button type="button" class="btn small" data-log-filter="ok" aria-pressed="false">Success</button><button type="button" class="btn small" data-log-filter="error" aria-pressed="false">Error</button></div></div><p id="terminalActivityNote" class="terminal-status"></p><div id="terminalLog" class="terminal-log-body"></div></section>
+        <p id="terminalPrivacy" class="terminal-privacy"></p>
+      </section>
       <section id="settings-view" class="panel settings-panel view-section" data-view="settings" aria-labelledby="settingsTitle">
         <div class="panel-title skills-head">
           <div><h2 id="settingsTitle"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg> Settings</h2></div>
@@ -863,7 +881,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
   const model = {requests:[],stats:null,runtime:null,links:new Map(),workspaces:[],devices:[],jobs:[],workflows:[],workflowEnabled:false,visible:15,expanded:new Set(),loading:false,interval:null,startedAt:null,refreshSeconds:20,currentView:'overview'};
   const viewSections=[...document.querySelectorAll('main>.view-section')];
   const navLinks=[...document.querySelectorAll('.nav-link[data-view]')];
-  const viewHashes={overview:'overview',analytics:'analytics',conversations:'conversations',devices:'devices',tools:'tools',skills:'skill-center',workflows:'workflows',corp:'corp',arena:'arena',requests:'requests',settings:'settings',guide:'guide'};
+  const viewHashes={overview:'overview',analytics:'analytics',terminal:'terminal',conversations:'conversations',devices:'devices',tools:'tools',skills:'skill-center',workflows:'workflows',corp:'corp',arena:'arena',requests:'requests',settings:'settings',guide:'guide'};
   function activateView(name,updateHash=true){
     if(!viewSections.some(section=>section.dataset.view===name))name='overview';
     const changed=model.currentView!==name;

@@ -77,8 +77,13 @@ try {
     const localHost = incomingHost === `127.0.0.1:${port}` || incomingHost === `localhost:${port}`;
     if (localOnly && !localHost) { res.writeHead(404); res.end(); return; }
     const pathname = String(req.url ?? '').split('?', 1)[0];
+    const terminalPath=pathname==='/admin/api/terminal'||pathname.startsWith('/admin/api/terminal/');
+    // Terminal sessions are a direct local-owner surface, never a tunneled MCP capability.
+    if(terminalPath&&(!localHost||Object.keys(req.headers).some(name=>name==='forwarded'||name.startsWith('x-forwarded-')||name.startsWith('cf-')))){
+      res.writeHead(403);res.end();return;
+    }
     const adminPath = pathname === '/' || pathname.startsWith('/admin');
-    const headers = { ...req.headers, host };
+    const headers = { ...req.headers, host:terminalPath?incomingHost:host };
     for (const name of ['forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-local-admin']) delete headers[name];
     if (localHost && adminPath) headers['x-local-admin'] = '1';
     const upstream = httpRequest({ hostname: '127.0.0.1', port: gateway.port, path: req.url, method: req.method, headers }, response => {

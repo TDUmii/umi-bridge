@@ -1,0 +1,1006 @@
+/* ==========================================================================
+   UmiBridge Terminal Screen
+   Theme: Charcoal Monochrome Premium (Smoky Ethereal & Restrained Accents)
+   Scope: Exclusively scoped to #terminal-view
+   Tokens: var(--surface), var(--ink), var(--muted), var(--line)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Root View Container & Hidden Attribute Integrity
+   -------------------------------------------------------------------------- */
+#terminal-view[hidden],
+#terminal-view [hidden] {
+  display: none !important;
+}
+
+#terminal-view {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Harmonize with view switcher contract in admin-dashboard */
+main > #terminal-view.view-section:not(.view-active) {
+  display: none;
+}
+
+main > #terminal-view.view-section.view-active {
+  display: block;
+}
+
+/* Accessible selection within terminal panel controls */
+#terminal-view ::selection {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+body:not(.dark) #terminal-view ::selection {
+  background: #18181b;
+  color: #ffffff;
+}
+
+/* --------------------------------------------------------------------------
+   2. High-Visibility Focus Architecture & Native Controls
+   -------------------------------------------------------------------------- */
+#terminal-view :is(button, input, select, textarea, a, summary):focus-visible {
+  outline: 2px solid var(--ink) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08) !important;
+}
+
+body:not(.dark) #terminal-view :is(button, input, select, textarea, a, summary):focus-visible {
+  outline: 2px solid #111114 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+#terminal-view :disabled,
+#terminal-view [aria-disabled="true"],
+#terminal-view button:disabled {
+  opacity: 0.42 !important;
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+
+/* Base button styling inside #terminal-view */
+#terminal-view button {
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+#terminal-view button:not(.terminal-tab):not(.terminal-close):not(.terminal-history button):not(.terminal-log-filters button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.06s ease;
+  cursor: pointer;
+}
+
+#terminal-view button:not(.terminal-tab):not(.terminal-close):not(.terminal-history button):not(.terminal-log-filters button):hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--line-highlight);
+  color: var(--ink);
+}
+
+#terminal-view button:not(.terminal-tab):not(.terminal-close):not(.terminal-history button):not(.terminal-log-filters button):active:not(:disabled) {
+  background: var(--surface-active);
+  transform: translateY(1px);
+}
+
+/* Primary High-Contrast Accent */
+#terminal-view button.primary,
+#terminal-view .btn.primary {
+  background: var(--ink) !important;
+  border-color: var(--ink) !important;
+  color: var(--canvas) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24) !important;
+}
+
+#terminal-view button.primary:hover:not(:disabled),
+#terminal-view .btn.primary:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+body:not(.dark) #terminal-view button.primary,
+body:not(.dark) #terminal-view .btn.primary {
+  background: #111114 !important;
+  border-color: #111114 !important;
+  color: #ffffff !important;
+}
+
+/* --------------------------------------------------------------------------
+   3. Heading: .terminal-heading
+   -------------------------------------------------------------------------- */
+#terminal-view .terminal-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+#terminal-view .terminal-heading h2 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.25;
+}
+
+#terminal-view .terminal-heading .actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------------------
+   4. Create Session Form & Error Alert: .terminal-create, .terminal-error
+   -------------------------------------------------------------------------- */
+#terminal-view .terminal-create {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-card);
+  max-width: 640px;
+  box-sizing: border-box;
+}
+
+#terminal-view .terminal-create h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 4px;
+}
+
+#terminal-view .terminal-create label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+#terminal-view .terminal-create input {
+  font-family: inherit;
+  background: var(--surface-raised);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  padding: 8px 12px;
+  font-size: 13px;
+  min-height: 36px;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+body:not(.dark) #terminal-view .terminal-create input {
+  background: #ffffff;
+}
+
+#terminal-view .terminal-create input:hover {
+  border-color: var(--line-highlight);
+}
+
+#terminal-view .terminal-create input:focus {
+  background: var(--surface);
+  border-color: var(--ink);
+  outline: none;
+}
+
+#terminal-view .terminal-create .actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+#terminal-view .terminal-error {
+  background: var(--signal-err-bg);
+  border: 1px solid var(--signal-err-border);
+  color: var(--signal-err);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 14px;
+  word-break: break-word;
+}
+
+/* --------------------------------------------------------------------------
+   5. Tab Strip: .terminal-tabs, .terminal-tab-wrap, .terminal-tab, .terminal-close
+   -------------------------------------------------------------------------- */
+#terminal-view .terminal-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+#terminal-view .terminal-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+#terminal-view .terminal-tabs::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 4px;
+}
+
+#terminal-view .terminal-tab-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 2px 4px 2px 8px;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  position: relative;
+}
+
+#terminal-view .terminal-tab-wrap:hover {
+  background: var(--surface-hover);
+  border-color: var(--line-strong);
+}
+
+#terminal-view .terminal-tab-wrap:has(button.terminal-tab[aria-selected="true"]) {
+  background: var(--surface-raised);
+  border-color: var(--line-highlight);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+body:not(.dark) #terminal-view .terminal-tab-wrap:has(button.terminal-tab[aria-selected="true"]) {
+  background: #ffffff;
+  border-color: var(--line-strong);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+#terminal-view button.terminal-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  min-height: 28px;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s ease;
+}
+
+#terminal-view .terminal-tab-wrap:hover button.terminal-tab {
+  color: var(--ink);
+}
+
+#terminal-view button.terminal-tab[aria-selected="true"] {
+  color: var(--ink) !important;
+}
+
+#terminal-view button.terminal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 4px;
+  background: transparent !important;
+  color: var(--soft);
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+#terminal-view button.terminal-close svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2;
+  color: inherit;
+}
+
+#terminal-view button.terminal-close:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: var(--ink);
+}
+
+body:not(.dark) #terminal-view button.terminal-close:hover {
+  background: rgba(0, 0, 0, 0.08) !important;
+  color: #111114;
+}
+
+/* --------------------------------------------------------------------------
+   6. Empty State: .terminal-empty & Privacy Note: .terminal-privacy
+   -------------------------------------------------------------------------- */
+#terminal-view .terminal-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 24px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  margin: 18px 0;
+}
+
+#terminal-view .terminal-empty svg.icon {
+  width: 38px;
+  height: 38px;
+  color: var(--soft);
+  margin-bottom: 14px;
+  stroke-width: 1.6;
+}
+
+#terminal-view .terminal-empty h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+
+#terminal-view .terminal-empty p {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 46ch;
+  line-height: 1.6;
+  margin: 0;
+}
+
+#terminal-view .terminal-privacy {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 16px 0 0;
+  max-width: 82ch;
+}
+
+/* --------------------------------------------------------------------------
+   7. Layout Architecture: .terminal-layout & div#terminalConsoles.terminal-consoles
+   - Normal mode: .terminal-consoles is 1 col (minmax(0,1fr)), inspector is on the right (260px)
+   - Split mode: .terminal-consoles is 2 cols, inspector drops below both consoles (100% width)
+   -------------------------------------------------------------------------- */
+#terminal-view .terminal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+  width: 100%;
+}
+
+#terminal-view .terminal-consoles {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Split layout mode */
+#terminal-view .terminal-layout.terminal-split {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#terminal-view .terminal-layout.terminal-split .terminal-consoles {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+#terminal-view .terminal-layout.terminal-split .terminal-inspector {
+  grid-column: 1 / -1;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/* --------------------------------------------------------------------------
+   8. Console Panel: .terminal-console
+   -------------------------------------------------------------------------- */
+#terminal-view .terminal-console {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* --------------------------------------------------------------------------
+   9. Toolbar: .terminal-toolbar & Single Search Frame: label.terminal-find.search
+   -------------------------------------------------------------------------- */
+#terminal-view .terminal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  min-height: 48px;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+  box-sizing: border-box;
+}
+
+/* The .terminal-find IS label.search */
+#terminal-view label.terminal-find.search,
+#terminal-view .terminal-find.search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  min-height: 32px;
+  height: 32px;
+  background: var(--canvas);
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
+  cursor: text;
+  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+}
+
+body:not(.dark) #terminal-view label.terminal-find.search,
+body:not(.dark) #terminal-view .terminal-find.search {
+  background: #ffffff;
+  border-color: var(--line-strong);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+#terminal-view label.terminal-find.search:hover,
+#terminal-view .terminal-find.search:hover {
+  border-color: var(--line-highlight);
+}
+
+#terminal-view label.terminal-find.search:focus-within,
+#terminal-view .terminal-find.search:focus-within {
+  background: var(--surface);
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink), 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+
+body:not(.dark) #terminal-view label.terminal-find.search:focus-within,
+body:not(.dark) #terminal-view .terminal-find.search:focus-within {
+  background: #ffffff;
+  border-color: #111114;
+  box-shadow: 0 0 0 1px #111114, 0 0 0 3px rgba(0, 0, 0, 0.08);
+}
+
+#terminal-view .terminal-find.search .icon,
+#terminal-view label.terminal-find.search .icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--soft);
+  stroke-width: 2;
+  margin: 0;
+  pointer-events: none;
+}
+
+#terminal-view .terminal-find.search input,
+#terminal-view label.terminal-find.search input {
+  flex: 1 1 auto;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  min-height: 0 !important;
+  height: 100% !important;
+  width: 140px;
+}
+
+#terminal-view .terminal-find.search input::placeholder,
+#terminal-view label.terminal-find.search input::placeholder {
+  color: var(--soft);
+}
+
+/* Toolbar active toggle button */
+#terminal-view .terminal-toolbar button[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: var(--line-highlight) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+body:not(.dark) #terminal-view .terminal-toolbar button[aria-pressed="true"] {
+  background: #111114 !important;
+  border-color: #111114 !important;
+  color: #ffffff !important;
+}
+
+/* --------------------------------------------------------------------------
+   10. Terminal Host (xterm mount)
+   Constraints:
+   - Fixed height 430px (or clamp) to prevent FitAddon recursive expansion loop.
+   - Near-black in both themes for ANSI contrast.
+   - Strictly NO textarea styling inside .terminal-host (keeps helper textarea intact).
+   - Strictly do not style .xterm internals except host boundary.
+   -------------------------------------------------------------------------- */
+#terminal-view .terminal-host {
+  height: 430px;
+  min-height: 430px;
+  max-height: 430px;
+  background: #08080a !important;
+  color: #f5f5f7 !important;
+  position: relative;
+  overflow: hidden;
+  padding: 10px 14px;
+  box-sizing: border-box;
+}
+
+body:not(.dark) #terminal-view .terminal-host {
+  background: #0d0d11 !important;
+  color: #f5f5f7 !important;
+}
+
+/* Explicit guard: Reset xterm helper textarea so dashboard-atmosphere does not distort size/position */
+#terminal-view .terminal-host textarea.xterm-helper-textarea,
+#terminal-view .terminal-host textarea {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  margin: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  font-family: inherit !important;
+  line-height: normal !important;
+  border-radius: 0 !important;
+}
+
+/* --------------------------------------------------------------------------
+   11. Terminal Status Bar: .terminal-status
+   -------------------------------------------------------------------------- */
+#terminal-view .terminal-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 14px;
+  min-height: 32px;
+  background: var(--surface-raised);
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+}
+
+/* --------------------------------------------------------------------------
+   12. Inspector Aside: aside.terminal-inspector, dl.terminal-details, ul.terminal-history
+   -------------------------------------------------------------------------- */
+#terminal-view aside.terminal-inspector,
+#terminal-view .terminal-inspector {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+#terminal-view .terminal-inspector h3 {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+
+#terminal-view .terminal-inspector h3:not(:first-child) {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* Details list: key-value metrics */
+#terminal-view dl.terminal-details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 12px;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#terminal-view dl.terminal-details dt {
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+#terminal-view dl.terminal-details dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 600;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* History list of recent commands */
+#terminal-view ul.terminal-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#terminal-view ul.terminal-history li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  min-width: 0;
+  box-sizing: border-box;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+#terminal-view ul.terminal-history li:hover {
+  background: var(--surface-hover);
+  border-color: var(--line-strong);
+}
+
+#terminal-view ul.terminal-history li button {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+#terminal-view ul.terminal-history li button:hover {
+  color: var(--ink-secondary);
+}
+
+#terminal-view ul.terminal-history li small {
+  color: var(--soft);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+/* --------------------------------------------------------------------------
+   13. Read-only Console Activity Log: .terminal-activity
+   Shares .terminal-console shell, contains .terminal-log-filters & .terminal-log-body
+   -------------------------------------------------------------------------- */
+#terminal-view .terminal-activity {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+  margin-top: 16px;
+  box-sizing: border-box;
+}
+
+#terminal-view .terminal-activity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+#terminal-view .terminal-activity-header h3 {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* Filter buttons with monospace native filter styling */
+#terminal-view .terminal-log-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+#terminal-view .terminal-log-filters button {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  min-height: 24px !important;
+  padding: 3px 8px !important;
+  border-radius: 5px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+#terminal-view .terminal-log-filters button:hover {
+  color: var(--ink) !important;
+  background: var(--surface-hover) !important;
+}
+
+#terminal-view .terminal-log-filters button[aria-pressed="true"] {
+  background: var(--surface-raised) !important;
+  color: var(--ink) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+body:not(.dark) #terminal-view .terminal-log-filters button[aria-pressed="true"] {
+  background: #ffffff !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Log body container */
+#terminal-view .terminal-log-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--line);
+  max-height: 430px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+#terminal-view .terminal-log-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+#terminal-view .terminal-log-body::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 3px;
+}
+
+/* Log entry article */
+#terminal-view article.terminal-log-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 14px;
+  background: var(--surface);
+  transition: background 0.1s ease;
+  position: relative;
+  box-sizing: border-box;
+}
+
+#terminal-view article.terminal-log-entry:hover {
+  background: var(--surface-hover);
+}
+
+/* Left status indicator */
+#terminal-view article.terminal-log-entry::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: transparent;
+}
+
+#terminal-view article.terminal-log-entry[data-status="ok"]::before {
+  background: var(--signal-ok);
+}
+
+#terminal-view article.terminal-log-entry[data-status="error"]::before {
+  background: var(--signal-err);
+}
+
+#terminal-view article.terminal-log-entry[data-status="pending"]::before {
+  background: var(--signal-warn);
+}
+
+#terminal-view article.terminal-log-entry pre {
+  margin: 0;
+  padding: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+#terminal-view article.terminal-log-entry time {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--soft);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   14. Accessible Reduced Motion
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  #terminal-view,
+  #terminal-view * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   15. Responsive Breakpoints (1366px / 970px / 390px)
+   -------------------------------------------------------------------------- */
+/* Laptop Landscape / Compact Desktop (<= 1366px) */
+@media (max-width: 1366px) {
+  #terminal-view .terminal-layout {
+    grid-template-columns: minmax(0, 1fr) 240px;
+    gap: 14px;
+  }
+}
+
+/* Tablet & Moderate Viewports (<= 970px) */
+@media (max-width: 970px) {
+  #terminal-view .terminal-layout,
+  #terminal-view .terminal-layout.terminal-split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  #terminal-view .terminal-layout.terminal-split .terminal-consoles,
+  #terminal-view .terminal-consoles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #terminal-view .terminal-layout.terminal-split .terminal-inspector,
+  #terminal-view .terminal-layout .terminal-inspector {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+  }
+
+  #terminal-view .terminal-host {
+    height: 380px;
+    min-height: 380px;
+    max-height: 380px;
+  }
+}
+
+/* Mobile Portrait (<= 390px) */
+@media (max-width: 390px) {
+  #terminal-view .terminal-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  #terminal-view .terminal-heading h2 {
+    font-size: 22px;
+  }
+
+  #terminal-view .terminal-heading .actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  #terminal-view .terminal-toolbar {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  #terminal-view label.terminal-find.search,
+  #terminal-view .terminal-find.search {
+    width: 100%;
+  }
+
+  #terminal-view .terminal-find.search input,
+  #terminal-view label.terminal-find.search input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #terminal-view .terminal-host {
+    height: 340px;
+    min-height: 340px;
+    max-height: 340px;
+    padding: 8px 10px;
+  }
+
+  #terminal-view .terminal-status {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+
+  #terminal-view .terminal-layout.terminal-split .terminal-inspector,
+  #terminal-view .terminal-layout .terminal-inspector {
+    grid-template-columns: 1fr;
+  }
+
+  #terminal-view aside.terminal-inspector,
+  #terminal-view .terminal-inspector {
+    padding: 12px;
+  }
+}

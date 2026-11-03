@@ -1,6 +1,8 @@
 import {corpChatTools} from './corp-chat.mjs';
 import {createToolHealth} from './tool-health.mjs';
 import {createChromeBridge,chromeTool} from './chrome-bridge.mjs';
+import {createTerminalRuntime} from './terminal-runtime.mjs';
+import {mountTerminalRoutes,directTerminalRequest} from './terminal-routes.mjs';
 import express from 'express';
 import { existsSync, readFileSync } from 'node:fs';
 import { readFile, unlink, writeFile } from 'node:fs/promises';
@@ -234,9 +236,11 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
   let resolveClosed;
   const closed = new Promise(resolve => { resolveClosed = resolve; });
   const connections = new Set();
+  const terminalRuntime=createTerminalRuntime({cwd:process.env.USERPROFILE||ROOT});
   const close = () => closePromise ??= (async () => {
     closing = true; backendAlive = false;
     for (const store of stores) store.clear();
+    await terminalRuntime.close();
     await Promise.allSettled([...connections].map(server => server.close()));
     if (httpServer) await new Promise(resolve => { httpServer.close(resolve); httpServer.closeAllConnections(); });
     await deviceRegistry.close().catch(() => {});
@@ -308,10 +312,17 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     });
     app.use((req, res, next) => {
       const boundPort = httpServer?.address()?.port ?? port;
-      if (![issuer.host, `127.0.0.1:${boundPort}`, `localhost:${boundPort}`].includes(req.headers.host)) return res.sendStatus(403);
-      res.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'Content-Security-Policy': contentSecurityPolicy });
-      if (!backendAlive) return res.status(503).json({ error: 'backend_unavailable' });
-      next();
+      const finish=()=>{
+        res.set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'Content-Security-Policy': contentSecurityPolicy });
+        if (!backendAlive) return res.status(503).json({ error: 'backend_unavailable' });
+        next();
+      };
+      if (![issuer.host, `127.0.0.1:${boundPort}`, `localhost:${boundPort}`].includes(req.headers.host)) {
+        // The public-facing local launcher preserves its own port for Terminal's Origin checks.
+        if(req.path==='/admin/api/terminal'||req.path.startsWith('/admin/api/terminal/'))return directTerminalRequest(req,res,finish);
+        return res.sendStatus(403);
+      }
+      finish();
     });
     const agentKeyFrom = req => {
       const bearer = String(req.headers.authorization ?? '');
@@ -434,6 +445,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     });
     // This header is a browser CSRF barrier: a third-party page cannot set it without CORS preflight.
     const adminWrite = (req, res, next) => req.headers['x-dc-admin-action'] === '1' ? next() : res.sendStatus(403);
+    mountTerminalRoutes(app,{runtime:terminalRuntime,localAdmin,adminWrite});
     const corpJson = express.json({ limit: '256kb' });
     const arenaJson=express.json({limit:'1mb'});
     const corpHandler = action => async (req, res) => {
@@ -539,6 +551,9 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     }, express.static(resolve(ROOT, 'scripts/corp-office'), { dotfiles: 'deny', index: 'index.html' }));
     app.use('/admin/arena/assets', localAdmin, express.static(resolve(ROOT, 'scripts/arena-assets'), {dotfiles:'deny', index:false}));
     app.use('/admin/fonts', localAdmin, express.static(resolve(ROOT, 'scripts/fonts'), {dotfiles:'deny', index:false}));
+    const terminalAssets={'xterm.js':'@xterm/xterm/lib/xterm.js','xterm.css':'@xterm/xterm/css/xterm.css','addon-fit.js':'@xterm/addon-fit/lib/addon-fit.js','addon-search.js':'@xterm/addon-search/lib/addon-search.js'};
+    for(const [asset,relative]of Object.entries(terminalAssets))app.get('/admin/terminal-assets/'+asset,localAdmin,(_req,res)=>res.sendFile(resolve(ROOT,'node_modules',relative)));
+    for(const asset of ['terminal-dashboard.js','terminal-dashboard.css'])app.get('/admin/'+asset,localAdmin,(_req,res)=>res.sendFile(resolve(ROOT,'scripts',asset)));
     for (const asset of ['corp-git-ui.js','corp-git-ui.css','orchestration-dashboard.js','orchestration-dashboard.css','help-center.js', 'model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css','dashboard-motion.js','dashboard-motion.css','dashboard-atmosphere.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
       app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
     }
