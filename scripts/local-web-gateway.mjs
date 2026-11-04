@@ -554,7 +554,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     const terminalAssets={'xterm.js':'@xterm/xterm/lib/xterm.js','xterm.css':'@xterm/xterm/css/xterm.css','addon-fit.js':'@xterm/addon-fit/lib/addon-fit.js','addon-search.js':'@xterm/addon-search/lib/addon-search.js'};
     for(const [asset,relative]of Object.entries(terminalAssets))app.get('/admin/terminal-assets/'+asset,localAdmin,(_req,res)=>res.sendFile(resolve(ROOT,'node_modules',relative)));
     for(const asset of ['terminal-dashboard.js','terminal-dashboard.css'])app.get('/admin/'+asset,localAdmin,(_req,res)=>res.sendFile(resolve(ROOT,'scripts',asset)));
-    for (const asset of ['corp-git-ui.js','corp-git-ui.css','orchestration-dashboard.js','orchestration-dashboard.css','help-center.js', 'model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css','dashboard-motion.js','dashboard-motion.css','dashboard-atmosphere.css', 'folder-dialog.js', 'usage-dashboard.js', 'console.css']) {
+    for (const asset of ['corp-git-ui.js','corp-git-ui.css','orchestration-dashboard.js','orchestration-dashboard.css','help-center.js', 'model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css','dashboard-motion.js','dashboard-motion.css','dashboard-atmosphere.css', 'folder-dialog.js', 'usage-dashboard.js', 'usage-charts.js', 'usage-charts.css', 'console.css']) {
       app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
     }
     const workflowAvailable = (_req, res, next) => {

@@ -1,14 +1,20 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id), section = $('analytics');
-  const fmt = value => value == null ? '-' : Number(value).toLocaleString('vi-VN');
+  const fmt = value => value == null ? '-' : Number(value).toLocaleString(usageLanguage()==='en'?'en-US':'vi-VN');
   const ms = value => value == null ? '-' : value < 1000 ? fmt(value) + ' ms' : fmt(Math.round(value / 100) / 10) + ' s';
-  const date = value => new Date(value).toLocaleString('vi-VN', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+  const date = value => new Date(value).toLocaleString(usageLanguage()==='en'?'en-US':'vi-VN', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
   const usageLanguage=()=>localStorage.getItem('umibridge.admin.language')||document.documentElement.lang;
   for(const [value,vi,en]of [['projects','Project','Project'],['tasks','DAG task','DAG task'],['workers','Worker','Worker'],['roles','Vai trò','Role'],['attempts','Attempt','Attempt']])$('usageGroup').add(new Option(usageLanguage()==='en'?en:vi,value));
   const element = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
   const diagnostics=element('section',null,'usage-diagnostics');diagnostics.id='usageDiagnostics';diagnostics.hidden=true;$('usageOverview').after(diagnostics);const diagnosticTab=element('button','Phân tích sâu','btn');diagnosticTab.type='button';diagnosticTab.dataset.pane='diagnostics';diagnosticTab.setAttribute('aria-pressed','false');$('usageTabs').insertBefore(diagnosticTab,$('usageCoverage'));
-  let report = null, page = 0, period = '7d', sequence = 0, controller, timer, cost = {};
+  let report = null, page = 0, period = '7d', sequence = 0, controller, timer, cost = {}, chartMode = 'line', animateCharts = true;
+  const chartLanguage=()=>usageLanguage()==='en'?'en':'vi',copy=(vi,en)=>chartLanguage()==='en'?en:vi;
+  function chartLabels(){
+    for(const [id,vi,en]of [['usageTimelineTitle','Token theo thời gian','Tokens over time'],['usageCompositionTitle','Cơ cấu token','Token composition'],['usageCompositionNote','Tỷ trọng input và output trong kỳ đang lọc.','Input and output shares in the selected period.'],['usageRankingTitle','Nhóm dùng token nhiều nhất','Top token contributors'],['usageRankingNote','So sánh token ước tính theo nhóm đang chọn.','Compare estimated tokens by the selected grouping.'],['usageDataTableLabel','Xem bảng số liệu','View data table'],['usageChartHint','Di chuột hoặc dùng phím ← → để đọc từng mốc. Token là số ước tính.','Hover or use the ← → keys to inspect each point. Tokens are estimates.']])$(id).textContent=copy(vi,en);
+    $('usageChartModes').setAttribute('aria-label',copy('Kiểu biểu đồ','Chart type'));
+    for(const button of $('usageChartModes').querySelectorAll('button'))button.textContent=button.dataset.chartMode==='bar'?copy('Cột','Bars'):copy('Đường','Lines');
+  }
   try { cost = JSON.parse(localStorage.getItem('umibridge.usage.budget') || '{}') || {}; } catch {}
   for (const [key, id] of Object.entries({input:'usageInputRate', output:'usageOutputRate', budget:'usageBudget'})) {
     if (Number.isFinite(cost[key]) && cost[key] >= 0) $(id).value = cost[key];
@@ -37,9 +43,18 @@
     if (!report) return;
     const labels = {unassigned:'Chưa gắn chat', mcp:'Công cụ MCP', corp:'Chat Corp', arena:'Arena'};
     rowTable($('usageGroups'), report.groups[$('usageGroup').value], [r => labels[r.name] || r.name, r => fmt(r.requests), r => fmt(r.inputTokens), r => fmt(r.outputTokens), r => fmt(r.totalTokens), r => fmt(r.errors), r => ms(r.averageMs)]);
+    if(window.umiUsageCharts){const groups=(report.groups[$('usageGroup').value]||[]).map(row=>({...row,name:({unassigned:copy('Chưa gắn chat','Unassigned chat'),mcp:copy('Công cụ MCP','MCP tools'),corp:'Corp',arena:'Arena'})[row.name]||row.name}));window.umiUsageCharts.ranking($('usageRanking'),groups,{language:chartLanguage(),label:copy('Nhóm dùng token nhiều nhất','Top token contributors'),animate:animateCharts});}
   }
   function renderChart() {
     const chart = $('usageChart');
+    if(window.umiUsageCharts){
+      chartLabels();
+      window.umiUsageCharts.timeline(chart,report.timeline,{mode:chartMode,hourly:['today','24h'].includes(period),label:copy('Token input và output ước tính theo thời gian','Estimated input and output tokens over time'),language:chartLanguage(),animate:animateCharts});
+      window.umiUsageCharts.composition($('usageComposition'),report.totals,{language:chartLanguage(),label:copy('Tỷ trọng token input và output','Input and output token shares'),animate:animateCharts});
+      const selected=$('usagePeriods').querySelector('[aria-pressed="true"]');
+      $('usageChartScope').textContent=(selected?.textContent||'')+' · '+(report.chartDays?copy('60 ngày gần nhất trên biểu đồ','Last 60 days shown'):copy('Giờ trên máy','Local time'));
+      return;
+    }
     if(window.umiCharts){
       window.umiCharts.render(chart,report.timeline,{hourly:['today','24h'].includes(period),label:usageLanguage()==='en'?'Estimated input and output tokens over time':'Token input và output ước tính theo thời gian'});
       $('usageChartScope').textContent=report.chartDays?'Biểu đồ 60 ngày gần nhất · tổng tính toàn bộ':'Giờ trên máy';
@@ -110,7 +125,7 @@
     $('usagePageLabel').textContent = 'Trang ' + (report.pages ? page + 1 : 0) + '/' + report.pages + ' · ' + fmt(totals.requests) + ' lượt';
     $('usagePrevious').disabled = page === 0; $('usageNext').disabled = page + 1 >= report.pages;
     $('usageExport').disabled = !report.rows.length;
-    renderChart(); renderGroups(); renderLimits(); renderDiagnostics();
+    renderChart(); renderGroups(); renderLimits(); renderDiagnostics(); animateCharts=false;
   }
   async function load() {
     const version = ++sequence; controller?.abort(); controller = new AbortController();
@@ -127,11 +142,12 @@
     } catch (cause) { if (version === sequence && cause.name !== 'AbortError') error(cause.message); }
     finally { if (version === sequence) section.setAttribute('aria-busy','false'); }
   }
-  const reset = () => { page = 0; void load(); };
+  const reset = () => { page = 0; animateCharts=true; void load(); };
   $('usagePeriods').onclick = event => { const button = event.target.closest('[data-period]'); if (!button) return; period = button.dataset.period; for (const item of $('usagePeriods').querySelectorAll('button')) item.setAttribute('aria-pressed',String(item === button)); reset(); };
-  $('usageTabs').onclick = event => { const button = event.target.closest('[data-pane]'); if (!button) return; for (const item of $('usageTabs').querySelectorAll('button')) item.setAttribute('aria-pressed',String(item === button)); for (const name of ['Overview','History','Limits','Diagnostics']) $('usage' + name).hidden = name.toLowerCase() !== button.dataset.pane; };
+  $('usageTabs').onclick = event => { const button = event.target.closest('[data-pane]'); if (!button) return; for (const item of $('usageTabs').querySelectorAll('button')) item.setAttribute('aria-pressed',String(item === button)); for (const name of ['Overview','History','Limits','Diagnostics']) $('usage' + name).hidden = name.toLowerCase() !== button.dataset.pane; if(button.dataset.pane==='overview'){for(const id of ['usageChart','usageComposition','usageRanking'])window.umiUsageCharts?.replay($(id));}else window.umiUsageCharts?.stop(); };
   for (const id of ['usageSource','usageApplication','usageTool','usageStatus']) $(id).onchange = () => { if (id === 'usageSource') { $('usageApplication').value='all'; $('usageTool').value='all'; } reset(); };
-  $('usageGroup').onchange = renderGroups;
+  $('usageGroup').onchange = () => {animateCharts=true;renderGroups();animateCharts=false;};
+  $('usageChartModes').onclick=event=>{const button=event.target.closest('[data-chart-mode]');if(!button||button.dataset.chartMode===chartMode)return;chartMode=button.dataset.chartMode;for(const other of $('usageChartModes').querySelectorAll('button'))other.setAttribute('aria-pressed',String(button===other));if(report){animateCharts=true;renderChart();animateCharts=false;}};
   $('usageSearch').oninput = () => { clearTimeout(timer); timer = setTimeout(reset, 300); };
   $('usageReload').onclick = () => void load();
   $('usagePrevious').onclick = () => { page--; void load(); };
@@ -149,8 +165,11 @@
     const url = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})), link = element('a');
     link.href = url; link.download = 'umibridge-usage-page-' + (page + 1) + '.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
   };
-  window.addEventListener('umibridge-view', event => { if (event.detail === 'analytics') void load(); });
+  window.addEventListener('umibridge-view', event => { if (event.detail === 'analytics') {animateCharts=true;for(const id of ['usageChart','usageComposition','usageRanking'])window.umiUsageCharts?.replay($(id));void load();}else window.umiUsageCharts?.stop(); });
+  $('languageSelect').addEventListener('change',()=>{chartLabels();if(report)render();});
+  let chartSize='',chartResizeFrame=0;
+  new ResizeObserver(()=>{const chart=$('usageChart'),size=chart.clientWidth+':'+chart.clientHeight;if(size===chartSize)return;chartSize=size;if(report&&chart.clientWidth&&chart.clientHeight&&!chartResizeFrame)chartResizeFrame=requestAnimationFrame(()=>{chartResizeFrame=0;renderChart();});}).observe($('usageChart'));
   setInterval(() => { countdown(); }, 1000);
   setInterval(() => { if (section.classList.contains('view-active') && !document.hidden) void load(); }, 15000);
-  if (section.classList.contains('view-active')) void load();
+  chartLabels();if (section.classList.contains('view-active')) void load();
 })();

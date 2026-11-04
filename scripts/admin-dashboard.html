@@ -25,6 +25,7 @@
 <script defer src="/admin/terminal-assets/addon-search.js"></script>
 <script defer src="/admin/terminal-dashboard.js"></script>
 <script defer src="/admin/help-center.js"></script>
+<script defer src="/admin/usage-charts.js"></script>
 <script defer src="/admin/usage-dashboard.js"></script>
 <style>
 :root{
@@ -494,6 +495,7 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
 <link rel="stylesheet" href="/admin/dashboard-motion.css">
 <link rel="stylesheet" href="/admin/terminal-assets/xterm.css">
 <link rel="stylesheet" href="/admin/terminal-dashboard.css">
+<link rel="stylesheet" href="/admin/usage-charts.css">
 <style>.admin-version{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:.04em;white-space:nowrap} body[data-detail="low"] .admin-version{font-size:9px}</style>
 </head>
 <body>
@@ -594,9 +596,19 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
         <dl class="usage-metrics" aria-live="polite"><div><dt>Token ước tính</dt><dd id="usageTotal">-</dd></div><div><dt>Input</dt><dd id="usageInput">-</dd></div><div><dt>Output</dt><dd id="usageOutput">-</dd></div><div><dt>Lượt ghi nhận</dt><dd id="usageRequests">-</dd></div><div><dt>Thành công</dt><dd id="usageSuccess">-</dd></div><div><dt>Thời gian TB</dt><dd id="usageLatency">-</dd></div></dl>
         <div id="usageTabs" class="usage-tabs" role="group" aria-label="Nội dung phân tích"><button class="btn" type="button" data-pane="overview" aria-pressed="true">Tổng quan</button><button class="btn" type="button" data-pane="history" aria-pressed="false">Chi tiết</button><button class="btn" type="button" data-pane="limits" aria-pressed="false">Hạn mức &amp; ngân sách</button><span id="usageCoverage"></span></div>
         <div id="usageOverview" class="usage-pane">
-          <div class="usage-chart-head"><h3>Token theo thời gian</h3><span id="usageChartScope"></span><span class="usage-legend"><i></i>Input <i></i>Output</span></div><div id="usageChart" class="usage-chart" role="img" aria-label="Đang tải biểu đồ"></div>
-          <div class="usage-group-head"><h3>Phân bổ</h3><label class="sr-only" for="usageGroup">Nhóm thống kê</label><select id="usageGroup"><option value="applications">Ứng dụng</option><option value="tools">Công cụ</option><option value="chats">Chat</option><option value="sources">Nguồn</option></select></div>
-          <div class="usage-table-wrap"><table class="usage-table"><thead><tr><th scope="col">Nhóm</th><th scope="col">Lượt</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">Tổng</th><th scope="col">Lỗi</th><th scope="col">Thời gian TB</th></tr></thead><tbody id="usageGroups"></tbody></table></div>
+          <div class="usage-visual-grid">
+            <section class="usage-viz-card usage-viz-timeline" aria-labelledby="usageTimelineTitle">
+              <div class="usage-viz-head"><h3 id="usageTimelineTitle">Token theo thời gian</h3><div id="usageChartModes" class="usage-chart-modes" role="group" aria-label="Kiểu biểu đồ"><button type="button" data-chart-mode="line" aria-pressed="true">Đường</button><button type="button" data-chart-mode="bar" aria-pressed="false">Cột</button></div></div>
+              <div class="usage-viz-subhead"><span id="usageChartScope"></span><div class="usage-series-legend"><span class="umi-legend-input">Input</span><span class="umi-legend-output">Output</span></div></div>
+              <div id="usageChart" class="usage-chart" aria-label="Đang tải biểu đồ"></div><p id="usageChartHint" class="usage-viz-hint"></p>
+            </section>
+            <section class="usage-viz-card usage-viz-composition" aria-labelledby="usageCompositionTitle"><div class="usage-viz-head"><h3 id="usageCompositionTitle">Cơ cấu token</h3></div><p id="usageCompositionNote" class="usage-viz-hint"></p><div id="usageComposition"></div></section>
+          </div>
+          <section class="usage-viz-card usage-viz-ranking" aria-labelledby="usageRankingTitle">
+            <div class="usage-viz-head"><h3 id="usageRankingTitle">Nhóm dùng token nhiều nhất</h3><label class="sr-only" for="usageGroup">Nhóm thống kê</label><select id="usageGroup"><option value="applications">Ứng dụng</option><option value="tools">Công cụ</option><option value="chats">Chat</option><option value="sources">Nguồn</option></select></div>
+            <p id="usageRankingNote" class="usage-viz-hint"></p><div id="usageRanking"></div>
+            <details class="usage-data-table"><summary id="usageDataTableLabel">Xem bảng số liệu</summary><div class="usage-table-wrap"><table class="usage-table"><thead><tr><th scope="col">Nhóm</th><th scope="col">Lượt</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">Tổng</th><th scope="col">Lỗi</th><th scope="col">Thời gian TB</th></tr></thead><tbody id="usageGroups"></tbody></table></div></details>
+          </section>
         </div>
         <div id="usageHistory" class="usage-pane" hidden><div class="usage-group-head"><label class="usage-search">Tìm lượt<input id="usageSearch" type="search" placeholder="ID, công cụ, chat, nhiệm vụ..."></label><span id="usagePageLabel"></span><div class="actions"><button id="usagePrevious" class="btn small" type="button">Trước</button><button id="usageNext" class="btn small" type="button">Sau</button></div></div><div class="usage-table-wrap"><table class="usage-table"><thead><tr><th scope="col">Thời gian / ID</th><th scope="col">Ứng dụng / công cụ</th><th scope="col">Trạng thái</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">Tổng</th><th scope="col">Thời gian</th></tr></thead><tbody id="usageRows"></tbody></table></div></div>
         <div id="usageLimits" class="usage-pane" hidden><div class="usage-limit-grid"><section><h3>Hạn mức nhà cung cấp</h3><div id="usageLimitRows"></div><p class="usage-note">Chỉ có mốc reset khi Corp gặp thông báo hạn mức. Chưa có dữ liệu số dư, model, cache, reasoning hoặc hóa đơn.</p></section><section><h3>Ngân sách tham khảo</h3><form id="usageBudgetForm" class="usage-budget"><label>USD / 1M input<input id="usageInputRate" type="number" min="0" max="100000" step="0.001" placeholder="Chưa đặt"></label><label>USD / 1M output<input id="usageOutputRate" type="number" min="0" max="100000" step="0.001" placeholder="Chưa đặt"></label><label>Ngân sách cho kỳ đang lọc (USD)<input id="usageBudget" type="number" min="0" max="1000000000" step="0.01" placeholder="Không giới hạn"></label><button class="btn" type="submit">Lưu trên trình duyệt này</button></form><p id="usageCost" class="usage-cost"></p><progress id="usageBudgetProgress" max="100" value="0" hidden></progress><p id="usageBudgetMessage" role="status"></p><p class="usage-note">Giá do bạn nhập, áp dụng cho dữ liệu đang lọc. Chỉ tham khảo; không phải tiền nhà cung cấp thu. Cảnh báo không tự dừng công việc.</p></section></div></div>
