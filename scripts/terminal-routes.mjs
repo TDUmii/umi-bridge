@@ -15,20 +15,26 @@ export function directTerminalRequest(req, res, next) {
   next();
 }
 
-export function mountTerminalRoutes(app, { runtime, localAdmin, adminWrite }) {
+export function mountTerminalRoutes(app, { runtime, localAdmin, adminWrite, activity = () => [] }) {
   const router = express.Router();
   router.use(directTerminalRequest, localAdmin);
   const handle = fn => async (req, res) => {
-    try { res.json(await fn(req)); }
-    catch (cause) { res.status(Number.isInteger(cause.status) ? cause.status : 500).json({ error: cause.status ? cause.message : 'terminal_operation_failed' }); }
+    try { const result = await fn(req, res); if (!res.destroyed) res.json(result); }
+    catch (cause) { if (!res.destroyed) res.status(Number.isInteger(cause.status) ? cause.status : 500).json({ error: cause.status ? cause.message : 'terminal_operation_failed' }); }
   };
   const json = express.json({ limit: '128kb', strict: true });
   const write = (path, fn) => router.post(path, adminWrite, json, handle(fn));
   router.get('/', handle(() => runtime.list()));
-  router.get('/:id/output', handle(req => {
+  router.get('/activity', handle(() => ({ requests: activity() })));
+  router.get('/:id/output', handle(async (req, res) => {
     const raw = req.query.after ?? '0';
     const after = typeof raw === 'string' && /^\d+$/.test(raw) ? Number(raw) : NaN;
-    return runtime.output(req.params.id, after);
+    const rawWait = req.query.wait ?? '0';
+    const wait = typeof rawWait === 'string' && /^\d+$/.test(rawWait) ? Number(rawWait) : NaN;
+    const controller = new AbortController(), cancel = () => controller.abort();
+    req.once('aborted', cancel); res.once('close', cancel);
+    try { return await runtime.waitOutput(req.params.id, after, { wait, signal: controller.signal }); }
+    finally { req.removeListener('aborted', cancel); res.removeListener('close', cancel); }
   }));
   write('/', req => ({ session: runtime.create(req.body) }));
   write('/:id/input', req => runtime.input(req.params.id, req.body?.data));

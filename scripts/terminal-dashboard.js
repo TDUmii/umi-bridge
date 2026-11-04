@@ -6,8 +6,8 @@
   if(root.classList.contains('view-active'))$('mobileView').value='terminal';
   const error=message=>{$('terminalError').textContent=message||'';$('terminalError').hidden=!message;};
   const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n;};
-  async function api(path='',body){
-    const response=await fetch('/admin/api/terminal'+path,{method:body===undefined?'GET':'POST',cache:'no-store',headers:body===undefined?{}:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},...(body===undefined?{}:{body:JSON.stringify(body)})});
+  async function api(path='',body,signal){
+    const response=await fetch('/admin/api/terminal'+path,{method:body===undefined?'GET':'POST',cache:'no-store',signal,headers:body===undefined?{}:{'Content-Type':'application/json','X-DC-Admin-Action':'1'},...(body===undefined?{}:{body:JSON.stringify(body)})});
     const value=await response.json().catch(()=>({error:response.status===404?t('Terminal chỉ mở trực tiếp trên máy Windows.','Open Terminal directly on the Windows host.'):'HTTP '+response.status}));
     if(!response.ok){const messages={invalid_terminal_cwd:t('Chọn thư mục tuyệt đối đang tồn tại trên máy.','Choose an existing absolute folder path on this host.'),invalid_terminal_name:t('Tên phiên cần từ 1 đến 80 ký tự.','Session names need 1 to 80 characters.'),terminal_spawn_failed:t('Chưa mở được PowerShell. Mở lại UmiBridge để kiểm tra các thành phần runtime.','PowerShell could not start. Reopen UmiBridge to check its runtime components.'),terminal_session_limit:t('Đã đủ 8 phiên. Đóng một phiên trước khi mở thêm.','Eight sessions are open. Close one before creating another.'),terminal_not_running:t('Phiên đã kết thúc. Mở phiên mới để tiếp tục.','This session has ended. Open a new session to continue.'),terminal_not_found:t('Phiên không còn tồn tại. Chọn Làm mới.','This session is no longer available. Select Refresh.')};throw Error(messages[value.error]||value.error||'HTTP '+response.status);}return value;
   }
@@ -49,11 +49,37 @@
     const visible=[active];if(split){const second=sessions.find(s=>s.id!==active);if(second)visible.push(second.id);}
     $('terminalLayout').classList.toggle('terminal-split',split&&visible.length>1);$('terminalSplit').setAttribute('aria-pressed',String(split));
     for(const [id,pane]of panes){pane.element.hidden=!visible.includes(id);if(!pane.element.hidden&&!root.hidden&&root.classList.contains('view-active'))requestAnimationFrame(()=>fit(pane));}
+    syncOutput();
   }
   function renderActivity(){
-    const target=$('terminalLog'),signature=JSON.stringify([vi(),logFilter,activity.map(item=>[item.id,item.status,item.durationMs])]);if(target.dataset.signature===signature)return;target.dataset.signature=signature;target.replaceChildren();const rows=activity.filter(item=>logFilter==='all'||item.status===logFilter);
-    for(const item of rows){const article=node('article',null,'terminal-log-entry');article.dataset.status=item.status;const header=node('div'),time=node('time',new Date(item.timestamp).toLocaleTimeString(vi()?'vi-VN':'en-US'));header.append(time,node('strong',item.toolName),node('span',(item.status==='error'?'ERROR':'OK')+' · '+item.durationMs+' ms'));article.append(header,node('pre',item.command||item.toolName));if(item.output)article.append(node('pre',[item.output.stdout,item.output.stderr].filter(Boolean).join('\n')));target.append(article);}
-    if(!rows.length)target.append(node('p',t('Chưa có lệnh được ghi nhận trong bộ lọc này.','No recorded commands match this filter.')));
+    const target=$('terminalLog'),rows=activity.filter(item=>logFilter==='all'||item.status===logFilter),keep=new Set();
+    const existing=new Map(Array.from(target.querySelectorAll('.terminal-log-entry'),entry=>[entry.dataset.id,entry]));
+    let position=target.firstElementChild;
+    for(const item of rows){
+      const id=String(item.id),signature=JSON.stringify([vi(),item]),previous=existing.get(id);keep.add(id);
+      let article=previous;
+      if(!article||article.dataset.signature!==signature){
+        article=node('article',null,'terminal-log-entry');article.dataset.id=id;article.dataset.status=item.status;article.dataset.signature=signature;
+        const meta=node('div',null,'terminal-log-meta'),date=new Date(item.timestamp),time=node('time',Number.isFinite(date.getTime())?date.toLocaleString(vi()?'vi-VN':'en-US'):t('Không rõ thời gian','Time unavailable'));
+        if(Number.isFinite(date.getTime()))time.dateTime=date.toISOString();
+        const result=item.status==='error'?t('Lỗi','Error'):item.status==='ok'?t('Thành công','Success'):t('Đang chạy','Running');
+        const duration=Number(item.durationMs),durationLabel=Number.isFinite(duration)?(duration<1000?Math.round(duration)+' ms':(duration/1000).toFixed(2)+' s'):'';
+        meta.append(time,node('strong',item.toolName,'terminal-log-tool'),node('span',result,'terminal-log-result'),node('span',durationLabel,'terminal-log-duration'));
+        const command=node('pre',item.command||item.toolName,'terminal-log-command');command.tabIndex=0;command.title=item.command||item.toolName;
+        article.append(meta,command);
+        const streams=node('div',null,'terminal-log-streams');
+        for(const channel of ['stdout','stderr'])if(item.output?.[channel]){const section=node('section',null,'terminal-log-stream');section.append(node('h4',channel),node('pre',String(item.output[channel]),'terminal-log-text'));streams.append(section);}
+        if(streams.childElementCount){const details=node('details',null,'terminal-log-output');details.open=Boolean(previous?.querySelector('details')?.open);details.append(node('summary',t('Xem output','View output')),streams);article.append(details);}
+        else article.append(node('p',t('Không có output được lưu.','No saved output.'),'terminal-log-empty'));
+        const actions=node('div',null,'terminal-log-actions'),copy=node('button',t('Sao chép lệnh','Copy command'),'terminal-log-copy');copy.type='button';
+        copy.onclick=()=>void navigator.clipboard.writeText(item.command||item.toolName).then(()=>{copy.textContent=t('Đã sao chép','Copied');setTimeout(()=>{if(copy.isConnected)copy.textContent=t('Sao chép lệnh','Copy command');},1500);}).catch(cause=>error(cause.message));
+        actions.append(copy);article.append(actions);
+        if(previous){previous.replaceWith(article);if(position===previous)position=article;}
+      }
+      if(article!==position)target.insertBefore(article,position);position=article.nextElementSibling;
+    }
+    for(const child of Array.from(target.children))if(!keep.has(child.dataset.id))child.remove();
+    if(!rows.length)target.append(node('p',t('Chưa có lệnh được ghi nhận trong bộ lọc này.','No recorded commands match this filter.'),'terminal-log-empty'));
   }
   function setMode(value){mode=value;inputError=false;error('');$('terminalActivity').hidden=mode!=='activity';$('terminalShellMode').setAttribute('aria-pressed',String(mode==='shell'));$('terminalActivityMode').setAttribute('aria-pressed',String(mode==='activity'));$('terminalCreate').hidden=true;renderTabs();layout();void refresh();}
   function fit(pane){try{if(pane.host.clientWidth<50||pane.host.clientHeight<50||pane.dead)return;pane.fit.fit();if(pane.term.cols>500||pane.term.rows>200)pane.term.resize(Math.min(500,pane.term.cols),Math.min(200,pane.term.rows));const shape=pane.term.cols+':'+pane.term.rows;if(shape===pane.shape)return;pane.shape=shape;void api('/'+pane.id+'/resize',{cols:pane.term.cols,rows:pane.term.rows}).catch(cause=>error(cause.message));}catch(cause){error(cause.message);}}
@@ -70,7 +96,7 @@
     const fitAddon=new FitAddon.FitAddon(),search=new SearchAddon.SearchAddon();term.loadAddon(fitAddon);term.loadAddon(search);term.open(host);
     // Block terminal-supplied hyperlinks/clipboard writes: output never becomes a privileged browser action.
     term.parser.registerOscHandler(52,()=>true);term.parser.registerOscHandler(8,()=>true);
-    const pane={id:s.id,element,host,status,term,fit:fitAddon,search,cursor:0,auto:true,input:'',sending:false,inputTimer:0,shape:'',dead:false,replaying:true};panes.set(s.id,pane);
+    const pane={id:s.id,element,host,status,term,fit:fitAddon,search,cursor:0,auto:true,input:'',sending:false,inputTimer:0,shape:'',dead:s.status!=='running',replaying:true,stream:null,retryTimer:0};panes.set(s.id,pane);
     term.onData(data=>{if(pane.dead||pane.replaying&&/^(?:\x1b\[[?>]?[0-9;]*(?:[cnRt]|\$y)|\x1bP[01]\$r[\s\S]*\x1b\\)$/.test(data))return;pane.input+=data;if(!pane.inputTimer)pane.inputTimer=setTimeout(()=>void sendInput(pane),12);});
     term.attachCustomKeyEventHandler(event=>{if(event.type!=='keydown')return true;if(event.ctrlKey&&event.shiftKey&&event.key.toLowerCase()==='c'){const selection=term.getSelection();if(selection)void navigator.clipboard.writeText(selection).catch(cause=>error(cause.message));return false;}if(event.ctrlKey&&event.key.toLowerCase()==='f'){find.focus();return false;}return true;});
     find.oninput=()=>{if(find.value)search.findNext(find.value,{incremental:true});else search.clearDecorations();};find.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();event.shiftKey?search.findPrevious(find.value):search.findNext(find.value);}};
@@ -82,28 +108,57 @@
     catch(cause){pane.input='';inputError=true;error(t('Chưa gửi được input. Không tự gửi lại để tránh chạy lệnh hai lần. ','Input was not confirmed. It will not replay automatically. ')+cause.message);}
     finally{pane.sending=false;}
   }
+  function outputVisible(pane){return mode==='shell'&&root.classList.contains('view-active')&&!document.hidden&&!pane.element.hidden;}
+  function syncOutput(){
+    for(const pane of panes.values()){
+      if(!outputVisible(pane)){clearTimeout(pane.retryTimer);pane.retryTimer=0;pane.stream?.abort();}
+      else if(!pane.stream&&!pane.retryTimer)void readOutput(pane);
+    }
+  }
+  async function readOutput(pane){
+    const controller=new AbortController();pane.stream=controller;
+    try{
+      do{
+        const output=await api('/'+pane.id+'/output?after='+pane.cursor+'&wait='+(pane.dead?0:20000),undefined,controller.signal);
+        if(controller.signal.aborted)break;
+        if(output.reset){pane.replaying=true;pane.term.reset();pane.term.writeln('\x1b[33m'+t('Đang hiển thị phần output còn giữ trong bộ nhớ.','Showing output retained in memory.')+'\x1b[0m');}
+        const chunks=output.chunks||[],viewport=pane.term.buffer.active.viewportY;
+        if(chunks.length){
+          await new Promise(resolve=>pane.term.write(chunks.map(chunk=>chunk.data).join(''),resolve));
+          pane.cursor=chunks.at(-1).seq;pane.replaying=false;
+          if(pane.auto)pane.term.scrollToBottom();else pane.term.scrollToLine(viewport);
+        }
+        const state=output.session;
+        if(state){
+          pane.cursor=Math.max(pane.cursor,state.sequence||0);
+          const index=sessions.findIndex(s=>s.id===pane.id);if(index>=0)sessions[index]=state;
+          pane.dead=state.status!=='running';pane.status.textContent=state.name+' · '+state.shell+' · '+state.status+(state.exitCode==null?'':' · exit '+state.exitCode);
+          updateInspector();
+        }
+        if(!inputError)error('');
+      }while(!pane.dead&&outputVisible(pane)&&!controller.signal.aborted);
+    }catch(cause){
+      if(!controller.signal.aborted){error(cause.message);pane.retryTimer=setTimeout(()=>{pane.retryTimer=0;syncOutput();},1500);}
+    }finally{if(pane.stream===controller)pane.stream=null;if(controller.signal.aborted&&panes.get(pane.id)===pane&&outputVisible(pane))syncOutput();}
+  }
+  function updateInspector(){
+    const signature=JSON.stringify(selected());if($('terminalDetails').dataset.signature!==signature){$('terminalDetails').dataset.signature=signature;renderInspector();}
+  }
   async function poll(){
     clearTimeout(pollTimer);if(polling)return;polling=true;const shown=root.classList.contains('view-active')&&!document.hidden;
     if(shown){try{
       if(mode==='activity'){
-        if(Date.now()-activityAt>3000){const response=await fetch('/admin/api/requests',{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);const state=await response.json();activity=(state.requests||[]).filter(item=>item.toolName==='run_command'||/^dc_(start_process|read_process_output|interact_with_process|force_terminate)$/.test(item.toolName)).slice(0,100);renderActivity();activityAt=Date.now();}
+        if(Date.now()-activityAt>3000){const state=await api('/activity');activity=state.requests||[];renderActivity();activityAt=Date.now();}
         error('');polling=false;pollTimer=setTimeout(()=>void poll(),3000);return;
       }
       const state=await api();sessions=state.sessions;defaultCwd=state.defaultCwd;if(!active||!sessions.some(s=>s.id===active))active=sessions[0]?.id||null;
-      for(const [id,pane]of panes)if(!sessions.some(s=>s.id===id)){pane.dead=true;clearTimeout(pane.inputTimer);pane.resizeObserver.disconnect();pane.term.dispose();pane.element.remove();panes.delete(id);}
+      for(const [id,pane]of panes)if(!sessions.some(s=>s.id===id)){pane.dead=true;pane.stream?.abort();clearTimeout(pane.retryTimer);clearTimeout(pane.inputTimer);pane.resizeObserver.disconnect();pane.term.dispose();pane.element.remove();panes.delete(id);}
       for(const s of sessions)mount(s);
       const signature=JSON.stringify(sessions.map(s=>[s.id,s.name,s.status]));if($('terminalTabs').dataset.signature!==signature){$('terminalTabs').dataset.signature=signature;renderTabs();layout();}
-      const detailsSignature=JSON.stringify(selected());if($('terminalDetails').dataset.signature!==detailsSignature){$('terminalDetails').dataset.signature=detailsSignature;renderInspector();}
-      for(const s of sessions){const pane=panes.get(s.id),output=await api('/'+s.id+'/output?after='+pane.cursor);
-        if(output.reset){pane.replaying=true;pane.term.reset();pane.term.writeln('\x1b[33m'+t('Đang hiển thị phần output còn giữ trong bộ nhớ.','Showing output retained in memory.')+'\x1b[0m');}
-        const viewport=pane.term.buffer.active.viewportY;for(const chunk of output.chunks||[]){pane.term.write(chunk.data);pane.cursor=chunk.seq;}
-        if((output.chunks||[]).length)pane.term.write('',()=>{pane.replaying=false;});
-        if(!pane.auto)pane.term.write('',()=>pane.term.scrollToLine(viewport));else if((output.chunks||[]).length)pane.term.write('',()=>pane.term.scrollToBottom());
-        pane.status.textContent=s.name+' · '+s.shell+' · '+s.status+(s.exitCode==null?'':' · exit '+s.exitCode);pane.dead=s.status!=='running';
-      }
+      updateInspector();syncOutput();
       if(!inputError)error('');
     }catch(cause){error(cause.message);}}
-    polling=false;pollTimer=setTimeout(()=>void poll(),shown?300:1500);
+    polling=false;pollTimer=setTimeout(()=>void poll(),1500);
   }
   async function refresh(){if(loading)return;loading=true;try{await poll();}finally{loading=false;}}
   async function closeSession(s){
@@ -119,8 +174,8 @@
   $('terminalSplit').onclick=()=>{split=!split;layout();};$('terminalRefresh').onclick=()=>void refresh();
   $('terminalShellMode').onclick=()=>setMode('shell');$('terminalActivityMode').onclick=()=>setMode('activity');
   root.querySelectorAll('[data-log-filter]').forEach(button=>button.onclick=()=>{logFilter=button.dataset.logFilter;for(const other of root.querySelectorAll('[data-log-filter]'))other.setAttribute('aria-pressed',String(button===other));renderActivity();});
-  window.addEventListener('umibridge-view',event=>{if(event.detail==='terminal'){void refresh();layout();}});
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&root.classList.contains('view-active'))void refresh();});
+  window.addEventListener('umibridge-view',event=>{if(event.detail==='terminal'){void refresh();layout();}else syncOutput();});
+  document.addEventListener('visibilitychange',()=>{syncOutput();if(!document.hidden&&root.classList.contains('view-active'))void refresh();});
   $('languageSelect').addEventListener('change',textLabels);
   matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',event=>{for(const pane of panes.values())pane.term.options.cursorBlink=!event.matches;});
   textLabels();if(root.classList.contains('view-active'))void refresh();

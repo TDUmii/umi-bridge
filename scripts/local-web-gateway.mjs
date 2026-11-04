@@ -445,7 +445,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     });
     // This header is a browser CSRF barrier: a third-party page cannot set it without CORS preflight.
     const adminWrite = (req, res, next) => req.headers['x-dc-admin-action'] === '1' ? next() : res.sendStatus(403);
-    mountTerminalRoutes(app,{runtime:terminalRuntime,localAdmin,adminWrite});
+    mountTerminalRoutes(app,{runtime:terminalRuntime,localAdmin,adminWrite,activity:()=>requestHistory.list().filter(item=>item.toolName==='run_command'||/^dc_(start_process|read_process_output|interact_with_process|force_terminate)$/.test(item.toolName)).slice(0,100)});
     const corpJson = express.json({ limit: '256kb' });
     const arenaJson=express.json({limit:'1mb'});
     const corpHandler = action => async (req, res) => {

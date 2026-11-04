@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 
 const MAX_INPUT_BYTES = 16 * 1024;
+const MAX_OUTPUT_WAIT_MS = 25_000;
 const error = (message, status = 400) => Object.assign(new Error(message), { status });
 const integer = (value, fallback, min, max) => {
   if (value === undefined) return fallback;
@@ -157,6 +158,7 @@ export function createTerminalRuntime({ cwd = process.cwd(), maxSessions = 8, ou
     createdAt: session.createdAt, endedAt: session.endedAt, pid: session.pty.pid, sequence: session.sequence, error: session.ioError ?? null,
     commandTracking: process.platform === 'win32' ? 'powershell-history' : 'unavailable', history: session.history.map(row => ({ ...row })) });
   const running = id => { const session = find(id); if (session.status !== 'running' || session.closing) throw error('terminal_not_running', 409); return session; };
+  const notify = session => { for (const wake of [...session.waiters]) wake(); };
   const emergencyClose = () => { for (const session of sessions.values()) if (session.status === 'running') { try { session.pty.kill(); } catch { /* Best effort during process teardown. */ } } };
   process.once('exit', emergencyClose);
   const runtime = {
@@ -181,7 +183,7 @@ export function createTerminalRuntime({ cwd = process.cwd(), maxSessions = 8, ou
       } catch { throw error('terminal_spawn_failed', 503); }
       const session = { id: randomUUID(), name, pty: child, cwd: directory, initialCwd: directory, cols, rows, status: 'running',
         exitCode: null, signal: null, createdAt: new Date().toISOString(), endedAt: null, history: [], historyId: 0,
-        sequence: 0, chunks: [], bytes: 0, discardedThrough: 0, closing: null };
+        sequence: 0, chunks: [], bytes: 0, discardedThrough: 0, closing: null, waiters: new Set() };
       const append = data => {
         if (!data) return;
         let bytes = Buffer.byteLength(data);
@@ -197,6 +199,7 @@ export function createTerminalRuntime({ cwd = process.cwd(), maxSessions = 8, ou
           const removed = session.chunks.shift(); session.bytes -= removed.bytes;
           session.discardedThrough = Math.max(session.discardedThrough, removed.seq);
         }
+        notify(session);
       };
       const reader = markerReader(token, append, metadata => {
         if (typeof metadata?.cwd === 'string' && metadata.cwd.length <= 4096 && isAbsolute(metadata.cwd)) session.cwd = metadata.cwd;
@@ -207,15 +210,21 @@ export function createTerminalRuntime({ cwd = process.cwd(), maxSessions = 8, ou
           session.history.push({ command: command.command.slice(0, 16384), startedAt: command.startedAt, durationMs: Math.max(0, Math.round(command.durationMs)), exitCode: command.exitCode, executionStatus: String(command.executionStatus ?? '').slice(0, 30) });
           if (session.history.length > 64) session.history.shift();
         }
+        // Advance the output cursor for prompt metadata too, so a reader that
+        // reconnects between the prompt marker and its text still sees history/cwd.
+        session.sequence++;
+        notify(session);
       });
       child.on('error', () => {
         session.ioError = 'terminal_io_failed';
-        if (!session.closing) session.closing = terminateTree(session).then(() => { session.status = 'error'; session.endedAt ??= new Date().toISOString(); });
+        session.sequence++;
+        notify(session);
+        if (!session.closing) session.closing = terminateTree(session).then(() => { session.status = 'error'; session.endedAt ??= new Date().toISOString(); notify(session); });
       });
       child.onData(data => reader.write(data));
       session.exited = new Promise(resolve => child.onExit(({ exitCode, signal }) => {
         reader.flush(); session.status = session.closing ? 'closed' : 'exited'; session.exitCode = Number.isInteger(exitCode) ? exitCode : null;
-        session.signal = signal ?? null; session.endedAt = new Date().toISOString(); releaseConptyReader(session); resolve();
+        session.signal = signal ?? null; session.endedAt = new Date().toISOString(); releaseConptyReader(session); notify(session); resolve();
       }));
       sessions.set(session.id, session);
       return snapshot(session);
@@ -225,6 +234,22 @@ export function createTerminalRuntime({ cwd = process.cwd(), maxSessions = 8, ou
       if (!Number.isSafeInteger(after) || after < 0) throw error('invalid_terminal_cursor');
       const reset = after < session.discardedThrough || after > session.sequence;
       return { chunks: session.chunks.filter(chunk => reset || chunk.seq > after).map(({ seq, data }) => ({ seq, data })), session: snapshot(session), reset };
+    },
+    async waitOutput(id, after = 0, { wait = 20_000, signal } = {}) {
+      if (!Number.isInteger(wait) || wait < 0 || wait > MAX_OUTPUT_WAIT_MS) throw error('invalid_terminal_wait');
+      signal?.throwIfAborted();
+      const output = runtime.output(id, after), session = find(id);
+      if (!wait || output.reset || session.sequence !== after || session.status !== 'running') return output;
+      return new Promise((resolve, reject) => {
+        const finish = (cause, aborted = false) => {
+          clearTimeout(timer); session.waiters.delete(wake); signal?.removeEventListener('abort', abort);
+          if (aborted) reject(cause); else resolve(runtime.output(id, after));
+        };
+        const wake = () => finish(), abort = () => finish(signal.reason, true);
+        const timer = setTimeout(wake, wait);
+        session.waiters.add(wake);
+        signal?.addEventListener('abort', abort, { once: true });
+      });
     },
     input(id, data) {
       if (typeof data !== 'string' || Buffer.byteLength(data) > MAX_INPUT_BYTES) throw error('invalid_terminal_input');
@@ -238,14 +263,17 @@ export function createTerminalRuntime({ cwd = process.cwd(), maxSessions = 8, ou
       const session = running(id);
       try { session.pty.resize(cols, rows); } catch { throw error('terminal_resize_failed', 409); }
       session.cols = cols; session.rows = rows;
+      session.sequence++;
+      notify(session);
       return { session: snapshot(session) };
     },
-    rename(id, name) { const session = find(id); session.name = nameFor(name, session.name); return { session: snapshot(session) }; },
+    rename(id, name) { const session = find(id); session.name = nameFor(name, session.name); session.sequence++; notify(session); return { session: snapshot(session) }; },
     async closeSession(id) {
       const session = find(id);
       if (!session.closing) session.closing = terminateTree(session);
       await session.closing;
       session.status = 'closed'; session.endedAt ??= new Date().toISOString();
+      notify(session);
       const result = { ok: true, session: snapshot(session) };
       sessions.delete(id);
       return result;
