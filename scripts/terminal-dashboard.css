@@ -135,7 +135,7 @@ body:not(.dark) #terminal-view :is(button, input, select, textarea, a, summary):
   box-sizing: border-box;
 }
 
-#terminal-view button:not(.terminal-tab):not(.terminal-close):not(.terminal-history button):not(.terminal-log-filters button) {
+#terminal-view button:not(.terminal-tab):not(.terminal-close):not(.terminal-history button):not(.terminal-activity .terminal-log-filters button) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -156,13 +156,13 @@ body:not(.dark) #terminal-view :is(button, input, select, textarea, a, summary):
   cursor: pointer;
 }
 
-#terminal-view button:not(.terminal-tab):not(.terminal-close):not(.terminal-history button):not(.terminal-log-filters button):hover:not(:disabled) {
+#terminal-view button:not(.terminal-tab):not(.terminal-close):not(.terminal-history button):not(.terminal-activity .terminal-log-filters button):hover:not(:disabled) {
   background: var(--surface-hover);
   border-color: var(--line-highlight);
   color: var(--ink);
 }
 
-#terminal-view button:not(.terminal-tab):not(.terminal-close):not(.terminal-history button):not(.terminal-log-filters button):active:not(:disabled) {
+#terminal-view button:not(.terminal-tab):not(.terminal-close):not(.terminal-history button):not(.terminal-activity .terminal-log-filters button):active:not(:disabled) {
   background: var(--surface-active);
   transform: translateY(1px);
 }
@@ -214,7 +214,7 @@ body:not(.dark) #terminal-view .btn.primary {
 #terminal-view .terminal-heading .actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -562,7 +562,7 @@ body:not(.dark) #terminal-view button.terminal-close:hover {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 10px;
   padding: 6px 12px;
   min-height: 42px;
   background: var(--surface-raised);
@@ -864,8 +864,20 @@ body:not(.dark) #terminal-view .terminal-host {
    -------------------------------------------------------------------------- */
 #terminal-view #terminalModes {
   display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
   margin-bottom: 10px;
   flex-shrink: 0;
+}
+
+#terminal-view #terminalModes > button {
+  min-height: 36px;
+  padding: 8px 14px;
+  border-radius: 8px;
 }
 
 #terminal-view #terminalActivity.terminal-console:not([hidden]),
@@ -1228,6 +1240,10 @@ body:not(.dark) #terminal-view .terminal-log-body {
   #terminal-view .terminal-heading .actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  #terminal-view #terminalModes {
+    gap: 8px;
   }
 
   #terminal-view .terminal-toolbar {

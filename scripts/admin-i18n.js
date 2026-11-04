@@ -566,7 +566,7 @@
   "Không thể tải dữ liệu": "Could not load data",
   "Không thể đọc danh sách skill (": "Could not load skills (",
   "không có kết quả": "no results",
-  "UmiBridge Sakura Console: bảng điều khiển local giám sát hoạt động MCP của ChatGPT.": "UmiBridge Sakura Console: a private local dashboard for ChatGPT MCP activity."
+  "UmiBridge: bảng điều khiển local giám sát hoạt động MCP của ChatGPT.": "UmiBridge: a private local dashboard for ChatGPT MCP activity."
 };
   const EXTRA_EN_TO_VI = {
     'Welcome back,': 'Chào mừng trở lại,',
@@ -610,7 +610,6 @@
     'Keep the local workspace tidy and review command output in one place.':'Giữ workspace local gọn gàng và xem output lệnh tại một nơi.',
     'Credentials, tunnel files, command history, and tool payloads remain in the protected':'Credential, file tunnel, lịch sử lệnh và payload công cụ vẫn nằm trong vùng bảo vệ',
     'Resetting preferences does not delete them.':'Đặt lại tùy chỉnh không xóa các dữ liệu đó.',
-    'SAKURA CONSOLE': 'BẢNG ĐIỀU KHIỂN SAKURA',
     'YOUR PERSONAL MCP SPACE': 'KHÔNG GIAN MCP CỦA BẠN',
     '✦ YOUR PERSONAL MCP SPACE': '✦ KHÔNG GIAN MCP CỦA BẠN',
     '✦ UMI / LIVE STATUS': '✦ UMI / TRẠNG THÁI TRỰC TIẾP',
@@ -618,8 +617,6 @@
     'UMI / WORKSPACE': 'UMI / KHÔNG GIAN LÀM VIỆC',
     'My private space ✿': 'Không gian riêng tư ✿',
     'Private local workspace': 'Không gian riêng tư trên máy',
-    'Sakura Console · Private local workspace': 'Sakura Console · Không gian riêng tư trên máy',
-    'UmiBridge ✿ Sakura Console · Private local workspace': 'UmiBridge ✿ Sakura Console · Không gian riêng tư trên máy',
     'Chat / Details':'Chat / Chi tiết',
     'Search, inspect, and manually associate chat links and IDs with requests. PowerShell commands run hidden; command output appears in each request detail.':'Tìm kiếm, mở chi tiết, gắn link và ID chat vào từng yêu cầu. Lệnh PowerShell chạy ẩn; command và output xuất hiện trong chi tiết request.',
     'Commands and bounded output stay local with basic secret and path redaction.':'Lệnh và output giới hạn chỉ lưu trên máy, có che cơ bản secret và đường dẫn.',
