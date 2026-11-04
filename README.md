@@ -36,6 +36,8 @@ Cài mới mặc định dùng công cụ toàn máy với quyền tài khoản 
 
 **Giao diện Hoạt động từ 1.14.2:** nền đen, chữ xanh lá và font monospace. Lệnh đã ghi nhận cùng output hiện nối tiếp trong một luồng terminal, theo thứ tự thời gian; không chia thành thẻ request hay ẩn output sau nút mở rộng. Luồng tự cuộn theo lệnh mới khi bạn đang ở cuối, giữ vị trí khi bạn cuộn lên đọc. Đây là lịch sử chỉ đọc, không tự chạy lại lệnh.
 
+**Tự vừa khung từ 1.14.3:** màn Terminal dùng phần không gian còn lại của cửa sổ. Khi thay đổi kích thước Chrome, console tự điều chỉnh khung và số dòng/cột; trang chính giữ thanh điều khiển trong tầm nhìn. Cuộn chuột để đọc output bên trong console; phần chi tiết và biểu mẫu có vùng cuộn riêng khi cần.
+
 Terminal tương tác chỉ dùng tại địa chỉ local trên máy Windows, không mở qua tunnel. Mở tab không tự tạo shell hay chạy lệnh. Phiên/output nằm trong bộ nhớ, lịch sử PSReadLine không lưu xuống đĩa; đóng phiên sẽ dừng tiến trình của phiên đó, khởi động lại gateway sẽ đóng tất cả phiên. Tối đa 8 phiên, mỗi phiên giữ phần output gần nhất trong giới hạn bộ nhớ. Gói setup tự tải xterm.js và runtime ConPTY đi kèm, không yêu cầu tự cài terminal riêng.
 
 **Bản 1.13.2:** ô tìm kiếm dùng một khung thống nhất, gồm biểu tượng, nội dung nhập và nút xóa; focus bàn phím hiển thị trên khung ngoài.

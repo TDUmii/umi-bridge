@@ -6,8 +6,69 @@
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   1. Root View Container & Hidden Attribute Integrity
+   1. Scoped Viewport Flex Chain & Root View Container
+   Target: Auto-fit viewport with NO page/main scrollbar; only inner panels scroll.
    -------------------------------------------------------------------------- */
+body:has(#terminal-view.view-active) {
+  overflow: clip !important;
+}
+
+body:has(#terminal-view.view-active) .app {
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 0 !important;
+  overflow: clip !important;
+}
+
+body:has(#terminal-view.view-active) .sidebar,
+body:has(#terminal-view.view-active) .topbar {
+  flex-shrink: 0 !important;
+}
+
+body:has(#terminal-view.view-active) .workspace {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: clip !important;
+}
+
+/* Mobile & Tablet (<= 850px) where .app switches from grid to column */
+@media (max-width: 850px) {
+  body:has(#terminal-view.view-active) .app {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    overflow: clip !important;
+  }
+
+  body:has(#terminal-view.view-active) .workspace {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: clip !important;
+  }
+}
+
+main#main:has(> #terminal-view.view-active) {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow: clip !important;
+  padding-top: 18px !important;
+  padding-bottom: 12px !important;
+  box-sizing: border-box !important;
+}
+
+main#main:has(> #terminal-view.view-active) > .page-bottom {
+  flex-shrink: 0;
+  margin-top: 6px;
+  font-size: 11px;
+}
+
 #terminal-view[hidden],
 #terminal-view [hidden] {
   display: none !important;
@@ -19,13 +80,19 @@
   box-sizing: border-box;
 }
 
-/* Harmonize with view switcher contract in admin-dashboard */
+/* Harmonize with view switcher contract in admin-dashboard: reset inherited margin */
 main > #terminal-view.view-section:not(.view-active) {
-  display: none;
+  display: none !important;
 }
 
 main > #terminal-view.view-section.view-active {
-  display: block;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  margin: 0 !important;
+  overflow: clip !important;
 }
 
 /* Accessible selection within terminal panel controls */
@@ -129,9 +196,10 @@ body:not(.dark) #terminal-view .btn.primary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
+  gap: 14px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 #terminal-view .terminal-heading h2 {
@@ -152,19 +220,24 @@ body:not(.dark) #terminal-view .btn.primary {
 
 /* --------------------------------------------------------------------------
    4. Create Session Form & Error Alert: .terminal-create, .terminal-error
+   Bounded scroll on short windows so form controls and error logs never hide buttons.
    -------------------------------------------------------------------------- */
 #terminal-view .terminal-create {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: 12px;
-  padding: 18px 20px;
-  margin-bottom: 16px;
+  padding: 14px 18px;
+  margin-bottom: 10px;
   box-shadow: var(--shadow-card);
   max-width: 640px;
   box-sizing: border-box;
+  flex-shrink: 0;
+  max-height: min(35dvh, 260px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 #terminal-view .terminal-create h3 {
@@ -223,11 +296,15 @@ body:not(.dark) #terminal-view .terminal-create input {
   border: 1px solid var(--signal-err-border, color-mix(in srgb, var(--signal-err, #f87171) 24%, transparent));
   color: var(--signal-err, #f87171);
   border-radius: 8px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   font-size: 12px;
-  line-height: 1.5;
-  margin-bottom: 14px;
+  line-height: 1.45;
+  margin-bottom: 10px;
   word-break: break-word;
+  flex-shrink: 0;
+  max-height: 90px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* --------------------------------------------------------------------------
@@ -237,10 +314,11 @@ body:not(.dark) #terminal-view .terminal-create input {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   overflow-x: auto;
   overflow-y: hidden;
   padding-bottom: 2px;
+  flex-shrink: 0;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
 }
@@ -351,84 +429,112 @@ body:not(.dark) #terminal-view button.terminal-close:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 56px 24px;
+  justify-content: safe center;
+  flex: 1 1 0%;
+  min-height: 0;
+  padding: 20px 16px;
   text-align: center;
   background: var(--surface);
   border: 1px dashed var(--line-strong);
   border-radius: 14px;
-  margin: 18px 0;
+  margin: 4px 0 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 #terminal-view .terminal-empty svg.icon {
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   color: var(--soft);
-  margin-bottom: 14px;
+  margin-bottom: 8px;
   stroke-width: 1.6;
+  flex-shrink: 0;
 }
 
 #terminal-view .terminal-empty h3 {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--ink);
-  margin: 0 0 6px;
+  margin: 0 0 4px;
+  flex-shrink: 0;
 }
 
 #terminal-view .terminal-empty p {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
-  max-width: 46ch;
-  line-height: 1.6;
+  max-width: 44ch;
+  line-height: 1.5;
   margin: 0;
+  flex-shrink: 0;
 }
 
 #terminal-view .terminal-privacy {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
-  line-height: 1.6;
-  margin: 16px 0 0;
+  line-height: 1.5;
+  margin: 6px 0 0;
   max-width: 82ch;
+  flex-shrink: 0;
+}
+
+#terminal-view .terminal-privacy:empty {
+  display: none;
 }
 
 /* --------------------------------------------------------------------------
    7. Layout Architecture: .terminal-layout & div#terminalConsoles.terminal-consoles
-   - Normal mode: .terminal-consoles is 1 col (minmax(0,1fr)), inspector is on the right (260px)
-   - Split mode: .terminal-consoles is 2 cols, inspector drops below both consoles (100% width)
+   - Normal mode: .terminal-consoles is 1 col (minmax(0,1fr)), inspector on right (260px)
+   - Split mode: .terminal-consoles is 2 equal cols, inspector drops below bounded to ~150px
+   - Stretch full available height with min-height: 0 so no page scrollbar ever appears
    -------------------------------------------------------------------------- */
 #terminal-view .terminal-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 260px;
-  gap: 16px;
-  align-items: start;
-  min-width: 0;
+  grid-template-rows: minmax(220px, 1fr);
+  gap: 14px;
+  align-items: stretch;
+  flex: 1 1 0%;
+  min-height: 0;
   width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 #terminal-view .terminal-consoles {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
   width: 100%;
 }
 
-/* Split layout mode */
+/* Split layout mode: two equal console columns; inspector bounded below */
 #terminal-view .terminal-layout.terminal-split {
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(220px, 1fr) auto;
 }
 
 #terminal-view .terminal-layout.terminal-split .terminal-consoles {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
 }
 
 #terminal-view .terminal-layout.terminal-split .terminal-inspector {
   grid-column: 1 / -1;
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
   align-items: start;
+  max-height: 150px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* --------------------------------------------------------------------------
@@ -437,6 +543,8 @@ body:not(.dark) #terminal-view button.terminal-close:hover {
 #terminal-view .terminal-console {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  height: 100%;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -455,11 +563,12 @@ body:not(.dark) #terminal-view button.terminal-close:hover {
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
-  padding: 8px 12px;
-  min-height: 48px;
+  padding: 6px 12px;
+  min-height: 42px;
   background: var(--surface-raised);
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
+  flex-shrink: 0;
   box-sizing: border-box;
 }
 
@@ -556,21 +665,26 @@ body:not(.dark) #terminal-view .terminal-toolbar button[aria-pressed="true"] {
 
 /* --------------------------------------------------------------------------
    10. Terminal Host (xterm mount)
-   Constraints:
-   - Fixed height 430px (or clamp) to prevent FitAddon recursive expansion loop.
-   - Near-black in both themes for ANSI contrast.
-   - Strictly NO textarea styling inside .terminal-host (keeps helper textarea intact).
-   - Strictly do not style .xterm internals except host boundary.
+   Flexes to fill all remaining height in console panel; no page scrollbars.
+   Helper textarea reset strictly preserved so xterm computes position accurately.
    -------------------------------------------------------------------------- */
 #terminal-view .terminal-host {
-  height: 430px;
-  min-height: 430px;
-  max-height: 430px;
+  flex: 1 1 0%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
   background: #08080a !important;
   color: #f5f5f7 !important;
   position: relative;
   overflow: hidden;
-  padding: 10px 14px;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* FitAddon subtracts xterm's own padding from its parent's available size. */
+#terminal-view .terminal-host > .xterm {
+  height: 100%;
+  padding: 8px 10px;
   box-sizing: border-box;
 }
 
@@ -603,31 +717,39 @@ body:not(.dark) #terminal-view .terminal-host {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 6px 14px;
-  min-height: 32px;
+  padding: 5px 14px;
+  min-height: 28px;
   background: var(--surface-raised);
   border-top: 1px solid var(--line);
   font-size: 11px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   flex-wrap: wrap;
+  flex-shrink: 0;
   box-sizing: border-box;
 }
 
 /* --------------------------------------------------------------------------
    12. Inspector Aside: aside.terminal-inspector, dl.terminal-details, ul.terminal-history
+   Independently scrollable within frame; bounded to available height.
    -------------------------------------------------------------------------- */
 #terminal-view aside.terminal-inspector,
 #terminal-view .terminal-inspector {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 16px;
+  padding: 14px;
   box-shadow: var(--shadow-card);
   min-width: 0;
   box-sizing: border-box;
+  scrollbar-width: thin;
 }
 
 #terminal-view .terminal-inspector h3 {
@@ -738,19 +860,24 @@ body:not(.dark) #terminal-view .terminal-host {
 /* --------------------------------------------------------------------------
    13. Read-only Terminal Transcript: #terminalActivity.terminal-console.terminal-activity
    True black continuous transcript, bright green hacker style, chronological input -> output
+   Takes remaining viewport height; scrolls independently within #terminalLog.
    -------------------------------------------------------------------------- */
 #terminal-view #terminalModes {
   display: inline-flex;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 #terminal-view #terminalActivity.terminal-console:not([hidden]),
 #terminal-view .terminal-activity.terminal-console:not([hidden]) {
   display: flex;
   flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
   width: 100%;
   min-width: 0;
-  margin-top: 8px;
+  margin-top: 4px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -764,11 +891,12 @@ body:not(.dark) #terminal-view .terminal-host {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 14px;
-  min-height: 44px;
+  padding: 6px 14px;
+  min-height: 42px;
   background: var(--surface-raised);
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
+  flex-shrink: 0;
   box-sizing: border-box;
 }
 
@@ -828,12 +956,13 @@ body:not(.dark) #terminal-view .terminal-activity .terminal-log-filters button[a
 }
 
 #terminal-view .terminal-activity .terminal-status {
-  padding: 6px 14px;
+  padding: 5px 14px;
   font-size: 11px;
   color: var(--muted);
   border-top: 0;
   border-bottom: 1px solid var(--line);
   background: var(--surface-raised);
+  flex-shrink: 0;
 }
 
 /* Continuous true black transcript field (both light & dark modes) */
@@ -841,12 +970,14 @@ body:not(.dark) #terminal-view .terminal-activity .terminal-log-filters button[a
 #terminal-view .terminal-log-body {
   display: flex;
   flex-direction: column;
+  flex: 1 1 0%;
+  min-height: 0;
+  max-height: none;
   background: #050805 !important;
   color: #87f69a !important;
-  max-height: clamp(380px, calc(100vh - 280px), 760px);
-  min-height: 280px;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   padding: 14px 16px;
   font-family: Consolas, 'Cascadia Mono', 'Courier New', ui-monospace, monospace;
   font-size: 12.5px;
@@ -990,54 +1121,108 @@ body:not(.dark) #terminal-view .terminal-log-body {
 }
 
 /* --------------------------------------------------------------------------
-   15. Responsive Breakpoints (1366px / 970px / 390px)
+   15. Responsive Breakpoints & Viewport Adaptation
+   Auto-fit viewports: desktop 1920x911, 1366x768, tablet 970px, mobile 390x844, short 900x600.
+   No main scrollbar: only inner output, transcript, inspector, and forms scroll.
    -------------------------------------------------------------------------- */
+/* Short Viewports (<= 700px height, e.g. 900x600) */
+@media (max-height: 700px) {
+  main#main:has(> #terminal-view.view-active) {
+    padding-top: 10px !important;
+    padding-bottom: 8px !important;
+  }
+
+  main#main:has(> #terminal-view.view-active) > .page-bottom {
+    margin-top: 4px;
+    font-size: 10px;
+  }
+
+  #terminal-view .terminal-heading {
+    margin-bottom: 6px;
+    gap: 8px;
+  }
+
+  #terminal-view .terminal-heading h2 {
+    font-size: 20px;
+  }
+
+  #terminal-view #terminalModes,
+  #terminal-view .terminal-tabs {
+    margin-bottom: 6px;
+  }
+
+  #terminal-view .terminal-toolbar {
+    min-height: 36px;
+    padding: 4px 10px;
+  }
+
+  #terminal-view .terminal-layout.terminal-split .terminal-inspector {
+    max-height: 110px;
+  }
+}
+
 /* Laptop Landscape / Compact Desktop (<= 1366px) */
 @media (max-width: 1366px) {
   #terminal-view .terminal-layout {
     grid-template-columns: minmax(0, 1fr) 240px;
-    gap: 14px;
+    gap: 12px;
   }
 }
 
 /* Tablet & Moderate Viewports (<= 970px) */
 @media (max-width: 970px) {
+  main#main:has(> #terminal-view.view-active) {
+    padding: 16px 18px 12px !important;
+  }
+
   #terminal-view .terminal-layout,
   #terminal-view .terminal-layout.terminal-split {
     grid-template-columns: minmax(0, 1fr);
-    gap: 14px;
+    grid-template-rows: minmax(260px, 1fr) auto;
+    gap: 12px;
   }
 
   #terminal-view .terminal-layout.terminal-split .terminal-consoles,
   #terminal-view .terminal-consoles {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  #terminal-view .terminal-layout.terminal-split {
+    grid-template-rows: minmax(532px, 1fr) auto;
+  }
+
+  #terminal-view .terminal-layout.terminal-split .terminal-consoles {
+    grid-template-rows: repeat(2, minmax(0, 1fr));
   }
 
   #terminal-view .terminal-layout.terminal-split .terminal-inspector,
   #terminal-view .terminal-layout .terminal-inspector {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 14px;
-  }
-
-  #terminal-view .terminal-host {
-    height: 380px;
-    min-height: 380px;
-    max-height: 380px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    max-height: 150px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 }
 
 /* Mobile Portrait (<= 390px) */
 @media (max-width: 390px) {
+  main#main:has(> #terminal-view.view-active) {
+    padding: 12px 12px 10px !important;
+  }
+
   #terminal-view .terminal-heading {
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
+    margin-bottom: 8px;
   }
 
   #terminal-view .terminal-heading h2 {
-    font-size: 22px;
+    font-size: 20px;
   }
 
   #terminal-view .terminal-heading .actions {
@@ -1046,8 +1231,9 @@ body:not(.dark) #terminal-view .terminal-log-body {
   }
 
   #terminal-view .terminal-toolbar {
-    padding: 8px 10px;
-    gap: 8px;
+    padding: 6px 10px;
+    gap: 6px;
+    min-height: 38px;
   }
 
   #terminal-view label.terminal-find.search,
@@ -1062,31 +1248,33 @@ body:not(.dark) #terminal-view .terminal-log-body {
   }
 
   #terminal-view .terminal-host {
-    height: 340px;
-    min-height: 340px;
-    max-height: 340px;
-    padding: 8px 10px;
+    padding: 0;
   }
 
   #terminal-view .terminal-status {
-    padding: 6px 10px;
+    padding: 5px 10px;
     font-size: 10px;
+    min-height: 26px;
   }
 
   #terminal-view .terminal-layout.terminal-split .terminal-inspector,
   #terminal-view .terminal-layout .terminal-inspector {
     grid-template-columns: 1fr;
+    max-height: 130px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   #terminal-view aside.terminal-inspector,
   #terminal-view .terminal-inspector {
-    padding: 12px;
+    padding: 10px 12px;
   }
 
   #terminal-view .terminal-activity .terminal-toolbar {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: 6px;
+    min-height: 38px;
   }
 
   #terminal-view .terminal-activity .terminal-toolbar .terminal-log-filters {
