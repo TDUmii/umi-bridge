@@ -40,6 +40,8 @@ Cài mới mặc định dùng công cụ toàn máy với quyền tài khoản 
 
 **Phân tích từ 1.15.0:** chuyển giữa biểu đồ đường và cột, di chuột hoặc dùng phím mũi tên để đọc số liệu từng mốc. Biểu đồ vòng thể hiện tỷ trọng input/output; biểu đồ thanh xếp nhóm theo token đã ghi nhận và vẫn có bảng số liệu chi tiết. Giao diện tham khảo [Mebius Charts](https://www.mebius.design/freebies/charts), được điều chỉnh theo tông đen trắng của UmiBridge. Tất cả dùng số liệu đang lọc; token là số ước tính theo văn bản, không phải hóa đơn hay hạn mức còn lại của nhà cung cấp.
 
+**Từ 1.16.0:** biểu đồ thời gian mặc định gọn các ngày trống ở hai đầu, giữ nguyên ngày trống bên trong; chọn **Toàn kỳ** để xem lại phạm vi đầy đủ. Các tổng số không thay đổi theo khoảng hiển thị. Lịch hoạt động thể hiện số lượt theo ngày, đồng hồ bán nguyệt thể hiện tỷ lệ thành công trên lượt đã có kết quả, và biểu đồ điểm so sánh thời gian trung bình giữa các nhóm. Biểu đồ vòng input/output được sửa đầu nối để tỷ trọng hiển thị rõ hơn.
+
 Terminal tương tác chỉ dùng tại địa chỉ local trên máy Windows, không mở qua tunnel. Mở tab không tự tạo shell hay chạy lệnh. Phiên/output nằm trong bộ nhớ, lịch sử PSReadLine không lưu xuống đĩa; đóng phiên sẽ dừng tiến trình của phiên đó, khởi động lại gateway sẽ đóng tất cả phiên. Tối đa 8 phiên, mỗi phiên giữ phần output gần nhất trong giới hạn bộ nhớ. Gói setup tự tải xterm.js và runtime ConPTY đi kèm, không yêu cầu tự cài terminal riêng.
 
 **Bản 1.13.2:** ô tìm kiếm dùng một khung thống nhất, gồm biểu tượng, nội dung nhập và nút xóa; focus bàn phím hiển thị trên khung ngoài.

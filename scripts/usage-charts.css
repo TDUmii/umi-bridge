@@ -115,12 +115,22 @@
   margin: 10px 0 0;
 }
 
+/* Root controls wrapper (holds window toggle and chart modes) */
+#analytics .usage-viz-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* Segmented button group inspired by Mebius chart timeframe toggles */
 #analytics #usageChartModes,
-#analytics .usage-chart-modes {
+#analytics .usage-chart-modes,
+#analytics #usageChartWindow,
+#analytics .usage-chart-window {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   padding: 3px;
   background: var(--surface-raised);
   border: 1px solid var(--line);
@@ -129,7 +139,9 @@
 }
 
 #analytics #usageChartModes button,
-#analytics .usage-chart-modes button {
+#analytics .usage-chart-modes button,
+#analytics #usageChartWindow button,
+#analytics .usage-chart-window button {
   appearance: none;
   background: transparent;
   border: none;
@@ -146,12 +158,16 @@
 }
 
 #analytics #usageChartModes button:hover,
-#analytics .usage-chart-modes button:hover {
+#analytics .usage-chart-modes button:hover,
+#analytics #usageChartWindow button:hover,
+#analytics .usage-chart-window button:hover {
   color: var(--ink);
 }
 
 #analytics #usageChartModes button[aria-pressed="true"],
-#analytics .usage-chart-modes button[aria-pressed="true"] {
+#analytics .usage-chart-modes button[aria-pressed="true"],
+#analytics #usageChartWindow button[aria-pressed="true"],
+#analytics .usage-chart-window button[aria-pressed="true"] {
   background: var(--surface);
   color: var(--ink);
   font-weight: 650;
@@ -160,7 +176,9 @@
 }
 
 body:not(.dark) #analytics #usageChartModes button[aria-pressed="true"],
-body:not(.dark) #analytics .usage-chart-modes button[aria-pressed="true"] {
+body:not(.dark) #analytics .usage-chart-modes button[aria-pressed="true"],
+body:not(.dark) #analytics #usageChartWindow button[aria-pressed="true"],
+body:not(.dark) #analytics .usage-chart-window button[aria-pressed="true"] {
   background: #ffffff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
@@ -513,8 +531,8 @@ body:not(.dark) #analytics .umi-chart-tooltip {
 }
 
 #analytics svg.umi-donut {
-  width: 210px;
-  height: 210px;
+  width: 180px;
+  height: 180px;
   max-width: 100%;
   overflow: visible;
   color: var(--ink);
@@ -533,13 +551,13 @@ body:not(.dark) #analytics .umi-donut-track {
 #analytics .umi-donut-input {
   stroke: var(--ink);
   stroke-width: 18px;
-  stroke-linecap: round;
+  stroke-linecap: butt;
 }
 
 #analytics .umi-donut-output {
-  stroke: var(--soft);
+  stroke: var(--muted);
   stroke-width: 18px;
-  stroke-linecap: round;
+  stroke-linecap: butt;
 }
 
 /* Center total & metric label */
@@ -605,7 +623,7 @@ body:not(.dark) #analytics .umi-donut-track {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--soft);
+  background: var(--muted);
 }
 
 #analytics .umi-composition-value {
@@ -759,8 +777,14 @@ body:not(.dark) #analytics .umi-ranking-bar {
 /* --------------------------------------------------------------------------
    8. Empty State Styling
    -------------------------------------------------------------------------- */
-#analytics .umi-ranking > .umi-chart-empty {
-  position: static;
+#analytics .umi-ranking > .umi-chart-empty,
+#analytics .umi-activity > .umi-chart-empty,
+#analytics .umi-outcomes > .umi-chart-empty,
+#analytics .umi-latency > .umi-chart-empty,
+#analytics #usageActivity > .umi-chart-empty,
+#analytics #usageOutcomes > .umi-chart-empty,
+#analytics #usageLatencyChart > .umi-chart-empty {
+  position: relative;
   min-height: 180px;
 }
 
@@ -795,13 +819,232 @@ body:not(.dark) #analytics .umi-ranking-bar {
 }
 
 /* --------------------------------------------------------------------------
-   9. Responsive Adaptations (Desktop ~1.7fr/1fr, <=1050 Stacked, <=390 Mobile)
+   9. Insight Grid Visualizations (Activity Heatmap, Outcome Gauge, Latency)
    -------------------------------------------------------------------------- */
+#analytics .usage-insight-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  align-items: stretch;
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+#analytics #usageActivity,
+#analytics #usageOutcomes,
+#analytics #usageLatencyChart,
+#analytics .umi-activity,
+#analytics .umi-outcomes,
+#analytics .umi-latency {
+  position: relative;
+  min-height: 240px;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Activity Heatmap */
+#analytics .umi-activity-grid {
+  display: grid;
+  gap: 4px;
+  padding: 6px 0;
+  overflow-x: auto;
+  align-items: center;
+}
+
+#analytics .umi-activity-label {
+  font-size: 11px;
+  color: var(--muted);
+  padding-right: 6px;
+  user-select: none;
+  line-height: 1;
+}
+
+#analytics .umi-activity-cell {
+  min-height: 14px;
+  max-height: 22px;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background-color: var(--ink);
+  box-sizing: border-box;
+}
+
+#analytics .umi-activity-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background-color: var(--ink);
+  flex-shrink: 0;
+}
+
+#analytics .umi-activity-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+#analytics .umi-activity-window,
+#analytics .umi-activity-note,
+#analytics p.umi-outcome-note,
+#analytics p.umi-latency-note {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0 0;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* Outcome Semi-Gauge */
+#analytics svg.umi-outcome-gauge {
+  width: 100%;
+  max-width: 280px;
+  height: 170px;
+  display: block;
+  margin: 0 auto;
+  overflow: visible;
+}
+
+#analytics .umi-gauge-track { stroke: var(--line); stroke-width: 14px; fill: none; }
+#analytics .umi-gauge-value { stroke: var(--ink); stroke-width: 14px; stroke-linecap: butt; fill: none; }
+#analytics text.umi-gauge-number { font-size: 30px; font-weight: 600; fill: var(--ink); font-family: inherit; font-variant-numeric: tabular-nums; dominant-baseline: central; }
+#analytics text.umi-gauge-label { font-size: 11px; font-weight: 500; fill: var(--muted); font-family: inherit; dominant-baseline: central; }
+
+#analytics .umi-outcome-legend {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+#analytics .umi-outcome-legend > .umi-outcome-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#analytics .umi-outcome-legend > .umi-outcome-item span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#analytics .umi-outcome-legend > .umi-outcome-item strong {
+  font-weight: 650;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+#analytics .umi-outcome-success span::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+#analytics .umi-outcome-error span::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+#analytics .umi-outcome-pending span::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+/* Latency Lollipop */
+#analytics .umi-latency-row {
+  display: grid;
+  gap: 6px;
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+}
+
+#analytics #usageLatencyChart {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+  align-content: start;
+}
+
+#analytics #usageLatencyChart .umi-latency-note {
+  grid-column: 1 / -1;
+}
+
+#analytics .umi-latency-row > .umi-latency-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+#analytics .umi-latency-row > .umi-latency-heading span,
+#analytics .umi-latency-label {
+  color: var(--ink);
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#analytics .umi-latency-row > .umi-latency-heading strong,
+#analytics .umi-latency-value {
+  color: var(--ink);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+#analytics .umi-latency-track { height: 14px; position: relative; background: none; width: 100%; }
+#analytics .umi-latency-line { position: absolute; left: 0; top: 6px; height: 2px; background: var(--muted); border-radius: 1px; }
+#analytics .umi-latency-dot { position: absolute; top: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); transform: translateX(-50%); }
+#analytics .umi-latency-meta { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+
+/* --------------------------------------------------------------------------
+   10. Responsive Adaptations
+   -------------------------------------------------------------------------- */
+@media (max-width: 1150px) {
+  #analytics .usage-insight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  #analytics .usage-insight-grid > :last-child { grid-column: 1 / -1; }
+  #analytics #usageLatencyChart { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 @media (max-width: 1050px) {
-  #analytics .usage-visual-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
+  #analytics .usage-visual-grid { grid-template-columns: 1fr; gap: 16px; }
+}
+
+@media (max-width: 850px) {
+  #analytics .usage-insight-grid { grid-template-columns: 1fr; }
+  #analytics .usage-insight-grid > :last-child { grid-column: auto; }
+  #analytics #usageLatencyChart { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  #analytics #usageLatencyChart { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 768px) {
@@ -843,13 +1086,17 @@ body:not(.dark) #analytics .umi-ranking-bar {
   }
 
   #analytics #usageChartModes,
-  #analytics .usage-chart-modes {
+  #analytics .usage-chart-modes,
+  #analytics #usageChartWindow,
+  #analytics .usage-chart-window {
     width: 100%;
     justify-content: stretch;
   }
 
   #analytics #usageChartModes button,
-  #analytics .usage-chart-modes button {
+  #analytics .usage-chart-modes button,
+  #analytics #usageChartWindow button,
+  #analytics .usage-chart-window button {
     flex: 1;
     text-align: center;
   }

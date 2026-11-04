@@ -51,8 +51,8 @@
     if (!state || calm() || !target.getClientRects().length) return;
     for (const previous of state.animations || []) previous.cancel();
     state.animations = [];
-    const items = state.kind === 'timeline' ? target.querySelectorAll('.umi-chart-series')
-      : state.kind === 'composition' ? target.querySelectorAll('.umi-donut-segments') : target.querySelectorAll('.umi-ranking-bar');
+    const items = target.querySelectorAll(({timeline:'.umi-chart-series', composition:'.umi-donut-segments', ranking:'.umi-ranking-bar',
+      activity:'.umi-activity-grid', outcomes:'.umi-gauge-value', latency:'.umi-latency-track'})[state.kind]);
     target.classList.add('umi-chart-enter');
     for (const item of items) {
       if (!item.animate) continue;
@@ -118,7 +118,7 @@
       : 'Input ' + format(row.inputTokens, lang) + ', Output ' + format(row.outputTokens, lang) + ', ' + state.totalLabel.textContent + ' ' + format(row.totalTokens, lang))
       + '. ' + format(row.requests, lang) + ' ' + text(lang, 'lượt', 'requests') + (note ? '. ' + note : ''));
     const box = target.getBoundingClientRect(), svgBox = state.svg.getBoundingClientRect();
-    state.tooltip.style.maxWidth = Math.max(0, box.width - 16) + 'px';
+    state.tooltip.style.maxWidth = Math.min(280, Math.max(0, box.width - 16)) + 'px';
     const tipBox = state.tooltip.getBoundingClientRect();
     // SVG uses its default xMidYMid meet alignment; account for letterboxing in narrow cards.
     const scale = Math.min(svgBox.width / state.W, svgBox.height / state.H);
@@ -252,8 +252,8 @@
     if (sum && !missing) {
       const rings = svgNode('g', {class:'umi-donut-segments', transform:'rotate(-90 110 110)'});
       let offset = 0;
-      for (const [value, cls, opacity] of [[input, 'umi-donut-input', 1], [output, 'umi-donut-output', .32]]) {
-        if (value) rings.append(svgNode('circle', {cx:110, cy:110, r:radius, class:cls, fill:'none', stroke:'currentColor', 'stroke-opacity':opacity, 'stroke-width':20, 'stroke-dasharray':`${value / sum * circumference} ${circumference}`, 'stroke-dashoffset':-offset}));
+      for (const [value, cls] of [[input, 'umi-donut-input'], [output, 'umi-donut-output']]) {
+        if (value) rings.append(svgNode('circle', {cx:110, cy:110, r:radius, class:cls, fill:'none', stroke:'currentColor', 'stroke-width':20, 'stroke-linecap':'butt', 'stroke-dasharray':`${value / sum * circumference} ${circumference}`, 'stroke-dashoffset':-offset}));
         offset += value / sum * circumference;
       }
       svg.append(rings);
@@ -298,13 +298,105 @@
     if (!maximum) empty(target, lang, summary.requests, summary.measured);
     if (options.animate) play(target);
   }
+  function activity(target, timelineRows, options = {}) {
+    if (!target) return;
+    const lang = language(options), days = new Map();
+    const dayKey = date => [date.getFullYear(), date.getMonth() + 1, date.getDate()].join('-');
+    const dayNumber = date => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000;
+    for (const row of Array.isArray(timelineRows) ? timelineRows : []) {
+      if (!row || row.at == null || row.at === '') continue;
+      const date = new Date(row.at);
+      if (!Number.isFinite(date.getTime())) continue;
+      const key = dayKey(date), day = days.get(key) || {at:new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime(), requests:0};
+      day.requests += number(row.requests); days.set(key, day);
+    }
+    const sorted = [...days.values()].sort((a, b) => a.at - b.at), values = [];
+    if (sorted.length) {
+      const last = new Date(sorted[sorted.length - 1].at), cutoff = new Date(last); cutoff.setDate(cutoff.getDate() - 59);
+      const first = new Date(Math.max(sorted[0].at, cutoff.getTime()));
+      for (const date = new Date(first); date <= last; date.setDate(date.getDate() + 1)) values.push({at:date.getTime(), requests:days.get(dayKey(date))?.requests || 0});
+    }
+    const requests = values.reduce((sum, day) => sum + day.requests, 0), state = {kind:'activity', signature:JSON.stringify([values, lang, options.label || '']), label:text(lang, 'Lịch hoạt động theo số lượt đã ghi nhận', 'Activity calendar by recorded requests')};
+    if (!replace(target, state, 'umi-activity', options)) return;
+    target.tabIndex = 0; target.setAttribute('role', 'group');
+    if (!values.length) { empty(target, lang, 0); return; }
+    const first = new Date(values[0].at), last = new Date(values[values.length - 1].at), weekStart = new Date(first);
+    weekStart.setDate(weekStart.getDate() - (weekStart.getDay() + 6) % 7);
+    const weeks = Math.floor((dayNumber(last) - dayNumber(weekStart)) / 7) + 1, maximum = values.reduce((max, day) => Math.max(max, day.requests), 0);
+    const grid = node('div', null, 'umi-activity-grid'); grid.style.gridTemplateRows = 'repeat(7, minmax(0, 1fr))'; grid.style.gridTemplateColumns = `auto repeat(${weeks}, minmax(0, 1fr))`;
+    for (let index = 0; index < 7; index++) {
+      const label = node('span', new Intl.DateTimeFormat(locale(lang), {weekday:'short'}).format(new Date(2026, 0, 5 + index)), 'umi-activity-label');
+      label.style.gridRow = String(index + 1); label.style.gridColumn = '1'; label.setAttribute('aria-hidden', 'true'); grid.append(label);
+    }
+    for (const day of values) {
+      const date = new Date(day.at), cell = node('span', null, 'umi-activity-cell'), intensity = maximum ? day.requests / maximum : 0;
+      const label = dateFormat(day.at, lang, false, true) + ': ' + format(day.requests, lang) + ' ' + text(lang, 'lượt', 'requests');
+      cell.title = label; cell.setAttribute('aria-label', label); cell.setAttribute('role', 'img');
+      cell.style.gridRow = String((date.getDay() + 6) % 7 + 1); cell.style.gridColumn = String(Math.floor((dayNumber(date) - dayNumber(weekStart)) / 7) + 2);
+      cell.style.setProperty('--intensity', String(intensity)); cell.style.opacity = String(day.requests ? .22 + .78 * intensity : .07);
+      grid.append(cell);
+    }
+    const windowLabel = dateFormat(first, lang, false, true) + ' - ' + dateFormat(last, lang, false, true);
+    target.setAttribute('aria-label', (options.label || state.label) + '. ' + windowLabel + '. ' + format(requests, lang) + ' ' + text(lang, 'lượt', 'requests') + ', ' + values.length + ' ' + text(lang, 'ngày', 'days'));
+    target.append(grid);
+    const legend = node('div', null, 'umi-activity-legend'); legend.append(node('span', text(lang, 'Ít', 'Less')));
+    for (const intensity of [0, .25, .5, .75, 1]) {
+      const swatch = node('i', null, 'umi-activity-swatch'); swatch.setAttribute('aria-hidden', 'true'); swatch.style.setProperty('--intensity', String(intensity)); swatch.style.opacity = String(intensity ? .22 + .78 * intensity : .07); legend.append(swatch);
+    }
+    legend.append(node('span', text(lang, 'Nhiều', 'More'))); target.append(legend, node('p', windowLabel, 'umi-activity-window'));
+    if (!requests) target.append(node('p', text(lang, 'Chưa có hoạt động trong kỳ', 'No activity in this period'), 'umi-activity-note'));
+    if (options.animate) play(target);
+  }
+  function outcomes(target, totals, options = {}) {
+    if (!target) return;
+    const lang = language(options), success = number(totals?.success), errors = number(totals?.errors), pending = number(totals?.pending), completed = success + errors;
+    const state = {kind:'outcomes', signature:JSON.stringify([success, errors, pending, lang, options.label || '']), label:text(lang, 'Tỷ lệ thành công trong các lượt đã kết thúc', 'Success rate among completed requests')};
+    if (!replace(target, state, 'umi-outcomes', options)) return;
+    const rate = completed ? success / completed : 0, percent = completed ? new Intl.NumberFormat(locale(lang), {style:'percent', maximumFractionDigits:1}).format(rate) : '—';
+    const denominator = text(lang, 'Thành công / (thành công + lỗi); loại trừ lượt chưa kết thúc.', 'Success / (success + errors); pending requests excluded.');
+    target.setAttribute('role', 'group'); target.setAttribute('aria-label', (options.label || state.label) + '. ' + percent + '. ' + format(success, lang) + '/' + format(completed, lang) + '. ' + denominator);
+    const svg = svgNode('svg', {viewBox:'0 0 280 170', class:'umi-outcome-gauge', 'aria-hidden':'true'}), path = 'M30 140 A110 110 0 0 1 250 140', length = Math.PI * 110;
+    svg.append(svgNode('path', {d:path, class:'umi-gauge-track', fill:'none', stroke:'currentColor', 'stroke-width':14, 'stroke-opacity':'.1', 'stroke-linecap':'butt'}));
+    if (completed && success) svg.append(svgNode('path', {d:path, class:'umi-gauge-value', fill:'none', stroke:'currentColor', 'stroke-width':14, 'stroke-linecap':'butt', 'stroke-dasharray':`${rate * length} ${length}`}));
+    svg.append(svgNode('text', {x:140, y:115, 'text-anchor':'middle', class:'umi-gauge-number'}, percent), svgNode('text', {x:140, y:145, 'text-anchor':'middle', class:'umi-gauge-label'}, text(lang, 'thành công', 'successful'))); target.append(svg);
+    const legend = node('div', null, 'umi-outcome-legend');
+    for (const [key, value, label] of [['success', success, text(lang, 'Thành công', 'Success')], ['error', errors, text(lang, 'Lỗi', 'Errors')], ['pending', pending, text(lang, 'Chưa kết thúc', 'Pending')]]) {
+      const item = node('div', null, 'umi-outcome-item umi-outcome-' + key); item.append(node('span', label), node('strong', format(value, lang))); legend.append(item);
+    }
+    target.append(legend, node('p', (completed ? '' : text(lang, 'Chưa có lượt đã kết thúc. ', 'No completed requests. ')) + denominator, 'umi-outcome-note'));
+    if (options.animate) play(target);
+  }
+  function latency(target, groups, options = {}) {
+    if (!target) return;
+    const lang = language(options), source = (Array.isArray(groups) ? groups : []).filter(row => row && typeof row === 'object');
+    const valid = source.filter(row => count(row.averageMs) != null && number(row.timed) > 0).map((row, index) => ({
+      name:row.name == null || String(row.name).trim() === '' ? text(lang, 'Chưa gắn tên', 'Unnamed') : String(row.name), averageMs:row.averageMs, timed:number(row.timed), requests:number(row.requests), index
+    })).sort((a, b) => b.averageMs - a.averageMs || a.index - b.index);
+    const excluded = source.length - valid.length, rows = valid.slice(0, 6), state = {kind:'latency', signature:JSON.stringify([rows, excluded, lang, options.label || '']), label:text(lang, 'Thời gian trung bình của các lượt có số đo', 'Average duration of timed requests')};
+    if (!replace(target, state, 'umi-latency', options)) return;
+    target.setAttribute('role', 'list');
+    const maximum = rows[0]?.averageMs || 0;
+    for (const row of rows) {
+      const item = node('div', null, 'umi-latency-row'); item.setAttribute('role', 'listitem');
+      const heading = node('div', null, 'umi-latency-heading'), name = node('span', row.name, 'umi-latency-label'); name.title = row.name;
+      heading.append(name, node('strong', format(row.averageMs, lang) + ' ms', 'umi-latency-value'));
+      const track = node('div', null, 'umi-latency-track'), line = node('span', null, 'umi-latency-line'), dot = node('span', null, 'umi-latency-dot'), position = (maximum ? row.averageMs / maximum * 100 : 0) + '%';
+      line.style.width = position; dot.style.left = position; line.style.transformOrigin = 'left center'; track.append(line, dot); track.setAttribute('aria-hidden', 'true');
+      item.append(heading, track, node('small', format(row.timed, lang) + '/' + format(row.requests, lang) + ' ' + text(lang, 'lượt có số đo thời gian', 'requests timed'), 'umi-latency-meta')); target.append(item);
+    }
+    let note = text(lang, 'Giá trị trung bình, không phải phân vị.', 'Averages, not percentiles.');
+    if (!rows.length) note = text(lang, 'Chưa có số đo thời gian trong kỳ. ', 'No duration measurements in this period. ') + note;
+    if (excluded) note += ' ' + format(excluded, lang) + ' ' + text(lang, 'nhóm chưa có số đo thời gian.', 'groups without duration measurements.');
+    target.append(node('p', note, 'umi-latency-note'));
+    if (options.animate) play(target);
+  }
   function replay(target) {
     if (!target) return;
     if (states.has(target)) play(target);
-    else for (const chart of target.querySelectorAll('.umi-timeline,.umi-composition,.umi-ranking')) play(chart);
+    else for (const chart of target.querySelectorAll('.umi-timeline,.umi-composition,.umi-ranking,.umi-activity,.umi-outcomes,.umi-latency')) play(chart);
   }
   reduced?.addEventListener('change', () => { if (calm()) stop(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
   if (document.body && typeof MutationObserver !== 'undefined') new MutationObserver(() => { if (calm()) stop(); }).observe(document.body, {attributes:true, attributeFilter:['data-ui-motion']});
-  window.umiUsageCharts = {timeline, composition, ranking, replay, stop};
+  window.umiUsageCharts = {timeline, composition, ranking, activity, outcomes, latency, replay, stop};
 })();

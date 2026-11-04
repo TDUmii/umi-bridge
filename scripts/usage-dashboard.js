@@ -8,12 +8,23 @@
   for(const [value,vi,en]of [['projects','Project','Project'],['tasks','DAG task','DAG task'],['workers','Worker','Worker'],['roles','Vai trò','Role'],['attempts','Attempt','Attempt']])$('usageGroup').add(new Option(usageLanguage()==='en'?en:vi,value));
   const element = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
   const diagnostics=element('section',null,'usage-diagnostics');diagnostics.id='usageDiagnostics';diagnostics.hidden=true;$('usageOverview').after(diagnostics);const diagnosticTab=element('button','Phân tích sâu','btn');diagnosticTab.type='button';diagnosticTab.dataset.pane='diagnostics';diagnosticTab.setAttribute('aria-pressed','false');$('usageTabs').insertBefore(diagnosticTab,$('usageCoverage'));
-  let report = null, page = 0, period = '7d', sequence = 0, controller, timer, cost = {}, chartMode = 'line', animateCharts = true;
+  let report = null, page = 0, period = '7d', sequence = 0, controller, timer, cost = {}, chartMode = 'line', chartWindow = 'active', animateCharts = true;
+  const chartIds=['usageChart','usageComposition','usageRanking','usageActivity','usageOutcomes','usageLatencyChart'];
+  function activeTimeline(rows, windowMode='active'){
+    if(windowMode==='period'||!Array.isArray(rows)||!rows.length)return rows||[];
+    const first=rows.findIndex(row=>row.requests>0||row.totalTokens>0||row.inputTokens>0||row.outputTokens>0);
+    if(first<0)return rows;
+    let last=rows.length-1;while(last>first&&!(rows[last].requests>0||rows[last].totalTokens>0||rows[last].inputTokens>0||rows[last].outputTokens>0))last--;
+    return rows.slice(Math.max(0,first-1),Math.min(rows.length,last+2));
+  }
   const chartLanguage=()=>usageLanguage()==='en'?'en':'vi',copy=(vi,en)=>chartLanguage()==='en'?en:vi;
   function chartLabels(){
     for(const [id,vi,en]of [['usageTimelineTitle','Token theo thời gian','Tokens over time'],['usageCompositionTitle','Cơ cấu token','Token composition'],['usageCompositionNote','Tỷ trọng input và output trong kỳ đang lọc.','Input and output shares in the selected period.'],['usageRankingTitle','Nhóm dùng token nhiều nhất','Top token contributors'],['usageRankingNote','So sánh token ước tính theo nhóm đang chọn.','Compare estimated tokens by the selected grouping.'],['usageDataTableLabel','Xem bảng số liệu','View data table'],['usageChartHint','Di chuột hoặc dùng phím ← → để đọc từng mốc. Token là số ước tính.','Hover or use the ← → keys to inspect each point. Tokens are estimates.']])$(id).textContent=copy(vi,en);
     $('usageChartModes').setAttribute('aria-label',copy('Kiểu biểu đồ','Chart type'));
     for(const button of $('usageChartModes').querySelectorAll('button'))button.textContent=button.dataset.chartMode==='bar'?copy('Cột','Bars'):copy('Đường','Lines');
+    $('usageChartWindow').setAttribute('aria-label',copy('Khoảng hiển thị','Visible range'));
+    for(const button of $('usageChartWindow').querySelectorAll('button'))button.textContent=button.dataset.chartWindow==='active'?copy('Có hoạt động','Active range'):copy('Toàn kỳ','Full period');
+    for(const [id,vi,en]of [['usageActivityTitle','Nhịp hoạt động','Activity rhythm'],['usageActivityNote','Mỗi ô là một ngày; độ sáng theo số lượt ghi nhận.','Each cell is one day; brightness reflects recorded requests.'],['usageOutcomesTitle','Kết quả xử lý','Request outcomes'],['usageOutcomesNote','Tỷ lệ thành công trên các lượt đã có kết quả.','Success rate among requests with a completed outcome.'],['usageLatencyTitle','Thời gian theo nhóm','Time by group'],['usageLatencyNote','Trung bình mỗi lượt có ghi thời gian, theo nhóm đang chọn.','Average per timed request, using the selected grouping.']])$(id).textContent=copy(vi,en);
   }
   try { cost = JSON.parse(localStorage.getItem('umibridge.usage.budget') || '{}') || {}; } catch {}
   for (const [key, id] of Object.entries({input:'usageInputRate', output:'usageOutputRate', budget:'usageBudget'})) {
@@ -43,16 +54,25 @@
     if (!report) return;
     const labels = {unassigned:'Chưa gắn chat', mcp:'Công cụ MCP', corp:'Chat Corp', arena:'Arena'};
     rowTable($('usageGroups'), report.groups[$('usageGroup').value], [r => labels[r.name] || r.name, r => fmt(r.requests), r => fmt(r.inputTokens), r => fmt(r.outputTokens), r => fmt(r.totalTokens), r => fmt(r.errors), r => ms(r.averageMs)]);
-    if(window.umiUsageCharts){const groups=(report.groups[$('usageGroup').value]||[]).map(row=>({...row,name:({unassigned:copy('Chưa gắn chat','Unassigned chat'),mcp:copy('Công cụ MCP','MCP tools'),corp:'Corp',arena:'Arena'})[row.name]||row.name}));window.umiUsageCharts.ranking($('usageRanking'),groups,{language:chartLanguage(),label:copy('Nhóm dùng token nhiều nhất','Top token contributors'),animate:animateCharts});}
+    if(window.umiUsageCharts){
+      const groups=(report.groups[$('usageGroup').value]||[]).map(row=>({...row,name:({unassigned:copy('Chưa gắn chat','Unassigned chat'),mcp:copy('Công cụ MCP','MCP tools'),corp:'Corp',arena:'Arena'})[row.name]||row.name}));
+      window.umiUsageCharts.ranking($('usageRanking'),groups,{language:chartLanguage(),label:copy('Nhóm dùng token nhiều nhất','Top token contributors'),animate:animateCharts});
+      window.umiUsageCharts.latency($('usageLatencyChart'),groups,{language:chartLanguage(),animate:animateCharts});
+    }
   }
   function renderChart() {
     const chart = $('usageChart');
     if(window.umiUsageCharts){
       chartLabels();
-      window.umiUsageCharts.timeline(chart,report.timeline,{mode:chartMode,hourly:['today','24h'].includes(period),label:copy('Token input và output ước tính theo thời gian','Estimated input and output tokens over time'),language:chartLanguage(),animate:animateCharts});
+      const rows=activeTimeline(report.timeline,chartWindow),hourly=['today','24h'].includes(period);
+      window.umiUsageCharts.timeline(chart,rows,{mode:chartMode,hourly,label:copy('Token input và output ước tính theo thời gian','Estimated input and output tokens over time'),language:chartLanguage(),animate:animateCharts});
       window.umiUsageCharts.composition($('usageComposition'),report.totals,{language:chartLanguage(),label:copy('Tỷ trọng token input và output','Input and output token shares'),animate:animateCharts});
+      window.umiUsageCharts.activity($('usageActivity'),report.timeline,{language:chartLanguage(),hourly,animate:animateCharts});
+      window.umiUsageCharts.outcomes($('usageOutcomes'),report.totals,{language:chartLanguage(),animate:animateCharts});
       const selected=$('usagePeriods').querySelector('[aria-pressed="true"]');
-      $('usageChartScope').textContent=(selected?.textContent||'')+' · '+(report.chartDays?copy('60 ngày gần nhất trên biểu đồ','Last 60 days shown'):copy('Giờ trên máy','Local time'));
+      const range=rows.length?new Intl.DateTimeFormat(chartLanguage()==='en'?'en-US':'vi-VN',hourly?{hour:'2-digit',minute:'2-digit'}:{day:'2-digit',month:'2-digit'}):null;
+      $('usageChartScope').textContent=(selected?.textContent||'')+' · '+(range?range.format(new Date(rows[0].at))+' - '+range.format(new Date(rows.at(-1).at)):'');
+      $('usageChartHint').textContent=(rows.length<report.timeline.length?copy('Đã gọn ngày trống ở hai đầu; giữ ngày trống ở giữa. ','Empty days trimmed at the edges; gaps inside the range remain. '):'')+(report.chartDays?copy('Biểu đồ tối đa 60 ngày gần nhất; tổng tính toàn kỳ. ','Chart shows up to the last 60 days; totals cover the full period. '):'')+copy('Di chuột hoặc dùng ← → để xem số ước tính.','Hover or use ← → to inspect estimates.');
       return;
     }
     if(window.umiCharts){
@@ -144,10 +164,11 @@
   }
   const reset = () => { page = 0; animateCharts=true; void load(); };
   $('usagePeriods').onclick = event => { const button = event.target.closest('[data-period]'); if (!button) return; period = button.dataset.period; for (const item of $('usagePeriods').querySelectorAll('button')) item.setAttribute('aria-pressed',String(item === button)); reset(); };
-  $('usageTabs').onclick = event => { const button = event.target.closest('[data-pane]'); if (!button) return; for (const item of $('usageTabs').querySelectorAll('button')) item.setAttribute('aria-pressed',String(item === button)); for (const name of ['Overview','History','Limits','Diagnostics']) $('usage' + name).hidden = name.toLowerCase() !== button.dataset.pane; if(button.dataset.pane==='overview'){for(const id of ['usageChart','usageComposition','usageRanking'])window.umiUsageCharts?.replay($(id));}else window.umiUsageCharts?.stop(); };
+  $('usageTabs').onclick = event => { const button = event.target.closest('[data-pane]'); if (!button) return; for (const item of $('usageTabs').querySelectorAll('button')) item.setAttribute('aria-pressed',String(item === button)); for (const name of ['Overview','History','Limits','Diagnostics']) $('usage' + name).hidden = name.toLowerCase() !== button.dataset.pane; if(button.dataset.pane==='overview'){for(const id of chartIds)window.umiUsageCharts?.replay($(id));}else window.umiUsageCharts?.stop(); };
   for (const id of ['usageSource','usageApplication','usageTool','usageStatus']) $(id).onchange = () => { if (id === 'usageSource') { $('usageApplication').value='all'; $('usageTool').value='all'; } reset(); };
   $('usageGroup').onchange = () => {animateCharts=true;renderGroups();animateCharts=false;};
   $('usageChartModes').onclick=event=>{const button=event.target.closest('[data-chart-mode]');if(!button||button.dataset.chartMode===chartMode)return;chartMode=button.dataset.chartMode;for(const other of $('usageChartModes').querySelectorAll('button'))other.setAttribute('aria-pressed',String(button===other));if(report){animateCharts=true;renderChart();animateCharts=false;}};
+  $('usageChartWindow').onclick=event=>{const button=event.target.closest('[data-chart-window]');if(!button||button.dataset.chartWindow===chartWindow)return;chartWindow=button.dataset.chartWindow;for(const other of $('usageChartWindow').querySelectorAll('button'))other.setAttribute('aria-pressed',String(button===other));if(report){animateCharts=true;renderChart();animateCharts=false;}};
   $('usageSearch').oninput = () => { clearTimeout(timer); timer = setTimeout(reset, 300); };
   $('usageReload').onclick = () => void load();
   $('usagePrevious').onclick = () => { page--; void load(); };
@@ -165,7 +186,7 @@
     const url = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})), link = element('a');
     link.href = url; link.download = 'umibridge-usage-page-' + (page + 1) + '.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
   };
-  window.addEventListener('umibridge-view', event => { if (event.detail === 'analytics') {animateCharts=true;for(const id of ['usageChart','usageComposition','usageRanking'])window.umiUsageCharts?.replay($(id));void load();}else window.umiUsageCharts?.stop(); });
+  window.addEventListener('umibridge-view', event => { if (event.detail === 'analytics') {animateCharts=true;for(const id of chartIds)window.umiUsageCharts?.replay($(id));void load();}else window.umiUsageCharts?.stop(); });
   $('languageSelect').addEventListener('change',()=>{chartLabels();if(report)render();});
   let chartSize='',chartResizeFrame=0;
   new ResizeObserver(()=>{const chart=$('usageChart'),size=chart.clientWidth+':'+chart.clientHeight;if(size===chartSize)return;chartSize=size;if(report&&chart.clientWidth&&chart.clientHeight&&!chartResizeFrame)chartResizeFrame=requestAnimationFrame(()=>{chartResizeFrame=0;renderChart();});}).observe($('usageChart'));

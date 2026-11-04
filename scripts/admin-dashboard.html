@@ -598,11 +598,16 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
         <div id="usageOverview" class="usage-pane">
           <div class="usage-visual-grid">
             <section class="usage-viz-card usage-viz-timeline" aria-labelledby="usageTimelineTitle">
-              <div class="usage-viz-head"><h3 id="usageTimelineTitle">Token theo thời gian</h3><div id="usageChartModes" class="usage-chart-modes" role="group" aria-label="Kiểu biểu đồ"><button type="button" data-chart-mode="line" aria-pressed="true">Đường</button><button type="button" data-chart-mode="bar" aria-pressed="false">Cột</button></div></div>
+              <div class="usage-viz-head"><h3 id="usageTimelineTitle">Token theo thời gian</h3><div class="usage-viz-controls"><div id="usageChartWindow" class="usage-chart-modes" role="group" aria-label="Khoảng hiển thị"><button type="button" data-chart-window="active" aria-pressed="true">Có hoạt động</button><button type="button" data-chart-window="period" aria-pressed="false">Toàn kỳ</button></div><div id="usageChartModes" class="usage-chart-modes" role="group" aria-label="Kiểu biểu đồ"><button type="button" data-chart-mode="line" aria-pressed="true">Đường</button><button type="button" data-chart-mode="bar" aria-pressed="false">Cột</button></div></div></div>
               <div class="usage-viz-subhead"><span id="usageChartScope"></span><div class="usage-series-legend"><span class="umi-legend-input">Input</span><span class="umi-legend-output">Output</span></div></div>
               <div id="usageChart" class="usage-chart" aria-label="Đang tải biểu đồ"></div><p id="usageChartHint" class="usage-viz-hint"></p>
             </section>
             <section class="usage-viz-card usage-viz-composition" aria-labelledby="usageCompositionTitle"><div class="usage-viz-head"><h3 id="usageCompositionTitle">Cơ cấu token</h3></div><p id="usageCompositionNote" class="usage-viz-hint"></p><div id="usageComposition"></div></section>
+          </div>
+          <div class="usage-insight-grid">
+            <section class="usage-viz-card usage-viz-activity" aria-labelledby="usageActivityTitle"><div class="usage-viz-head"><h3 id="usageActivityTitle">Nhịp hoạt động</h3></div><p id="usageActivityNote" class="usage-viz-hint"></p><div id="usageActivity"></div></section>
+            <section class="usage-viz-card usage-viz-outcomes" aria-labelledby="usageOutcomesTitle"><div class="usage-viz-head"><h3 id="usageOutcomesTitle">Kết quả xử lý</h3></div><p id="usageOutcomesNote" class="usage-viz-hint"></p><div id="usageOutcomes"></div></section>
+            <section class="usage-viz-card usage-viz-latency" aria-labelledby="usageLatencyTitle"><div class="usage-viz-head"><h3 id="usageLatencyTitle">Thời gian theo nhóm</h3></div><p id="usageLatencyNote" class="usage-viz-hint"></p><div id="usageLatencyChart"></div></section>
           </div>
           <section class="usage-viz-card usage-viz-ranking" aria-labelledby="usageRankingTitle">
             <div class="usage-viz-head"><h3 id="usageRankingTitle">Nhóm dùng token nhiều nhất</h3><label class="sr-only" for="usageGroup">Nhóm thống kê</label><select id="usageGroup"><option value="applications">Ứng dụng</option><option value="tools">Công cụ</option><option value="chats">Chat</option><option value="sources">Nguồn</option></select></div>
