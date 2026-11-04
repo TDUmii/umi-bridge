@@ -15,7 +15,8 @@
     const labels={terminalNew:['Phiên mới','New session'],terminalSplit:['Chia đôi','Split view'],terminalRename:['Đổi tên','Rename'],terminalStop:['Ngắt Ctrl+C','Interrupt Ctrl+C'],terminalRefresh:['Làm mới','Refresh'],terminalCreateTitle:['Mở phiên PowerShell','Open a PowerShell session'],terminalNameLabel:['Tên phiên','Session name'],terminalCwdLabel:['Thư mục làm việc','Working folder'],terminalCreateButton:['Mở terminal','Open terminal'],terminalCreateCancel:['Hủy','Cancel'],terminalEmptyTitle:['Terminal của bạn','Your terminal'],terminalEmptyText:['Mở một phiên để chạy lệnh PowerShell trực tiếp. Không có lệnh nào tự chạy khi mở tab.','Open a session to run PowerShell commands directly. Opening this tab does not run commands.'],terminalDetailsTitle:['Chi tiết phiên','Session details'],terminalRecentTitle:['Lệnh gần đây','Recent commands'],terminalPrivacy:['Phiên và output chỉ ở bộ nhớ của gateway, không lưu vào lịch sử request hay Git. Khi gateway khởi động lại, các phiên sẽ đóng.','Sessions and output stay in gateway memory, outside request history and Git. Gateway restart closes sessions.']};
     for(const [id,copy]of Object.entries(labels))$(id).textContent=t(...copy);
     $('terminalTabs').setAttribute('aria-label',t('Các phiên terminal','Terminal sessions'));
-    $('terminalActivityMode').textContent=t('Hoạt động UmiBridge','UmiBridge activity');$('terminalActivityTitle').textContent=t('Lệnh đã ghi nhận','Recorded commands');$('terminalActivityNote').textContent=t('Chỉ đọc lịch sử công cụ đã có. Không hiển thị log nội bộ hoặc dữ liệu đã được ẩn vì riêng tư.','Reads existing tool history only. Internal service logs and redacted private data are not exposed.');
+    $('terminalActivityMode').textContent=t('Hoạt động UmiBridge','UmiBridge activity');$('terminalActivityTitle').textContent=t('Lệnh đã ghi nhận','Recorded commands');$('terminalActivityNote').textContent=t('Lệnh và output đã ghi nhận, hiển thị theo thứ tự thời gian. Chỉ đọc.','Recorded commands and output in chronological order. Read only.');
+    $('terminalLog').setAttribute('aria-label',t('Bản ghi lệnh và output','Recorded command transcript'));
     for(const button of root.querySelectorAll('[data-log-filter]'))button.textContent=({all:t('Tất cả','All'),ok:t('Thành công','Success'),error:t('Lỗi','Error')})[button.dataset.logFilter];
     renderActivity();
     renderTabs();renderInspector();
@@ -52,36 +53,33 @@
     syncOutput();
   }
   function renderActivity(){
-    const target=$('terminalLog'),rows=activity.filter(item=>logFilter==='all'||item.status===logFilter),keep=new Set();
+    const target=$('terminalLog'),rows=activity.filter(item=>logFilter==='all'||item.status===logFilter).reverse(),keep=new Set(rows.map(item=>String(item.id)));
+    const follow=target.dataset.filter!==logFilter||target.scrollHeight-target.clientHeight-target.scrollTop<24,top=target.scrollTop;
+    const anchor=Array.from(target.children).find(child=>child.getBoundingClientRect().bottom>target.getBoundingClientRect().top),offset=anchor?.getBoundingClientRect().top;
+    for(const child of Array.from(target.children))if(!keep.has(child.dataset.id))child.remove();
     const existing=new Map(Array.from(target.querySelectorAll('.terminal-log-entry'),entry=>[entry.dataset.id,entry]));
     let position=target.firstElementChild;
     for(const item of rows){
-      const id=String(item.id),signature=JSON.stringify([vi(),item]),previous=existing.get(id);keep.add(id);
-      let article=previous;
-      if(!article||article.dataset.signature!==signature){
-        article=node('article',null,'terminal-log-entry');article.dataset.id=id;article.dataset.status=item.status;article.dataset.signature=signature;
-        const meta=node('div',null,'terminal-log-meta'),date=new Date(item.timestamp),time=node('time',Number.isFinite(date.getTime())?date.toLocaleString(vi()?'vi-VN':'en-US'):t('Không rõ thời gian','Time unavailable'));
-        if(Number.isFinite(date.getTime()))time.dateTime=date.toISOString();
-        const result=item.status==='error'?t('Lỗi','Error'):item.status==='ok'?t('Thành công','Success'):t('Đang chạy','Running');
-        const duration=Number(item.durationMs),durationLabel=Number.isFinite(duration)?(duration<1000?Math.round(duration)+' ms':(duration/1000).toFixed(2)+' s'):'';
-        meta.append(time,node('strong',item.toolName,'terminal-log-tool'),node('span',result,'terminal-log-result'),node('span',durationLabel,'terminal-log-duration'));
-        const command=node('pre',item.command||item.toolName,'terminal-log-command');command.tabIndex=0;command.title=item.command||item.toolName;
-        article.append(meta,command);
-        const streams=node('div',null,'terminal-log-streams');
-        for(const channel of ['stdout','stderr'])if(item.output?.[channel]){const section=node('section',null,'terminal-log-stream');section.append(node('h4',channel),node('pre',String(item.output[channel]),'terminal-log-text'));streams.append(section);}
-        if(streams.childElementCount){const details=node('details',null,'terminal-log-output');details.open=Boolean(previous?.querySelector('details')?.open);details.append(node('summary',t('Xem output','View output')),streams);article.append(details);}
-        else article.append(node('p',t('Không có output được lưu.','No saved output.'),'terminal-log-empty'));
-        const actions=node('div',null,'terminal-log-actions'),copy=node('button',t('Sao chép lệnh','Copy command'),'terminal-log-copy');copy.type='button';
-        copy.onclick=()=>void navigator.clipboard.writeText(item.command||item.toolName).then(()=>{copy.textContent=t('Đã sao chép','Copied');setTimeout(()=>{if(copy.isConnected)copy.textContent=t('Sao chép lệnh','Copy command');},1500);}).catch(cause=>error(cause.message));
-        actions.append(copy);article.append(actions);
-        if(previous){previous.replaceWith(article);if(position===previous)position=article;}
+      const id=String(item.id);let article=existing.get(id);
+      if(!article){
+        article=node('article',null,'terminal-log-entry');article.dataset.id=id;
+        const command=node('pre',null,'terminal-log-command');command.tabIndex=0;
+        article.append(node('pre',null,'terminal-log-meta'),command,node('pre',null,'terminal-log-text'));
       }
+      article.dataset.status=item.status;
+      const date=new Date(item.timestamp),time=Number.isFinite(date.getTime())?date.toLocaleString(vi()?'vi-VN':'en-US'):t('Không rõ thời gian','Time unavailable');
+      const result=item.status==='error'?t('Lỗi','Error'):item.status==='ok'?t('Thành công','Success'):t('Đang chạy','Running'),duration=Number(item.durationMs);
+      const meta='['+time+'] '+item.toolName+' '+result+(Number.isFinite(duration)?' / '+(duration<1000?Math.round(duration)+' ms':(duration/1000).toFixed(2)+' s'):'');
+      const command=item.command?'PS '+(item.cwd||'')+'> '+item.command:'> '+item.toolName,output=[item.output?.stdout,item.output?.stderr].filter(Boolean).join('\n');
+      for(const [index,value]of [meta,command,output].entries())if(article.children[index].textContent!==value)article.children[index].textContent=value;
       if(article!==position)target.insertBefore(article,position);position=article.nextElementSibling;
     }
-    for(const child of Array.from(target.children))if(!keep.has(child.dataset.id))child.remove();
     if(!rows.length)target.append(node('p',t('Chưa có lệnh được ghi nhận trong bộ lọc này.','No recorded commands match this filter.'),'terminal-log-empty'));
+    target.dataset.filter=logFilter;
+    if(follow)target.scrollTop=target.scrollHeight;
+    else target.scrollTop=anchor?.isConnected?target.scrollTop+anchor.getBoundingClientRect().top-offset:top;
   }
-  function setMode(value){mode=value;inputError=false;error('');$('terminalActivity').hidden=mode!=='activity';$('terminalShellMode').setAttribute('aria-pressed',String(mode==='shell'));$('terminalActivityMode').setAttribute('aria-pressed',String(mode==='activity'));$('terminalCreate').hidden=true;renderTabs();layout();void refresh();}
+  function setMode(value){mode=value;inputError=false;error('');$('terminalActivity').hidden=mode!=='activity';$('terminalPrivacy').hidden=mode!=='shell';$('terminalShellMode').setAttribute('aria-pressed',String(mode==='shell'));$('terminalActivityMode').setAttribute('aria-pressed',String(mode==='activity'));$('terminalCreate').hidden=true;renderTabs();layout();void refresh();}
   function fit(pane){try{if(pane.host.clientWidth<50||pane.host.clientHeight<50||pane.dead)return;pane.fit.fit();if(pane.term.cols>500||pane.term.rows>200)pane.term.resize(Math.min(500,pane.term.cols),Math.min(200,pane.term.rows));const shape=pane.term.cols+':'+pane.term.rows;if(shape===pane.shape)return;pane.shape=shape;void api('/'+pane.id+'/resize',{cols:pane.term.cols,rows:pane.term.rows}).catch(cause=>error(cause.message));}catch(cause){error(cause.message);}}
   function mount(s){
     if(panes.has(s.id))return;

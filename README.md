@@ -32,7 +32,9 @@ Cài mới mặc định dùng công cụ toàn máy với quyền tài khoản 
 
 **Terminal từ 1.14.0:** mở **Terminal → Phiên mới**, đặt tên và thư mục làm việc để dùng Windows PowerShell thật trong dashboard. Có màu ANSI, nhiều phiên, chia đôi, tìm trong output, tự cuộn, Ctrl+C, đổi tên và xuất phần output đang giữ thành tệp. Chi tiết phiên hiển thị thư mục hiện tại, lệnh hoàn tất, exit code và thời gian; bấm lệnh trong lịch sử để sao chép, không tự chạy lại. **Hoạt động UmiBridge** là chế độ chỉ đọc các lệnh công cụ đã ghi nhận, có bộ lọc thành công/lỗi.
 
-**Cải thiện từ 1.14.1:** output được chuyển ngay khi PowerShell có dữ liệu, không đợi nhịp polling 300 ms. Chỉ các console đang hiển thị nhận output liên tục. Lịch sử Hoạt động tách thời gian, trạng thái, thời lượng và lệnh; mở **Xem output** để đọc riêng stdout/stderr, cuộn ngang dòng dài hoặc sao chép lệnh. Làm mới lịch sử giữ phần output đang mở và chỉ đọc các bản ghi đã có.
+**Cải thiện từ 1.14.1:** output được chuyển ngay khi PowerShell có dữ liệu, không đợi nhịp polling 300 ms. Chỉ các console đang hiển thị nhận output liên tục.
+
+**Giao diện Hoạt động từ 1.14.2:** nền đen, chữ xanh lá và font monospace. Lệnh đã ghi nhận cùng output hiện nối tiếp trong một luồng terminal, theo thứ tự thời gian; không chia thành thẻ request hay ẩn output sau nút mở rộng. Luồng tự cuộn theo lệnh mới khi bạn đang ở cuối, giữ vị trí khi bạn cuộn lên đọc. Đây là lịch sử chỉ đọc, không tự chạy lại lệnh.
 
 Terminal tương tác chỉ dùng tại địa chỉ local trên máy Windows, không mở qua tunnel. Mở tab không tự tạo shell hay chạy lệnh. Phiên/output nằm trong bộ nhớ, lịch sử PSReadLine không lưu xuống đĩa; đóng phiên sẽ dừng tiến trình của phiên đó, khởi động lại gateway sẽ đóng tất cả phiên. Tối đa 8 phiên, mỗi phiên giữ phần output gần nhất trong giới hạn bộ nhớ. Gói setup tự tải xterm.js và runtime ConPTY đi kèm, không yêu cầu tự cài terminal riêng.
 

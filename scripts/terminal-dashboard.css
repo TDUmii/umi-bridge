@@ -736,14 +736,15 @@ body:not(.dark) #terminal-view .terminal-host {
 }
 
 /* --------------------------------------------------------------------------
-   13. Read-only Console Activity Log: #terminalActivity.terminal-activity
-   Shares .terminal-console shell, contains .terminal-toolbar & #terminalLog.terminal-log-body
+   13. Read-only Terminal Transcript: #terminalActivity.terminal-console.terminal-activity
+   True black continuous transcript, bright green hacker style, chronological input -> output
    -------------------------------------------------------------------------- */
 #terminal-view #terminalModes {
   display: inline-flex;
   margin-bottom: 14px;
 }
 
+#terminal-view #terminalActivity.terminal-console:not([hidden]),
 #terminal-view .terminal-activity.terminal-console:not([hidden]) {
   display: flex;
   flex-direction: column;
@@ -781,7 +782,7 @@ body:not(.dark) #terminal-view .terminal-host {
 }
 
 /* Filter buttons with monospace native filter styling */
-#terminal-view .terminal-log-filters {
+#terminal-view .terminal-activity .terminal-log-filters {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -791,8 +792,8 @@ body:not(.dark) #terminal-view .terminal-host {
   border-radius: 7px;
 }
 
-#terminal-view .terminal-log-filters button {
-  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace !important;
+#terminal-view .terminal-activity .terminal-log-filters button {
+  font-family: Consolas, 'Cascadia Mono', 'Courier New', ui-monospace, monospace !important;
   font-size: 11px !important;
   font-weight: 600 !important;
   min-height: 24px !important;
@@ -806,18 +807,18 @@ body:not(.dark) #terminal-view .terminal-host {
   transition: background 0.12s ease, color 0.12s ease;
 }
 
-#terminal-view .terminal-log-filters button:hover {
+#terminal-view .terminal-activity .terminal-log-filters button:hover {
   color: var(--ink) !important;
   background: var(--surface-hover) !important;
 }
 
-#terminal-view .terminal-log-filters button[aria-pressed="true"] {
+#terminal-view .terminal-activity .terminal-log-filters button[aria-pressed="true"] {
   background: var(--surface-raised) !important;
   color: var(--ink) !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
 }
 
-body:not(.dark) #terminal-view .terminal-log-filters button[aria-pressed="true"] {
+body:not(.dark) #terminal-view .terminal-activity .terminal-log-filters button[aria-pressed="true"] {
   background: #ffffff !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
 }
@@ -835,20 +836,37 @@ body:not(.dark) #terminal-view .terminal-log-filters button[aria-pressed="true"]
   background: var(--surface-raised);
 }
 
-/* Log body container */
+/* Continuous true black transcript field (both light & dark modes) */
 #terminal-view #terminalLog.terminal-log-body,
 #terminal-view .terminal-log-body {
   display: flex;
   flex-direction: column;
+  background: #050805 !important;
+  color: #87f69a !important;
   max-height: clamp(380px, calc(100vh - 280px), 760px);
-  min-height: 240px;
+  min-height: 280px;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0;
-  background: var(--surface);
+  padding: 14px 16px;
+  font-family: Consolas, 'Cascadia Mono', 'Courier New', ui-monospace, monospace;
+  font-size: 12.5px;
+  line-height: 1.45;
   scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-color: rgba(135, 246, 154, 0.25) transparent;
   box-sizing: border-box;
+}
+
+body:not(.dark) #terminal-view #terminalLog.terminal-log-body,
+body:not(.dark) #terminal-view .terminal-log-body {
+  background: #050805 !important;
+  color: #87f69a !important;
+}
+
+#terminal-view #terminalLog.terminal-log-body:focus-visible,
+#terminal-view .terminal-log-body:focus-visible {
+  outline: 2px solid #87f69a !important;
+  outline-offset: -2px !important;
+  box-shadow: 0 0 0 3px rgba(135, 246, 154, 0.25) !important;
 }
 
 #terminal-view .terminal-log-body::-webkit-scrollbar {
@@ -856,302 +874,106 @@ body:not(.dark) #terminal-view .terminal-log-filters button[aria-pressed="true"]
 }
 
 #terminal-view .terminal-log-body::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
+  background: rgba(135, 246, 154, 0.25);
   border-radius: 3px;
 }
 
-/* Empty log message */
+/* Empty transcript message */
 #terminal-view p.terminal-log-empty {
   margin: 0;
-  padding: 24px 16px;
-  font-size: 13px;
-  color: var(--muted);
+  padding: 32px 16px;
+  font-size: 12px;
+  color: #5cb870;
   text-align: center;
+  font-family: Consolas, 'Cascadia Mono', 'Courier New', ui-monospace, monospace;
 }
 
-#terminal-view details.terminal-log-output p.terminal-log-empty {
-  padding: 8px 10px;
-  font-size: 11px;
-  text-align: left;
-  font-style: italic;
-}
-
-/* Revised Log Entry Contract: Single-column flex timeline */
+/* Continuous transcript item: no cards, no borders, small blank line between commands */
 #terminal-view article.terminal-log-entry {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px 12px 18px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-  position: relative;
+  margin: 0 0 12px 0;
+  padding: 0;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
   min-width: 0;
   box-sizing: border-box;
-  transition: background 0.12s ease;
 }
 
 #terminal-view article.terminal-log-entry:last-child {
-  border-bottom: 0;
+  margin-bottom: 0;
 }
 
-#terminal-view article.terminal-log-entry:hover {
-  background: var(--surface-hover);
+#terminal-view article.terminal-log-entry::before,
+#terminal-view article.terminal-log-entry::after {
+  content: none !important;
 }
 
-/* Left status indicator: subtle 1px stripe */
-#terminal-view article.terminal-log-entry::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--line-strong);
-}
-
-#terminal-view article.terminal-log-entry[data-status="ok"]::before {
-  background: var(--signal-ok, #34d399);
-}
-
-#terminal-view article.terminal-log-entry[data-status="error"]::before {
-  background: var(--signal-err, #f87171);
-}
-
-#terminal-view article.terminal-log-entry[data-status="pending"]::before {
-  background: var(--signal-warn, #fbbf24);
-}
-
-/* Metadata header */
-#terminal-view .terminal-log-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  font-size: 12px;
+/* Muted but AA readable green metadata (timestamp / tool / result / duration) */
+#terminal-view pre.terminal-log-meta {
+  margin: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11px;
   line-height: 1.4;
-  min-width: 0;
-}
-
-#terminal-view .terminal-log-meta time {
-  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 11px;
-  color: var(--soft);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-#terminal-view .terminal-log-meta .terminal-log-tool {
-  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink);
-  white-space: nowrap;
-}
-
-#terminal-view .terminal-log-meta .terminal-log-result {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  background: var(--surface-raised);
-  color: var(--muted);
-  border: 1px solid var(--line);
-}
-
-#terminal-view article.terminal-log-entry[data-status="ok"] .terminal-log-result {
-  background: var(--signal-ok-bg, color-mix(in srgb, var(--signal-ok, #34d399) 12%, transparent));
-  color: var(--signal-ok, #34d399);
-  border-color: var(--signal-ok-border, color-mix(in srgb, var(--signal-ok, #34d399) 24%, transparent));
-}
-
-#terminal-view article.terminal-log-entry[data-status="error"] .terminal-log-result {
-  background: var(--signal-err-bg, color-mix(in srgb, var(--signal-err, #f87171) 12%, transparent));
-  color: var(--signal-err, #f87171);
-  border-color: var(--signal-err-border, color-mix(in srgb, var(--signal-err, #f87171) 24%, transparent));
-}
-
-#terminal-view article.terminal-log-entry[data-status="pending"] .terminal-log-result {
-  background: var(--signal-warn-bg, color-mix(in srgb, var(--signal-warn, #fbbf24) 12%, transparent));
-  color: var(--signal-warn, #fbbf24);
-  border-color: var(--signal-warn-border, color-mix(in srgb, var(--signal-warn, #fbbf24) 24%, transparent));
-}
-
-#terminal-view .terminal-log-meta .terminal-log-duration {
-  margin-left: auto;
-  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 11px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-/* Command preview: bounded to <= 3 lines via line-clamp, selectable/copyable */
-#terminal-view pre.terminal-log-command {
-  margin: 0;
-  padding: 8px 12px;
-  background: var(--surface-raised);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--ink);
+  color: #5cb870;
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: normal;
   overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  overflow: hidden;
-  max-width: 100%;
-  box-sizing: border-box;
   user-select: text;
+  background: transparent !important;
+  border: 0 !important;
 }
 
-/* Output details */
-#terminal-view details.terminal-log-output {
-  margin-top: 2px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--canvas);
-  overflow: hidden;
-  min-width: 0;
-  width: 100%;
-  box-sizing: border-box;
+#terminal-view article.terminal-log-entry[data-status="error"] pre.terminal-log-meta {
+  color: #f87171;
 }
 
-#terminal-view details.terminal-log-output summary {
-  padding: 6px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-  user-select: none;
-  background: var(--surface-raised);
-  border-bottom: 1px solid transparent;
-  transition: background 0.12s ease, color 0.12s ease;
-  list-style-position: inside;
-}
-
-#terminal-view details.terminal-log-output summary:hover {
-  background: var(--surface-hover);
-  color: var(--ink);
-}
-
-#terminal-view details.terminal-log-output[open] summary {
-  border-bottom-color: var(--line);
-}
-
-/* Output streams container */
-#terminal-view .terminal-log-streams {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 10px;
-  max-height: 320px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  box-sizing: border-box;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
-}
-
-#terminal-view .terminal-log-streams::-webkit-scrollbar {
-  width: 6px;
-}
-
-#terminal-view .terminal-log-streams::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
-  border-radius: 3px;
-}
-
-#terminal-view section.terminal-log-stream {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-#terminal-view section.terminal-log-stream > h4 {
-  margin: 0;
-  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 10px;
+/* Command: PS cwd> command in brighter green */
+#terminal-view pre.terminal-log-command {
+  margin: 2px 0 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12.5px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--soft);
-}
-
-/* Raw multiline text preserved in pre with horizontal scroll instead of 1-char collapse */
-#terminal-view pre.terminal-log-text {
-  margin: 0;
-  padding: 8px 10px;
-  background: #08080a !important;
-  color: #f5f5f7 !important;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 11px;
   line-height: 1.45;
-  white-space: pre;
-  overflow-x: auto;
-  overflow-y: visible;
-  max-width: 100%;
-  box-sizing: border-box;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
+  color: #b5ffc4;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  user-select: text;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  display: block !important;
+  overflow: visible !important;
+  -webkit-line-clamp: unset !important;
 }
 
-body:not(.dark) #terminal-view pre.terminal-log-text {
-  background: #0d0d11 !important;
-  color: #f5f5f7 !important;
+/* Output belongs directly to command, legible green #87f69a, multiline pre-wrap */
+#terminal-view pre.terminal-log-text {
+  margin: 3px 0 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: #87f69a !important;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  user-select: text;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
 }
 
-#terminal-view pre.terminal-log-text::-webkit-scrollbar {
-  height: 6px;
-}
-
-#terminal-view pre.terminal-log-text::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
-  border-radius: 3px;
-}
-
-/* Bottom actions */
-#terminal-view .terminal-log-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 2px;
-}
-
-#terminal-view button.terminal-log-copy {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 3px 8px;
-  min-height: 26px;
-  font-size: 11px;
-  font-weight: 600;
-  border-radius: 5px;
-  background: var(--surface-raised);
-  border: 1px solid var(--line);
-  color: var(--muted);
-  cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
-}
-
-#terminal-view button.terminal-log-copy:hover {
-  background: var(--surface-hover);
-  border-color: var(--line-strong);
-  color: var(--ink);
+#terminal-view pre.terminal-log-text:empty {
+  display: none;
 }
 
 /* --------------------------------------------------------------------------
@@ -1270,18 +1092,21 @@ body:not(.dark) #terminal-view pre.terminal-log-text {
   #terminal-view .terminal-activity .terminal-toolbar .terminal-log-filters {
     width: 100%;
     justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
-  #terminal-view article.terminal-log-entry {
+  #terminal-view #terminalLog.terminal-log-body,
+  #terminal-view .terminal-log-body {
     padding: 10px 12px;
+    font-size: 11.5px;
   }
 
-  #terminal-view .terminal-log-meta {
-    gap: 6px;
+  #terminal-view pre.terminal-log-command,
+  #terminal-view pre.terminal-log-text {
+    font-size: 11.5px;
   }
 
-  #terminal-view .terminal-log-meta .terminal-log-duration {
-    margin-left: 0;
-    width: 100%;
+  #terminal-view pre.terminal-log-meta {
+    font-size: 10.5px;
   }
 }
