@@ -27,6 +27,8 @@
 <script defer src="/admin/help-center.js"></script>
 <script defer src="/admin/usage-charts.js"></script>
 <script defer src="/admin/usage-dashboard.js"></script>
+<link rel="stylesheet" href="/admin/browser-sessions.css">
+<script defer src="/admin/browser-sessions.js"></script>
 <style>
 :root{
   color-scheme:light;--ink:#222743;--muted:#68728f;--soft:#8c95ab;--surface:#fff;--canvas:#f4f6fc;
@@ -664,6 +666,21 @@ main{width:100%;max-width:1550px;padding:28px 32px 36px}
             <details id="toolHealthDetails" hidden><summary>View tool results</summary><div id="toolHealthResults"></div></details>
           </div>
           <p class="permissions-intro">Choose which tools ChatGPT can call.</p>
+          <section id="browserSessions" class="browser-sessions" aria-labelledby="browserSessionsTitle">
+            <div class="browser-sessions-head"><div><h3 id="browserSessionsTitle">Chrome sessions</h3><p id="browserSessionsIntro"></p></div><button id="browserRefresh" class="btn small" type="button">Refresh</button></div>
+            <p id="browserStatus" role="status" aria-live="polite"></p>
+            <div class="browser-sessions-controls">
+              <label for="browserInstance"><span id="browserInstanceLabel">Chrome instance</span><select id="browserInstance"></select></label>
+              <label for="browserConcurrency"><span id="browserConcurrencyLabel">Parallel tabs</span><select id="browserConcurrency"><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label>
+              <button id="browserDemo" class="btn" type="button">Run two-tab demo</button><button id="browserDemoClose" class="btn small" type="button" hidden>Close test tabs</button>
+            </div>
+            <p id="browserDemoStatus" role="status" aria-live="polite"></p>
+            <form id="browserSessionForm" class="browser-session-form"><label for="browserTab"><span id="browserTabLabel">Target tab</span><select id="browserTab" required></select></label><button id="browserCreateSession" class="btn small" type="submit">Bind session</button></form>
+            <div id="browserSessionList" class="browser-session-list"></div>
+            <p id="browserSessionNote" class="browser-session-note"></p>
+            <details class="browser-session-events"><summary id="browserEventsTitle">Session events</summary><ol id="browserEvents"></ol></details>
+            <p id="browserMessage" role="status" aria-live="polite"></p>
+          </section>
           <div class="mcp-guidance">
             <div class="guidance-heading"><div><h3 id="autoPromptLabel">Automatic skill guidance</h3><p>Suggest enabled skills when they fit the task.</p></div><div class="permission-control"><span id="autoPromptState" class="permission-state">Checking...</span><button id="autoPromptToggle" class="permission-switch" type="button" role="switch" aria-checked="false" aria-labelledby="autoPromptLabel" disabled></button></div></div>
             <details id="mcpGuidanceDetail" class="guidance-detail"><summary>View MCP guidance</summary><p>MCP guidance does not run scripts or replace ChatGPT's rules and approvals.</p><pre id="mcpPromptPreview" tabindex="0">Loading...</pre></details>

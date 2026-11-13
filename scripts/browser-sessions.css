@@ -1,0 +1,24 @@
+/* Antigravity CLI composition, scoped to the existing dashboard tokens. */
+.browser-sessions{border-top:1px solid var(--line);padding-block:24px;margin-block:24px}
+.browser-sessions-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.browser-sessions-head h3{margin:0;color:var(--ink)}
+.browser-sessions-head p{color:var(--muted);margin:4px 0 0;max-width:70ch}
+.browser-sessions-controls,.browser-session-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;margin-block:18px}
+.browser-sessions-controls label,.browser-session-form label{display:grid;gap:6px;color:var(--ink);min-width:0;max-width:100%}
+.browser-sessions-controls select,.browser-session-form select{min-height:40px;max-width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit}
+.browser-session-row{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 0;border-bottom:1px solid var(--line)}
+.browser-session-row>div:first-child{display:grid;min-width:0;overflow-wrap:anywhere;gap:4px}
+.browser-session-row small,.browser-session-note{color:var(--muted);font-size:13px}
+.browser-session-actions{display:flex;flex-wrap:wrap;gap:8px;flex-shrink:0}
+.browser-session-note{margin-top:12px;max-width:75ch}
+.browser-session-events{margin-top:18px}
+.browser-session-events ol{max-height:180px;overflow:auto;margin:8px 0 0;padding-left:20px;color:var(--muted);font-variant-numeric:tabular-nums}
+.browser-session-events li{padding-block:4px;overflow-wrap:anywhere}
+.browser-sessions :focus-visible,.browser-fixture :focus-visible{outline:2px solid currentColor;outline-offset:3px}
+.browser-fixture{background:#101012;color:#f4f4f5;font-family:"Segoe UI",system-ui,sans-serif;margin:0;padding:32px;color-scheme:dark}
+.browser-fixture main{max-width:720px;margin:0 auto}
+.browser-fixture label{display:block;margin-bottom:8px}
+.browser-fixture input,.browser-fixture button{border:1px solid #52525b;background:#202024;color:inherit;padding:12px;border-radius:8px;font:inherit;box-sizing:border-box;max-width:100%}
+.browser-fixture output{display:block;margin:24px 0;padding:16px;border:1px solid #52525b;background:#18181b;border-radius:8px;overflow-wrap:anywhere}
+.browser-fixture-space{height:1800px}
+@media(max-width:600px){.browser-session-row{flex-direction:column;align-items:stretch}.browser-sessions-controls label,.browser-session-form label{width:100%}.browser-session-actions{flex-shrink:1}.browser-fixture{padding:20px}}

@@ -13,6 +13,13 @@ function Test-UmiWorkActive([int]$Port = 43127) {
                 if (@($run.steps | Where-Object { $_.status -in @('dispatching','running','waiting') }).Count) { return $true }
             }
         }
+        try {
+            $chrome = Invoke-RestMethod -Uri ("http://127.0.0.1:$Port/admin/api/chrome/sessions") -TimeoutSec 5
+            if ($chrome.busy -gt 0 -or $chrome.pending -gt 0 -or $chrome.demo.status -eq 'running') { return $true }
+        } catch {
+            # Older gateways do not expose browser sessions. Other errors fail closed.
+            if ([int]$_.Exception.Response.StatusCode -ne 404) { return $true }
+        }
         return $false
     } catch { return $true }
 }

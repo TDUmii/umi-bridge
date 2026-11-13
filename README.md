@@ -30,6 +30,12 @@ Cài mới mặc định dùng công cụ toàn máy với quyền tài khoản 
 
 ## ✨ Tính năng
 
+**Phiên Chrome chạy nền từ 1.17.0 - bản thử:** vào **Bộ công cụ → Phiên Chrome**, bật Browser control trên extension **0.12.1** rồi bấm **Chạy demo 2 tab**. Umi mở hai trang kiểm thử nội bộ ở nền, gõ chuỗi riêng, click, cuộn và đọc lại kết quả. Demo không truy cập tài khoản, không chụp desktop và không chạy khi chỉ mở dashboard. Nút **Đóng tab kiểm thử** chỉ đóng đúng các trang demo còn nguyên URL; tab bạn đã chuyển sang trang khác được giữ lại.
+
+Mỗi phiên gắn với một Chrome instance, một tab và một origin. Lệnh trong một tab giữ thứ tự; các tab độc lập chạy song song, mặc định 2 và tối đa 4. Có Tạm dừng, Tiếp tục, Dừng và Repair sau đối chiếu. Repair không tự phát lại lệnh cũ. Các phiên và hàng đợi nằm trong bộ nhớ, không tự khởi chạy lại sau khi gateway khởi động. Tab cùng profile vẫn dùng chung đăng nhập; đây chưa phải cách ly nhiều tài khoản hay nhiều desktop Windows.
+
+Trong chat, `chrome_control` với `action: "sessions"` trả danh tính các Chrome instance và phiên đã gắn. Dùng `session_id` cho phiên hoặc `instance_id` cùng `tab_id` để chọn đích rõ ràng. `wait` và `wait_for` kiểm tra điều kiện trang có thời hạn. Tab mới mặc định không active; thao tác chạy qua Chrome, không tự chuyển sang công cụ chuột/phím Windows. Sau cập nhật, Reload extension trong Chrome và làm mới kết nối UmiBridge trong ChatGPT để nhận schema mới. Thiết lập Browser control và quyền website đã chọn vẫn được giữ.
+
 **Terminal từ 1.14.0:** mở **Terminal → Phiên mới**, đặt tên và thư mục làm việc để dùng Windows PowerShell thật trong dashboard. Có màu ANSI, nhiều phiên, chia đôi, tìm trong output, tự cuộn, Ctrl+C, đổi tên và xuất phần output đang giữ thành tệp. Chi tiết phiên hiển thị thư mục hiện tại, lệnh hoàn tất, exit code và thời gian; bấm lệnh trong lịch sử để sao chép, không tự chạy lại. **Hoạt động UmiBridge** là chế độ chỉ đọc các lệnh công cụ đã ghi nhận, có bộ lọc thành công/lỗi.
 
 **Cải thiện từ 1.14.1:** output được chuyển ngay khi PowerShell có dữ liệu, không đợi nhịp polling 300 ms. Chỉ các console đang hiển thị nhận output liên tục.
@@ -105,6 +111,8 @@ Các bước cần chủ tài khoản như đăng nhập tunnel, cấp quyền C
 ## English
 
 UmiBridge is a Windows MCP gateway for ChatGPT with a local administration dashboard. It offers owner-selected file, shell, Windows desktop and Chrome tools, plus Corp workflows and Arena Beta.
+
+Version 1.17.0 adds a Chrome background-session trial with extension 0.12.1: per-instance/tab/origin bindings, ordered actions per tab and 2-4 independent tab lanes. Tools → Chrome sessions includes an explicit two-tab local demo and owned-tab cleanup. Sessions are memory-only; repair never replays unconfirmed actions. Tabs in one browser profile share login state. This feature does not isolate Windows desktop input. Reload the existing extension and refresh the ChatGPT connector after updating.
 
 ### Installation
 

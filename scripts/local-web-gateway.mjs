@@ -1,6 +1,7 @@
 import {corpChatTools} from './corp-chat.mjs';
 import {createToolHealth} from './tool-health.mjs';
 import {createChromeBridge,chromeTool} from './chrome-bridge.mjs';
+import {registerBrowserSessionRoutes} from './browser-session-routes.mjs';
 import {createTerminalRuntime} from './terminal-runtime.mjs';
 import {mountTerminalRoutes,directTerminalRequest} from './terminal-routes.mjs';
 import express from 'express';
@@ -318,8 +319,8 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
         next();
       };
       if (![issuer.host, `127.0.0.1:${boundPort}`, `localhost:${boundPort}`].includes(req.headers.host)) {
-        // The public-facing local launcher preserves its own port for Terminal's Origin checks.
-        if(req.path==='/admin/api/terminal'||req.path.startsWith('/admin/api/terminal/'))return directTerminalRequest(req,res,finish);
+        // Owner-only terminal/browser routes preserve the launcher's port for Origin checks.
+        if(req.path==='/admin/api/terminal'||req.path.startsWith('/admin/api/terminal/')||req.path.startsWith('/admin/api/chrome/')||req.path.startsWith('/admin/chrome/fixture'))return directTerminalRequest(req,res,finish);
         return res.sendStatus(403);
       }
       finish();
@@ -452,6 +453,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
       try { res.json(await action(req)); }
       catch (error) { res.status(['invalid_corp_key','invalid_arena_key'].includes(error.message) ? 401 : error.message.endsWith('_not_found') ? 404 : 400).json({ error: error.message }); }
     };
+    registerBrowserSessionRoutes(app,{bridge:chromeBridge,localAdmin,adminWrite,json:express.json({limit:'8kb'}),handler:corpHandler});
     const protectedTool=name=>scopedToolSpecs.some(tool=>tool.name===name)||['list_skills','read_skill','windows_status','dc_status',chromeTool.name,...corpChatTools.map(tool=>tool.name)].includes(name);
     app.get('/admin/api/orchestration',localAdmin,corpHandler(()=>({settings:orchestration.settings(),execution:execution.snapshot()})));
     app.post('/admin/api/orchestration',localAdmin,adminWrite,corpJson,corpHandler(async req=>{
@@ -553,7 +555,7 @@ export async function startGateway({ port = 8767, publicUrl, connectionSecret, c
     app.use('/admin/fonts', localAdmin, express.static(resolve(ROOT, 'scripts/fonts'), {dotfiles:'deny', index:false}));
     const terminalAssets={'xterm.js':'@xterm/xterm/lib/xterm.js','xterm.css':'@xterm/xterm/css/xterm.css','addon-fit.js':'@xterm/addon-fit/lib/addon-fit.js','addon-search.js':'@xterm/addon-search/lib/addon-search.js'};
     for(const [asset,relative]of Object.entries(terminalAssets))app.get('/admin/terminal-assets/'+asset,localAdmin,(_req,res)=>res.sendFile(resolve(ROOT,'node_modules',relative)));
-    for(const asset of ['terminal-dashboard.js','terminal-dashboard.css'])app.get('/admin/'+asset,localAdmin,(_req,res)=>res.sendFile(resolve(ROOT,'scripts',asset)));
+    for(const asset of ['terminal-dashboard.js','terminal-dashboard.css','browser-sessions.js','browser-sessions.css'])app.get('/admin/'+asset,localAdmin,(_req,res)=>res.set('Cache-Control','no-store').sendFile(resolve(ROOT,'scripts',asset)));
     for (const asset of ['corp-git-ui.js','corp-git-ui.css','orchestration-dashboard.js','orchestration-dashboard.css','help-center.js', 'model-settings.js', 'corp-dashboard.js', 'corp-dashboard.css', 'arena-dashboard.js', 'arena-dashboard.css', 'dashboard-experience.js', 'dashboard-experience.css','dashboard-motion.js','dashboard-motion.css','dashboard-atmosphere.css', 'folder-dialog.js', 'usage-dashboard.js', 'usage-charts.js', 'usage-charts.css', 'console.css']) {
       app.get('/admin/' + asset, localAdmin, (_req, res) => res.sendFile(resolve(ROOT, 'scripts', asset)));
     }
