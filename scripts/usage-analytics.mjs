@@ -2,18 +2,21 @@ import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 
 const DAY = 86400_000;
+const GROUP_FIELDS = Object.entries({
+  applications: 'application', tools: 'tool', chats: 'chat', sources: 'source',
+  projects: 'project', tasks: 'dagTask', workers: 'worker', roles: 'role', attempts: 'attempt',
+});
 const nonnegative = value => Number.isFinite(value) && value >= 0;
 const label = value => typeof value === 'string' ? value.slice(0, 160) : '';
 const empty = () => ({ requests: 0, success: 0, errors: 0, pending: 0, measured: 0, partial: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, durationMs: 0, timed: 0, inputBytes: 0, outputBytes: 0,retryRequests:0,retryTokens:0,dependencyWaitMs:0,verifiedTasks:0,failedTasks:0,limitBlocked:0 });
 
-function normalize(entry, source) {
-  if (!entry?.id || typeof entry.timestamp !== 'string' || !Number.isFinite(Date.parse(entry.timestamp))) return null;
+function normalize(entry, source, stamp) {
   const usage = entry.usage || {};
   const valid = usage.estimated === true && usage.method === 'o200k_base' &&
     (usage.totalTokens == null || usage.totalTokens === usage.inputTokens + usage.outputTokens);
   const token = key => valid && Number.isSafeInteger(usage[key]) && usage[key] >= 0 ? usage[key] : null;
   const inputTokens = token('inputTokens'), outputTokens = token('outputTokens');
-  return { id: label(entry.id), timestamp: new Date(entry.timestamp).toISOString(), source, provider: label(entry.provider) || 'unknown',
+  return { id: label(entry.id), timestamp: new Date(stamp).toISOString(), source, provider: label(entry.provider) || 'unknown',
     application: label(entry.clientName) || 'Unknown app', tool: label(entry.toolName) || 'unknown',
     chat: source !== 'mcp' ? label(entry.chatId) : '', task: source !== 'mcp' ? label(entry.title) : '',
     project:label(entry.projectId),run:label(entry.runId),dagTask:label(entry.taskId),worker:label(entry.workerId),role:label(entry.roleId),attempt:label(entry.attemptId),
@@ -32,7 +35,11 @@ function add(bucket, row) {
   bucket[row.status === 'ok' ? 'success' : row.status === 'error' ? 'errors' : 'pending']++;
   if (row.totalTokens !== null) bucket.measured++;
   if (row.partial && row.totalTokens !== null) bucket.partial++;
-  for (const key of ['inputTokens', 'outputTokens', 'totalTokens', 'inputBytes', 'outputBytes']) bucket[key] += row[key] || 0;
+  bucket.inputTokens += row.inputTokens || 0;
+  bucket.outputTokens += row.outputTokens || 0;
+  bucket.totalTokens += row.totalTokens || 0;
+  bucket.inputBytes += row.inputBytes || 0;
+  bucket.outputBytes += row.outputBytes || 0;
   if (row.durationMs !== null) { bucket.durationMs += row.durationMs; bucket.timed++; }
   if(row.retries>0){bucket.retryRequests++;bucket.retryTokens+=row.totalTokens||0;}
   bucket.dependencyWaitMs+=row.dependencyWaitMs;bucket.verifiedTasks+=Number(row.verification==='verified');bucket.failedTasks+=Number(row.taskStatus==='failed'||row.verification==='failed');bucket.limitBlocked+=Number(row.limitBlocked);
@@ -51,7 +58,7 @@ export async function readUsageReport(filePath, filters = {}, corpUsage = [], no
   const limit = 50, keep = (page + 1) * limit;
   const source = ['mcp', 'corp', 'arena'].includes(filters.source) ? filters.source : 'all';
   const search = label(filters.search).toLowerCase();
-  const total = empty(), groups = Object.fromEntries(['applications','tools','chats','sources','projects','tasks','workers','roles','attempts'].map(key=>[key,new Map()]));
+  const total = empty(), groups = Object.fromEntries(GROUP_FIELDS.map(([key]) => [key, new Map()]));
   const options = { applications: new Set(), tools: new Set() }, timeline = new Map();
   const hourly = period === 'today' || period === '24h', unit = hourly ? 3600_000 : DAY;
   const chartSince = Math.max(since, midnight - 59 * DAY);
@@ -59,19 +66,25 @@ export async function readUsageReport(filePath, filters = {}, corpUsage = [], no
   for (let stamp = bucketKey(chartSince); stamp <= now; stamp += unit) timeline.set(stamp, empty());
   let rows = [];
   function accept(entry, origin) {
-    const row = normalize(entry, origin);
-    if (!row) return;
-    const stamp = Date.parse(row.timestamp);
-    if (stamp < since || stamp > now || (source !== 'all' && row.source !== source)) return;
+    if (!entry?.id || typeof entry.timestamp !== 'string') return;
+    const stamp = Date.parse(entry.timestamp);
+    if (!Number.isFinite(stamp) || stamp < since || stamp > now || (source !== 'all' && origin !== source)) return;
+    const row = normalize(entry, origin, stamp);
     options.applications.add(row.application); options.tools.add(row.tool);
     if (filters.application && filters.application !== 'all' && filters.application !== row.application) return;
     if (filters.tool && filters.tool !== 'all' && filters.tool !== row.tool) return;
     if (filters.status && filters.status !== 'all' && filters.status !== row.status) return;
     if (search && ![row.id, row.application, row.tool, row.chat, row.task].some(value => value.toLowerCase().includes(search))) return;
     add(total, row);
-    for (const [dimension, name] of Object.entries({ applications: row.application, tools: row.tool, chats: row.chat || 'unassigned', sources: row.source,projects:row.project||'unassigned',tasks:row.dagTask||'unassigned',workers:row.worker||'unassigned',roles:row.role||'unassigned',attempts:row.attempt||'unassigned' })) {
-      const group = groups[dimension].get(name) || { name, ...empty() };
-      add(group, row); groups[dimension].set(name, group);
+    for (const [dimension, field] of GROUP_FIELDS) {
+      const buckets = groups[dimension];
+      const name = row[field] || 'unassigned';
+      let group = buckets.get(name);
+      if (!group) {
+        group = { name, ...empty() };
+        buckets.set(name, group);
+      }
+      add(group, row);
     }
     const bucket = timeline.get(bucketKey(stamp));
     if (stamp >= chartSince && bucket) add(bucket, row);

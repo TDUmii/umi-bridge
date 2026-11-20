@@ -1,0 +1,25 @@
+[package]
+name = "umi-tokenizer"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Native O200K byte-pair token counting for UmiBridge"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+napi = "3"
+napi-derive = "3"
+rustc-hash = "2"
+tiktoken-rs = "=0.12.1"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+strip = "symbols"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

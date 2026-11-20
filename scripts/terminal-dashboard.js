@@ -140,7 +140,9 @@
     }finally{if(pane.stream===controller)pane.stream=null;if(controller.signal.aborted&&panes.get(pane.id)===pane&&outputVisible(pane))syncOutput();}
   }
   function updateInspector(){
-    const signature=JSON.stringify(selected());if($('terminalDetails').dataset.signature!==signature){$('terminalDetails').dataset.signature=signature;renderInspector();}
+    const session=selected(),details=$('terminalDetails');
+    const signature=session?JSON.stringify([session.id,session.shell,session.cwd,session.status,session.exitCode,session.history?.slice(-8)]):'';
+    if(details.dataset.signature!==signature){details.dataset.signature=signature;renderInspector();}
   }
   async function poll(){
     clearTimeout(pollTimer);if(polling)return;polling=true;const shown=root.classList.contains('view-active')&&!document.hidden;

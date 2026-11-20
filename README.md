@@ -50,6 +50,8 @@ Trong chat, `chrome_control` với `action: "sessions"` trả danh tính các Ch
 
 Terminal tương tác chỉ dùng tại địa chỉ local trên máy Windows, không mở qua tunnel. Mở tab không tự tạo shell hay chạy lệnh. Phiên/output nằm trong bộ nhớ, lịch sử PSReadLine không lưu xuống đĩa; đóng phiên sẽ dừng tiến trình của phiên đó, khởi động lại gateway sẽ đóng tất cả phiên. Tối đa 8 phiên, mỗi phiên giữ phần output gần nhất trong giới hạn bộ nhớ. Gói setup tự tải xterm.js và runtime ConPTY đi kèm, không yêu cầu tự cài terminal riêng.
 
+**Hiệu năng từ 1.18.0:** Setup Windows x64 tích hợp bộ đếm token Rust cho MCP, Corp và Arena. Cách tính `o200k_base`, giới hạn đo và định dạng lịch sử được giữ nguyên. Phân tích lọc nhật ký nhanh hơn, và Terminal chỉ cập nhật chi tiết phiên khi thông tin hiển thị thay đổi. Khi addon không khả dụng, UmiBridge dùng bộ đếm JavaScript.
+
 **Bản 1.13.2:** ô tìm kiếm dùng một khung thống nhất, gồm biểu tượng, nội dung nhập và nút xóa; focus bàn phím hiển thị trên khung ngoài.
 
 **Bản 1.13.1:** màn khởi động và Skill Center dùng cùng bảng màu trung tính; Cài đặt có khoảng cách giữa tab và nội dung, tránh viền chồng nhau. Các số tổng quan và phân tích đếm lên khi mở tab hoặc thay đổi dữ liệu, dừng đúng giá trị thực và không chạy lại khi polling không đổi.
@@ -87,6 +89,8 @@ npm start
 
 `npm run build` kiểm tra cú pháp các module; nó không thay thế kiểm thử chức năng. Thiết lập Windows runtime và tunnel dùng launcher/công cụ cài đặt của dự án. Các thư mục `.local-data`, `.runtime`, log, dữ liệu chat và khóa là dữ liệu riêng của máy, không đưa vào Git hay chia sẻ công khai.
 
+Chạy từ source sử dụng bộ đếm JavaScript khi thiếu addon. Người đóng gói có thể chạy `rust/Build-WindowsPackage.ps1 -OutputDirectory <thư-mục>` trên Windows x64 có toolchain Rust; gói phát hành có sẵn addon và giấy phép đi kèm. `RUST_ANYTHING_MODE=old` dùng JavaScript, còn `RUST_ANYTHING_MODE=shadow` đối chiếu hai bộ đếm và chỉ cảnh báo khi kết quả lệch, không ghi nội dung được đếm.
+
 ## 🔧 Xử lý sự cố
 
 - **Repair:** vào **Bộ công cụ → Repair** để chủ động kiểm tra và kết nối lại worker. Lượt này có phép thử chụp màn hình, tệp tạm, lệnh vô hại, trạng thái runtime, skills, thiết bị và Chrome khi được bật. Không có kiểm tra desktop định kỳ. Mở **Xem kết quả từng công cụ** để xem chi tiết; kiểm tra không thao tác chuột/bàn phím hoặc chạy hành động phá hủy.
@@ -111,6 +115,8 @@ Các bước cần chủ tài khoản như đăng nhập tunnel, cấp quyền C
 ## English
 
 UmiBridge is a Windows MCP gateway for ChatGPT with a local administration dashboard. It offers owner-selected file, shell, Windows desktop and Chrome tools, plus Corp workflows and Arena Beta.
+
+Version 1.18.0 bundles a Rust token counter in the Windows x64 setup. `o200k_base` counts and history format are preserved, with a JavaScript fallback when the addon is unavailable. Analytics does less work per journal row, and Terminal refreshes session details only when the displayed data changes.
 
 Version 1.17.0 adds a Chrome background-session trial with extension 0.12.1: per-instance/tab/origin bindings, ordered actions per tab and 2-4 independent tab lanes. Tools → Chrome sessions includes an explicit two-tab local demo and owned-tab cleanup. Sessions are memory-only; repair never replays unconfirmed actions. Tabs in one browser profile share login state. This feature does not isolate Windows desktop input. Reload the existing extension and refresh the ChatGPT connector after updating.
 

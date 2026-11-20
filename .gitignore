@@ -34,3 +34,5 @@ scripts/prepare-arena-sprites.py
 assets/umibridge-banner.svg
 
 /scripts/vendor/*.tgz
+/scripts/native/*.node
+/rust/umi-tokenizer/target/

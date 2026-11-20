@@ -4,16 +4,13 @@ import { createInterface } from 'node:readline';
 import { homedir } from 'node:os';
 import { dirname, join, win32 } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { Tiktoken } from 'js-tiktoken/lite';
-import o200k from 'js-tiktoken/ranks/o200k_base';
 import { readUsageReport } from './usage-analytics.mjs';
-
-const tokenizer = new Tiktoken(o200k);
+import { countOrdinaryTokens } from './tokenizer.mjs';
 
 export function countTextTokens(value) {
   const text = String(value ?? '');
   if (text.length > 65_536 || /[^\s]{4096}/u.test(text)) return null;
-  try { return tokenizer.encode(text, [], []).length; } catch { return null; }
+  try { return countOrdinaryTokens(text); } catch { return null; }
 }
 
 const MAX_ENTRIES = 500;
@@ -68,8 +65,8 @@ function estimateUsage(toolName, args, result) {
   const base = { ...bytes, estimated: true, method: 'o200k_base', scope: 'text-tool-payloads', providerReported: null };
   if (skipped) return { ...base, inputTokens: null, outputTokens: null, totalTokens: null, skipped: 'payload-size' };
   try {
-    const inputTokens = tokenizer.encode(input, [], []).length;
-    const outputTokens = tokenizer.encode(output, [], []).length;
+    const inputTokens = countOrdinaryTokens(input);
+    const outputTokens = countOrdinaryTokens(output);
     return { ...base, inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
   } catch {
     return { ...base, inputTokens: null, outputTokens: null, totalTokens: null, skipped: 'tokenizer-error' };

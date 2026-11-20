@@ -1,3 +1,7 @@
+# Native tokenizer
+
+Windows x64 releases bundle a Rust Node-API addon with NAPI-RS and tiktoken-rs. The application uses the original JavaScript token splitter and the O200K vocabulary. Complete third-party notices are shipped in `scripts/native/TOKENIZER_LICENSES.txt` and kept beside the crate source.
+
 # Pixel Agents
 
 The optional UmiBridge Corp office reuses character and furniture PNG sprites from [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents), pinned at `b1bafd02896d90d83457266575a1e8e5011ce997`.
